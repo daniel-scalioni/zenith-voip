@@ -1,0 +1,86 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "title": "Zenith AI Audio Hub",
+  "uid": "zenith-ai-hub",
+  "panels": [
+    {
+      "title": "STT Latency (p50/p99)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(stt_latency_ms_bucket[5m])) by (le, provider))",
+          "legendFormat": "p50 - {{provider}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(stt_latency_ms_bucket[5m])) by (le, provider))",
+          "legendFormat": "p99 - {{provider}}"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "title": "STT Fallback Rate",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(stt_fallback_total[5m])",
+          "legendFormat": "fallbacks/s"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0}
+    },
+    {
+      "title": "Active Calls",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "calls_active",
+          "legendFormat": "calls"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0}
+    },
+    {
+      "title": "Consensus Decisions",
+      "type": "piechart",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(consensus_decisions_total[5m])",
+          "legendFormat": "{{decision}}"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "title": "LLM Inference Latency",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(llm_inference_latency_ms_bucket[5m])) by (le, model))",
+          "legendFormat": "p95 - {{model}}"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 8, "y": 8}
+    },
+    {
+      "title": "Call Duration Distribution",
+      "type": "histogram",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(call_duration_seconds_bucket[1h])",
+          "legendFormat": "{{le}}s"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

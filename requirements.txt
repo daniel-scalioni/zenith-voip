@@ -1,0 +1,54 @@
+# AI Audio Hub - Zenith VoIP
+# Core
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.3
+pydantic-settings==2.7.0
+
+# Async / Workers
+arq==0.26.1
+httpx==0.28.1
+websockets==14.1
+
+# AI / LangGraph
+langgraph==0.2.60
+langgraph-checkpoint-redis==0.1.0
+langchain-ollama==0.2.2
+langchain-community==0.3.14
+
+# STT
+deepgram-sdk==3.7.0
+
+# TTS
+piper-tts==1.2.0
+
+# Telephony (FreeSWITCH ESL)
+greenswitch==1.1.0
+
+# Database
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+psycopg2-binary==2.9.10
+
+# Redis
+redis[hiredis]==5.2.1
+redis-streams==0.6.0
+
+# NLP / Extraction
+spacy==3.8.3
+python-brasilcpf==2.0.0
+
+# Observability
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-instrumentation-fastapi==0.50b0
+opentelemetry-exporter-otlp==1.29.0
+prometheus-client==0.21.1
+
+# Utils
+python-multipart==0.0.19
+python-jose[cryptography]==3.3.0
+pyjwt==2.10.1
+tenacity==9.0.0
+orjson==3.10.12

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<include>
+  <context name="default">
+    <extension name="bypass_to_pbx">
+      <condition field="destination_number" expression="^(\d+)$">
+        <action application="set" data="bypass_media=true"/>
+        <action application="bridge" data="sofia/external/${destination_number}@${pbx_host}"/>
+      </condition>
+    </extension>
+
+    <extension name="zenith_audio_fork">
+      <condition field="destination_number" expression="^(\d+)$">
+        <action application="answer"/>
+        <action application="set" data="zenith_call_id=${uuid}"/>
+        <action application="set" data="audio_fork_dest=ws://zenith-api-1:8000/audio-stream"/>
+        <action application="start_dtmf"/>
+        <action application="mod_audio_fork" data="ws://zenith-api-1:8000/audio-stream start ${uuid} both"/>
+        <action application="bridge" data="sofia/external/${destination_number}@${pbx_host}"/>
+      </condition>
+    </extension>
+
+    <extension name="playback_filler">
+      <condition field="destination_number" expression="^play:filler$">
+        <action application="answer"/>
+        <action application="playback" data="${sound_prefix}/zenith/filler.wav"/>
+      </condition>
+    </extension>
+  </context>
+</include>

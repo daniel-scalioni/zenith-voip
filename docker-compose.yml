@@ -1,0 +1,244 @@
+version: "3.9"
+
+networks:
+  ai-hub-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  ollama_data:
+  piper_models:
+
+services:
+  # ── Telephony ──────────────────────────────────────────────
+  freeswitch:
+    image: safarov/freeswitch:1.10.12
+    container_name: freeswitch
+    network_mode: host
+    volumes:
+      - ./freeswitch/conf:/etc/freeswitch
+      - ./audio:/usr/share/freeswitch/sounds/zenith
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+      - SYS_RESOURCE
+    environment:
+      - TZ=America/Sao_Paulo
+    restart: unless-stopped
+
+  # ── Backend ────────────────────────────────────────────────
+  fastapi-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zenith-api-1
+    hostname: zenith-api-1
+    networks:
+      - ai-hub-net
+    ports:
+      - "8001:8000"
+    env_file: .env
+    environment:
+      - INSTANCE_ID=1
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - FREESWITCH_ESL_HOST=172.20.0.1
+      - FREESWITCH_ESL_PORT=8021
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  fastapi-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zenith-api-2
+    hostname: zenith-api-2
+    networks:
+      - ai-hub-net
+    ports:
+      - "8002:8000"
+    env_file: .env
+    environment:
+      - INSTANCE_ID=2
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - FREESWITCH_ESL_HOST=172.20.0.1
+      - FREESWITCH_ESL_PORT=8021
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── WAF / Load Balancer ────────────────────────────────────
+  bunkerweb:
+    image: bunkerity/bunkerweb:1.5.12
+    container_name: bunkerweb
+    networks:
+      - ai-hub-net
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SERVER_NAME=zenith.local
+      - USE_REVERSE_PROXY=yes
+      - REVERSE_PROXY_URL=/
+      - REVERSE_PROXY_HOST=http://fastapi-1:8000
+      - MULTISITE=yes
+      - API_WHITELIST_IP=172.20.0.0/16
+      - USE_CUSTOM_HEADERS=yes
+      - CUSTOM_HEADERS=X-Call-ID $http_x_call_id
+      - STICKY_SESSION=yes
+      - STICKY_SESSION_NAME=X-Call-ID
+    volumes:
+      - ./bunkerweb:/etc/bunkerweb/configs
+    depends_on:
+      - fastapi-1
+      - fastapi-2
+    restart: unless-stopped
+
+  # ── Database ───────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: zenith-postgres
+    networks:
+      - ai-hub-net
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=zenith
+      - POSTGRES_PASSWORD=zenith
+      - POSTGRES_DB=zenith
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zenith"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: zenith-redis
+    networks:
+      - ai-hub-net
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ── AI Services ────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:0.5.7
+    container_name: zenith-ollama
+    networks:
+      - ai-hub-net
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  piper-tts:
+    image: rhasspy/piper-tts:2023.11.14
+    container_name: zenith-piper
+    networks:
+      - ai-hub-net
+    ports:
+      - "5000:5000"
+    volumes:
+      - piper_models:/usr/share/piper/voices
+    command: ["python3", "-m", "piper.http_server", "--port", "5000"]
+    restart: unless-stopped
+
+  # ── Observability ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: zenith-prometheus
+    networks:
+      - ai-hub-net
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: zenith-grafana
+    networks:
+      - ai-hub-net
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=zenith
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: zenith-loki
+    networks:
+      - ai-hub-net
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped

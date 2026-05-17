@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/niclasdotjs/tauri/dev/core/tauri-config-schema/schema.json",
+  "productName": "Zenith AI Hub",
+  "version": "1.0.0",
+  "identifier": "com.zenith.ai-hub",
+  "build": {
+    "frontendDist": "../src",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Zenith AI Hub",
+        "width": 320,
+        "height": 500,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "decorations": true,
+        "transparent": true,
+        "skipTaskbar": false
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "systemTray": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

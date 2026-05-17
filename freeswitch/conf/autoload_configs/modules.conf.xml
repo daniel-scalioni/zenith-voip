@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration name="modules.conf" description="Modules">
+  <modules>
+    <load module="mod_sofia"/>
+    <load module="mod_audio_fork"/>
+    <load module="mod_dptools"/>
+    <load module="mod_esl"/>
+    <load module="mod_commands"/>
+    <load module="mod_conference"/>
+    <load module="mod_dialplan_xml"/>
+    <load module="mod_spandsp"/>
+    <load module="mod_g729"/>
+    <load module="mod_tone_stream"/>
+    <load module="mod_local_stream"/>
+    <load module="mod_sndfile"/>
+    <load module="mod_native_file"/>
+  </modules>
+</configuration>

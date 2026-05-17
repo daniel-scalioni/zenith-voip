@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zenith AI Hub</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: rgba(18, 18, 30, 0.95);
+      color: #e0e0e0;
+      user-select: none;
+      overflow: hidden;
+    }
+    .container {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #7c7cff;
+    }
+    .status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: #1a4a1a;
+      color: #4caf50;
+    }
+    .status.disconnected { background: #4a1a1a; color: #f44336; }
+    .status.fallback { background: #4a3a1a; color: #ff9800; }
+    .controls {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 6px 12px;
+      border: 1px solid #3a3a5a;
+      border-radius: 6px;
+      background: #2a2a4a;
+      color: #c0c0e0;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #3a3a5a; }
+    .btn.active { background: #2a4a2a; border-color: #4caf50; color: #4caf50; }
+    .btn.danger { border-color: #f44336; color: #f44336; }
+    .btn.danger:hover { background: #4a1a1a; }
+    .checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .checklist::-webkit-scrollbar { width: 4px; }
+    .checklist::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 2px; }
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      background: #1e1e36;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .check-item .icon { width: 16px; text-align: center; }
+    .check-item.done { opacity: 0.6; }
+    .check-item.done .text { text-decoration: line-through; }
+    .check-item .text { flex: 1; }
+    .transcript {
+      padding: 8px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      font-size: 11px;
+      min-height: 40px;
+      max-height: 80px;
+      overflow-y: auto;
+      color: #a0a0c0;
+      margin-top: 4px;
+    }
+    .alert-banner {
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      display: none;
+    }
+    .alert-banner.warning { display: block; background: #4a3a1a; color: #ff9800; }
+    .alert-banner.danger { display: block; background: #4a1a1a; color: #f44336; }
+    .alert-banner.info { display: block; background: #1a2a4a; color: #4a9eff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="title">Zenith AI Hub</span>
+      <span class="status" id="status-badge">Standby</span>
+    </div>
+
+    <div id="alert-banner" class="alert-banner"></div>
+
+    <div class="controls">
+      <button class="btn" id="btn-copilot" onclick="toggleCopilot()">🎧 Copiloto</button>
+      <button class="btn" id="btn-pause" onclick="togglePause()">⏸ Pausar</button>
+    </div>
+
+    <div id="checklist" class="checklist">
+      <div class="check-item"><span class="icon">⬜</span><span class="text">Aguardando chamada...</span></div>
+    </div>
+
+    <div id="transcript" class="transcript">🌙 Aguardando áudio...</div>
+  </div>
+
+  <script src="ws-client.js"></script>
+</body>
+</html>

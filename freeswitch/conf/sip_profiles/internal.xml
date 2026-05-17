@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<include>
+  <profile name="internal">
+    <settings>
+      <param name="debug" value="0"/>
+      <param name="sip-port" value="5060"/>
+      <param name="sip-port" value="5061"/>
+      <param name="tls-only" value="false"/>
+      <param name="tls-version" value="tlsv1.2,tlsv1.3"/>
+      <param name="tls-cert-dir" value="/etc/freeswitch/tls"/>
+      <param name="tls-certificate" value="/etc/freeswitch/tls/tls.crt"/>
+      <param name="tls-private-key" value="/etc/freeswitch/tls/tls.key"/>
+      <param name="ext-rtp-ip" value="$${external_rtp_ip}"/>
+      <param name="ext-sip-ip" value="$${external_sip_ip}"/>
+      <param name="rtp-ip" value="$${local_ip}"/>
+      <param name="sip-ip" value="$${local_ip}"/>
+
+      <param name="auth-calls" value="false"/>
+      <param name="apply-nat-acl" value="rfc1918"/>
+      <param name="aggressive-nat-detection" value="true"/>
+
+      <param name="enable-soa" value="true"/>
+      <param name="enable-timer" value="false"/>
+      <param name="session-timeout" value="1800"/>
+      <param name="media-timeout" value="600"/>
+
+      <param name="rtp-auto-adjust-timeout" value="true"/>
+      <param name="rtp-auto-adjust" value="true"/>
+
+      <param name="dtmf-type" value="rfc2833"/>
+
+      <param name="inbound-codec-negotiation" value="generous"/>
+      <param name="inbound-codec-prefs" value="$${global_codec_prefs}"/>
+      <param name="outbound-codec-prefs" value="$${global_codec_prefs}"/>
+      <param name="media-handle-as-sofia" value="true"/>
+    </settings>
+
+    <aliases>
+      <alias name="internal"/>
+    </aliases>
+
+    <domains>
+      <domain name="$${domain}" alias="true" parse="false"/>
+    </domains>
+
+    <gateways>
+      <X-PRE-PROCESS cmd="include" data="internal/*.xml"/>
+    </gateways>
+  </profile>
+</include>
