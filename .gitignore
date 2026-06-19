@@ -3,13 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 .env
+.env.staging
+.env.production
 .pytest_cache/
 .coverage
 htmlcov/
 dist/
 build/
 *.egg-info/
+revisions.json
 
 # Reversa
 .reversa/config.user.toml
-specs/

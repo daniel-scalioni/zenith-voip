@@ -1,0 +1,36 @@
+<header class="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">
+    <div class="absolute inset-0 pointer-events-none"
+        style="background-image: radial-gradient(circle at 20% 80%, rgba(0, 229, 255, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(0, 229, 255, 0.05) 0%, transparent 50%);">
+    </div>
+    <div class="text-center relative z-10" data-aos="fade-down">
+        <span
+            class="inline-block bg-[#00E5FF] text-black text-sm font-bold px-4 py-2 rounded-full mb-6">[TIPO_CONTEUDO]</span>
+        <h1 class="text-5xl md:text-6xl font-bold mb-4 font-heading">[TITULO_PRINCIPAL]</h1>
+        <p class="text-xl text-white/90 max-w-3xl mx-auto mb-8">[SUBTITULO]</p>
+
+        <!-- Opcional-->
+        <div class="text-7xl md:text-8xl font-black primary-color" data-aos="zoom-in" data-aos-delay="200">
+            [DESTAQUE_NUMERICO]%</div>
+
+        <!-- Logo Akom -->
+        <div class="mt-12 flex items-center justify-center gap-3" data-aos="fade-up" data-aos-delay="300">
+            <img src="output/assets_general/logo_akom_branco.png" alt="Akom" class="h-10 opacity-80">
+            <span class="text-white/40 text-sm tracking-widest uppercase hidden md:block">tecnologia que te protege</span>
+        </div>
+    </div>
+
+    <!-- Botão "Começar" — navega ao primeiro card -->
+    <button
+        class="absolute bottom-8 right-8 flex flex-col items-center gap-2 cursor-pointer bg-transparent border-none group"
+        id="header-next-btn" aria-label="Ir para o primeiro card"
+        style="animation: scroll-bounce 2s ease-in-out infinite;">
+        <span
+            class="text-[10px] uppercase tracking-[4px] text-white/30 font-medium group-hover:text-[#00E5FF] transition-colors">Iniciar</span>
+        <div
+            class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-[#00E5FF]/20 transition-all">
+            <i data-lucide="chevron-down"
+                class="w-5 h-5 text-white/40 group-hover:text-[#00E5FF] transition-colors"></i>
+        </div>
+    </button>
+</header>
+<main class="container mx-auto px-4 py-20 flex flex-col items-center gap-[60vh]">

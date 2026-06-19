@@ -1,0 +1,99 @@
+{
+  "generated_at": "2026-06-19T15:10:00Z",
+  "project_root": "/app/zenith-voip",
+  "project_name": "Zenith AI Audio Hub",
+  "version": "1.0.0",
+  "languages": [
+    { "name": "Python", "extensions": [".py"], "file_count": 45 },
+    { "name": "Rust", "extensions": [".rs"], "file_count": 1 },
+    { "name": "JavaScript", "extensions": [".js"], "file_count": 2 },
+    { "name": "HTML", "extensions": [".html"], "file_count": 2 },
+    { "name": "Shell", "extensions": [".sh"], "file_count": 3 },
+    { "name": "XML", "extensions": [".xml"], "file_count": 3 },
+    { "name": "YAML", "extensions": [".yml", ".yaml"], "file_count": 5 },
+    { "name": "JSON", "extensions": [".json"], "file_count": 7 },
+    { "name": "Markdown", "extensions": [".md"], "file_count": 4 }
+  ],
+  "primary_language": "Python",
+  "frameworks": [
+    { "name": "FastAPI", "version": "0.115.6", "source": "requirements.txt" },
+    { "name": "SQLAlchemy", "version": "2.0.36", "source": "requirements.txt" },
+    { "name": "LangGraph", "version": "0.2.60", "source": "requirements.txt" },
+    { "name": "Tauri", "version": "latest", "source": "widget/src-tauri/tauri.conf.json" },
+    { "name": "Alembic", "version": "1.14.0", "source": "requirements.txt" },
+    { "name": "ARQ", "version": "0.26.1", "source": "requirements.txt" }
+  ],
+  "package_manager": "pip",
+  "entry_points": [
+    { "path": "src/main.py", "type": "app_entry", "description": "FastAPI application entry point (uvicorn)" },
+    { "path": "Dockerfile", "type": "docker_entry", "description": "CMD uvicorn src.main:app --host 0.0.0.0 --port 8000" },
+    { "path": "bootstrap.sh", "type": "setup_script", "description": "Development environment bootstrap" },
+    { "path": "deploy.sh", "type": "deploy_script", "description": "Automated deployment with revision control" }
+  ],
+  "config_files": [
+    ".env.production.example",
+    ".env.staging.example",
+    "alembic.ini",
+    "prometheus.yml",
+    "docker-compose.yml",
+    "docker-compose.app.yml",
+    "docker-compose.infra.yml",
+    "Dockerfile"
+  ],
+  "ci_cd": [],
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "compose": ["docker-compose.yml", "docker-compose.app.yml", "docker-compose.infra.yml"]
+  },
+  "database_hints": [
+    { "path": "src/database/models.py", "type": "sqlalchemy_models" },
+    { "path": "alembic/versions/", "type": "migrations_dir" },
+    { "path": "alembic/versions/001_initial.py", "type": "migration" },
+    { "path": "alembic/versions/002_tenants_pbxs.py", "type": "migration" },
+    { "path": "alembic/versions/003_tenant_schema_tables.py", "type": "migration" }
+  ],
+  "test_framework": "pytest",
+  "test_file_count": 7,
+  "modules": [
+    "api",
+    "ai",
+    "audio",
+    "database",
+    "events",
+    "extraction",
+    "observability",
+    "services",
+    "telephony",
+    "workers",
+    "widget",
+    "infra"
+  ],
+  "integrations": [
+    { "name": "Deepgram", "type": "stt", "cloud": true },
+    { "name": "Ollama (Mistral 7B)", "type": "llm", "cloud": false },
+    { "name": "Piper TTS", "type": "tts", "cloud": false },
+    { "name": "FreeSWITCH ESL", "type": "telephony", "cloud": false },
+    { "name": "PostgreSQL 16", "type": "database", "cloud": false },
+    { "name": "Redis 7", "type": "cache_streams", "cloud": false },
+    { "name": "S3-compatible", "type": "storage", "cloud": true },
+    { "name": "OpenTelemetry", "type": "observability", "cloud": false },
+    { "name": "Prometheus", "type": "metrics", "cloud": false },
+    { "name": "Grafana + Loki", "type": "dashboards_logs", "cloud": false }
+  ],
+  "total_files": 71,
+  "organization_suggestion": {
+    "granularity": "hybrid",
+    "rationale": "Estrutura de pastas organizada por domínio (api, ai, audio, database, etc.) combinada com roteamento centralizado via FastAPI (src/api/routers/). Ambos os sinais têm peso equivalente.",
+    "signals": [
+      {
+        "type": "top_level_domain_folders",
+        "evidence": ["src/api/", "src/ai/", "src/audio/", "src/database/", "src/events/", "src/extraction/", "src/observability/", "src/services/", "src/telephony/", "src/workers/"]
+      },
+      {
+        "type": "centralized_routing",
+        "evidence": ["src/api/routers/pbxs.py", "src/main.py"]
+      }
+    ],
+    "features": []
+  }
+}

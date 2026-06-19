@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <include>
   <context name="default">
+
+    <extension name="registration_forwarding">
+      <condition field="sip_from_user" expression="^(\d+)$">
+        <action application="log" data="INFO Proxy REGISTER from ${sip_from_user}@${sip_from_host}"/>
+        <action application="set" data="sip_forward_host=${pbx_host}"/>
+      </condition>
+    </extension>
+
     <extension name="bypass_to_pbx">
       <condition field="destination_number" expression="^(\d+)$">
         <action application="set" data="bypass_media=true"/>
@@ -12,10 +20,23 @@
       <condition field="destination_number" expression="^(\d+)$">
         <action application="answer"/>
         <action application="set" data="zenith_call_id=${uuid}"/>
+        <action application="set" data="zenith_tenant_id=${tenant_id}"/>
+        <action application="set" data="zenith_pbx_id=${pbx_id}"/>
+        <action application="set" data="zenith_agent_extension=${sip_from_user}"/>
         <action application="set" data="audio_fork_dest=ws://zenith-api-1:8000/audio-stream"/>
         <action application="start_dtmf"/>
         <action application="mod_audio_fork" data="ws://zenith-api-1:8000/audio-stream start ${uuid} both"/>
         <action application="bridge" data="sofia/external/${destination_number}@${pbx_host}"/>
+      </condition>
+    </extension>
+
+    <extension name="manual_linkage">
+      <condition field="destination_number" expression="^\*88$">
+        <action application="answer"/>
+        <action application="log" data="INFO Manual linkage request from ${sip_from_user} at ${sip_from_host}"/>
+        <action application="playback" data="tone_stream://%%(100,0,440)"/>
+        <action application="sleep" data="500"/>
+        <action application="hangup"/>
       </condition>
     </extension>
 
@@ -25,5 +46,6 @@
         <action application="playback" data="${sound_prefix}/zenith/filler.wav"/>
       </condition>
     </extension>
+
   </context>
 </include>

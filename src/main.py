@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from src._version import __version__
 from src.config import settings
 from src.api.rate_limit import rate_limit_middleware
+from src.api.routers import pbxs
 
 
 @asynccontextmanager
@@ -13,11 +15,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Zenith AI Audio Hub",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
 app.middleware("http")(rate_limit_middleware)
+app.include_router(pbxs.router)
 
 
 @app.get("/health")

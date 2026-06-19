@@ -1,0 +1,215 @@
+{
+  "generated_at": "2026-06-19T15:10:00Z",
+  "project": "zenith-voip",
+  "modules": [
+    {
+      "name": "api",
+      "path": "src/api/",
+      "purpose": "Interface REST + WebSocket para agent assist, autenticação JWT, rate limiting, CRUD de PBXs",
+      "primary_files": ["src/api/auth.py", "src/api/rate_limit.py", "src/api/routers/pbxs.py", "src/api/webhooks.py", "src/api/websockets.py"],
+      "functions": [
+        {"name": "create_access_token", "file": "src/api/auth.py", "params": ["subject", "tenant_id", "role", "expires_delta"], "returns": "str (JWT)", "confidence": "confirmed"},
+        {"name": "verify_token", "file": "src/api/auth.py", "params": ["credentials"], "returns": "dict", "confidence": "confirmed"},
+        {"name": "require_admin_role", "file": "src/api/auth.py", "params": ["payload"], "returns": "dict", "confidence": "confirmed"},
+        {"name": "create_pbx", "file": "src/api/routers/pbxs.py", "params": ["data", "payload", "db"], "returns": "PBXResponse", "confidence": "confirmed"},
+        {"name": "list_pbxs", "file": "src/api/routers/pbxs.py", "params": ["payload", "db"], "returns": "List[PBXResponse]", "confidence": "confirmed"},
+        {"name": "handle_forked_stream", "file": "src/audio/ingestor.py", "params": ["call_id", "websocket"], "returns": "None", "confidence": "confirmed"}
+      ],
+      "entities": [
+        {"name": "PBXCreate", "fields": [{"name": "name", "type": "str"}, {"name": "host", "type": "str"}, {"name": "port", "type": "int"}], "confidence": "confirmed"},
+        {"name": "PBXResponse", "fields": [{"name": "id", "type": "str"}, {"name": "tenant_id", "type": "str"}, {"name": "name", "type": "str"}, {"name": "host", "type": "str"}, {"name": "port", "type": "int"}, {"name": "created_at", "type": "str"}], "confidence": "confirmed"}
+      ],
+      "business_rules": [
+        {"description": "Apenas tenant_admin pode gerenciar PBXs", "location": "src/api/auth.py:35-40", "confidence": "confirmed"},
+        {"description": "Rate limit: 100 req/60s por IP", "location": "src/api/rate_limit.py:7-8", "confidence": "confirmed"}
+      ],
+      "dependencies": ["database", "events", "extraction"],
+      "algorithms": ["SIP Auto-Link via IP do WebSocket"],
+      "complexity": "medium"
+    },
+    {
+      "name": "ai",
+      "path": "src/ai/",
+      "purpose": "Detecção de anomalias de tom e grafo de consenso LangGraph para validação de entidades",
+      "primary_files": ["src/ai/anomaly_detector.py", "src/ai/consensus_graph.py", "src/ai/pops_cache.py"],
+      "functions": [
+        {"name": "analyze", "file": "src/ai/anomaly_detector.py", "params": ["call_id", "text", "speaker"], "returns": "dict", "confidence": "confirmed"},
+        {"name": "run", "file": "src/ai/consensus_graph.py", "params": ["call_id", "transcript", "sentiment", "sentiment_score"], "returns": "dict", "confidence": "confirmed"}
+      ],
+      "entities": [
+        {"name": "AgentState", "fields": [{"name": "call_id", "type": "str"}, {"name": "transcript", "type": "str"}, {"name": "entities", "type": "dict"}, {"name": "sentiment", "type": "str"}, {"name": "sentiment_score", "type": "float"}, {"name": "final_decision", "type": "str"}, {"name": "iteration", "type": "int"}], "confidence": "confirmed"}
+      ],
+      "business_rules": [
+        {"description": "Alerta de anomalia se score >= 3", "location": "src/ai/anomaly_detector.py:29", "confidence": "confirmed"},
+        {"description": "Consenso rejeitado se sentiment < -0.3", "location": "src/ai/consensus_graph.py:65", "confidence": "confirmed"},
+        {"description": "Máximo 3 iterações no grafo de consenso", "location": "src/ai/consensus_graph.py:71", "confidence": "confirmed"}
+      ],
+      "dependencies": ["extraction", "api"],
+      "algorithms": ["Fury Score (13 keywords)", "Consensus Graph (LangGraph 3 nós)", "Stress Pattern Detection"],
+      "complexity": "medium"
+    },
+    {
+      "name": "audio",
+      "path": "src/audio/",
+      "purpose": "Ingestão de streams de áudio forked do FreeSWITCH via WebSocket",
+      "primary_files": ["src/audio/ingestor.py"],
+      "functions": [
+        {"name": "handle_forked_stream", "file": "src/audio/ingestor.py", "params": ["call_id", "websocket"], "returns": "None", "confidence": "confirmed"}
+      ],
+      "entities": [{"name": "AudioChunk", "fields": [{"name": "call_id", "type": "str"}, {"name": "channel", "type": "str"}, {"name": "data", "type": "bytes"}, {"name": "timestamp", "type": "float"}], "confidence": "confirmed"}],
+      "business_rules": [
+        {"description": "Metadados do stream registrados no CHANNEL_ANSWER", "location": "src/audio/ingestor.py:63-68", "confidence": "confirmed"},
+        {"description": "Canal detectado como 'tx' por padrão", "location": "src/audio/ingestor.py:70-71", "confidence": "inferred"}
+      ],
+      "dependencies": ["events", "telephony"],
+      "algorithms": [],
+      "complexity": "low"
+    },
+    {
+      "name": "database",
+      "path": "src/database/",
+      "purpose": "ORM, conexão PostgreSQL, multitenancy físico por schema",
+      "primary_files": ["src/database/database.py", "src/database/models.py"],
+      "entities": [
+        {"name": "Tenant", "fields": [{"name": "id", "type": "UUID"}, {"name": "name", "type": "String"}, {"name": "schema_name", "type": "String"}, {"name": "status", "type": "String"}], "confidence": "confirmed"},
+        {"name": "PBX", "fields": [{"name": "id", "type": "UUID"}, {"name": "tenant_id", "type": "UUID"}, {"name": "name", "type": "String"}, {"name": "host", "type": "String"}, {"name": "port", "type": "Integer"}], "confidence": "confirmed"},
+        {"name": "Call", "fields": [{"name": "id", "type": "UUID"}, {"name": "call_id", "type": "String"}, {"name": "direction", "type": "CallDirection"}, {"name": "status", "type": "CallStatus"}], "confidence": "confirmed"},
+        {"name": "Transcript", "fields": [{"name": "id", "type": "UUID"}, {"name": "call_id", "type": "UUID"}, {"name": "channel", "type": "String"}, {"name": "text", "type": "Text"}, {"name": "confidence", "type": "Float"}, {"name": "start_time", "type": "Float"}, {"name": "end_time", "type": "Float"}], "confidence": "confirmed"},
+        {"name": "CallInsight", "fields": [{"name": "id", "type": "UUID"}, {"name": "call_id", "type": "UUID"}, {"name": "sentiment", "type": "String"}, {"name": "anomaly_detected", "type": "Boolean"}], "confidence": "confirmed"},
+        {"name": "STTMetric", "fields": [{"name": "id", "type": "UUID"}, {"name": "provider", "type": "String"}, {"name": "latency_ms", "type": "Float"}, {"name": "success", "type": "Boolean"}, {"name": "fallback_activated", "type": "Boolean"}], "confidence": "confirmed"}
+      ],
+      "business_rules": [
+        {"description": "Multitenancy com schema isolado por tenant", "location": "src/database/database.py:33-37", "confidence": "confirmed"},
+        {"description": "PBX pertence a um tenant (FK cascade)", "location": "src/database/models.py:44", "confidence": "confirmed"}
+      ],
+      "dependencies": [],
+      "algorithms": ["Schema-per-tenant multitenancy"],
+      "complexity": "medium"
+    },
+    {
+      "name": "events",
+      "path": "src/events/",
+      "purpose": "Event bus assíncrono via Redis Streams",
+      "primary_files": ["src/events/redis_streams.py"],
+      "functions": [
+        {"name": "publish", "file": "src/events/redis_streams.py", "params": ["stream", "event"], "returns": "str (msg_id)", "confidence": "confirmed"},
+        {"name": "consume", "file": "src/events/redis_streams.py", "params": ["stream", "group", "consumer", "count", "block"], "returns": "list[tuple]", "confidence": "confirmed"}
+      ],
+      "entities": [],
+      "business_rules": [],
+      "dependencies": [],
+      "algorithms": [],
+      "complexity": "low"
+    },
+    {
+      "name": "extraction",
+      "path": "src/extraction/",
+      "purpose": "Extração de dados por regex e correção contextual via LLM local (Ollama)",
+      "primary_files": ["src/extraction/regex_layer.py", "src/extraction/llm_layer.py"],
+      "functions": [
+        {"name": "extract", "file": "src/extraction/regex_layer.py", "params": ["text"], "returns": "dict[str, list[dict]]", "confidence": "confirmed"},
+        {"name": "has_suspicion", "file": "src/extraction/regex_layer.py", "params": ["text"], "returns": "bool", "confidence": "confirmed"},
+        {"name": "sanitize", "file": "src/extraction/llm_layer.py", "params": ["raw_value", "entity_type", "context"], "returns": "dict", "confidence": "confirmed"}
+      ],
+      "entities": [],
+      "business_rules": [
+        {"description": "CPF, RG e placa disparam suspeita", "location": "src/extraction/regex_layer.py:32-35", "confidence": "confirmed"},
+        {"description": "Cartão de crédito é sensitive (sanitização obrigatória)", "location": "src/extraction/regex_layer.py:15", "confidence": "confirmed"}
+      ],
+      "dependencies": [],
+      "algorithms": ["Regex extraction (6 patterns)", "LLM contextual correction"],
+      "complexity": "low"
+    },
+    {
+      "name": "observability",
+      "path": "src/observability/",
+      "purpose": "OpenTelemetry, Prometheus metrics e dashboards",
+      "primary_files": ["src/observability/telemetry.py", "src/utils/telemetry.py"],
+      "business_rules": [],
+      "dependencies": [],
+      "algorithms": ["16 Prometheus metrics for STT, LLM, calls, S3, Redis, DB"],
+      "complexity": "low"
+    },
+    {
+      "name": "services",
+      "path": "src/services/",
+      "purpose": "STT com fallback automático, TTS, Strategy/Repository patterns",
+      "primary_files": ["src/services/base.py", "src/services/stt_autofallback.py", "src/services/stt_deepgram.py", "src/services/stt_whisper.py", "src/services/tts_service.py", "src/services/tts_fallback.py"],
+      "functions": [
+        {"name": "transcribe", "file": "src/services/stt_autofallback.py", "params": ["audio_chunk"], "returns": "dict", "confidence": "confirmed"},
+        {"name": "synthesize", "file": "src/services/tts_service.py", "params": ["text", "voice", "speaker_id"], "returns": "bytes", "confidence": "confirmed"}
+      ],
+      "entities": [],
+      "business_rules": [
+        {"description": "Fallback STT se timeout > 500ms", "location": "src/services/stt_autofallback.py:14-15", "confidence": "confirmed"},
+        {"description": "Fallback STT se confidence <= 0.3", "location": "src/services/stt_autofallback.py:20", "confidence": "confirmed"},
+        {"description": "TTS fallback para WAV local se Piper falhar", "location": "src/services/tts_fallback.py:13-17", "confidence": "confirmed"}
+      ],
+      "dependencies": [],
+      "algorithms": ["AutoFallback STT (Deepgram → Whisper)", "Strategy Pattern (STT, TTS, LLM)"],
+      "complexity": "medium"
+    },
+    {
+      "name": "telephony",
+      "path": "src/telephony/",
+      "purpose": "Integração FreeSWITCH ESL, SIP mapping, whisper mode, filler audio",
+      "primary_files": ["src/telephony/esl_client.py", "src/telephony/filler_audio.py", "src/telephony/whisper_mode.py"],
+      "functions": [
+        {"name": "connect", "file": "src/telephony/esl_client.py", "params": [], "returns": "None", "confidence": "confirmed"},
+        {"name": "send_api", "file": "src/telephony/esl_client.py", "params": ["command"], "returns": "str", "confidence": "confirmed"},
+        {"name": "whisper_to_agent", "file": "src/telephony/whisper_mode.py", "params": ["call_id", "text"], "returns": "dict", "confidence": "confirmed"}
+      ],
+      "entities": [],
+      "business_rules": [
+        {"description": "Reconexão automática com backoff de 2s", "location": "src/telephony/esl_client.py:86-88", "confidence": "confirmed"},
+        {"description": "*88 é código de linkage manual", "location": "src/telephony/esl_client.py:136-137", "confidence": "confirmed"},
+        {"description": "SIP mappings expiram em 1h", "location": "src/telephony/esl_client.py:179-184", "confidence": "confirmed"}
+      ],
+      "dependencies": ["events", "audio"],
+      "algorithms": ["SIP IP Extraction (regex fallback)", "ESL Event Loop with auto-reconnect"],
+      "complexity": "high"
+    },
+    {
+      "name": "workers",
+      "path": "src/workers/",
+      "purpose": "Background workers ARQ: audio cleanup, upload, post-call, transcript persist",
+      "primary_files": ["src/workers/audio_cleanup.py", "src/workers/audio_uploader.py", "src/workers/post_call.py", "src/workers/transcript_persist.py"],
+      "business_rules": [
+        {"description": "Cleanup roda diariamente às 3h", "location": "src/workers/audio_cleanup.py:101", "confidence": "confirmed"},
+        {"description": "Retenção de áudio: 90 dias", "location": "src/workers/audio_cleanup.py:32", "confidence": "confirmed"},
+        {"description": "Delete S3 em lotes de 1000", "location": "src/workers/audio_cleanup.py:51-54", "confidence": "confirmed"}
+      ],
+      "dependencies": ["events", "database"],
+      "algorithms": ["S3 Cleanup batch delete", "Transcript buffer + flush"],
+      "complexity": "medium"
+    },
+    {
+      "name": "widget",
+      "path": "widget/",
+      "purpose": "Desktop widget Tauri para operadores (sempre-on-top, system tray)",
+      "primary_files": ["widget/src/index.html", "widget/src/ws-client.js", "widget/src-tauri/src/main.rs", "widget/src-tauri/tauri.conf.json"],
+      "business_rules": [
+        {"description": "Widget sempre-on-top", "location": "widget/src-tauri/tauri.conf.json:20", "confidence": "confirmed"},
+        {"description": "Fechar = minimizar para bandeja", "location": "widget/src-tauri/src/main.rs:43-45", "confidence": "confirmed"}
+      ],
+      "dependencies": ["api"],
+      "algorithms": [],
+      "complexity": "low"
+    },
+    {
+      "name": "infra",
+      "path": "docker-compose*.yml, Dockerfile, prometheus.yml, freeswitch/",
+      "purpose": "Infraestrutura Docker, deploy, configuração FreeSWITCH, monitoring stack",
+      "primary_files": ["docker-compose.yml", "docker-compose.app.yml", "docker-compose.infra.yml", "Dockerfile", "prometheus.yml", "deploy.sh", "bootstrap.sh"],
+      "business_rules": [
+        {"description": "Duas instâncias FastAPI para HA", "location": "docker-compose.app.yml", "confidence": "confirmed"},
+        {"description": "Sticky session via X-Call-ID (BunkerWeb)", "location": "docker-compose.app.yml:136-138", "confidence": "confirmed"},
+        {"description": "GPU reservada para Ollama", "location": "docker-compose.app.yml:158-164", "confidence": "confirmed"},
+        {"description": "FreeSWITCH em network_mode host", "location": "docker-compose.app.yml:16", "confidence": "confirmed"}
+      ],
+      "dependencies": [],
+      "algorithms": ["Deploy with revision control and rollback"],
+      "complexity": "medium"
+    }
+  ]
+}

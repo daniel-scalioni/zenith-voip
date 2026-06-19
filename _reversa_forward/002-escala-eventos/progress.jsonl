@@ -1,0 +1,15 @@
+{"ts":"2026-05-21T18:00:00Z","action":"T001","status":"done","files":["alembic/env.py","alembic/versions/002_tenants_pbxs.py","alembic/versions/003_tenant_schema_tables.py"]}
+{"ts":"2026-05-21T18:00:01Z","action":"T002","status":"done","files":["src/database/models.py"]}
+{"ts":"2026-05-21T18:00:02Z","action":"T003","status":"done","files":["src/database/database.py"]}
+{"ts":"2026-05-21T18:00:03Z","action":"T004","status":"done","files":["src/database/models.py"]}
+{"ts":"2026-05-21T18:01:00Z","action":"T005","status":"done","files":["tests/test_multitenancy.py"]}
+{"ts":"2026-05-21T18:01:01Z","action":"T006","status":"done","files":["tests/test_telephony_matching.py"]}
+{"ts":"2026-05-21T18:02:00Z","action":"T007","status":"done","files":["freeswitch/conf/dialplan/default.xml"]}
+{"ts":"2026-05-21T18:02:01Z","action":"T008","status":"done","files":["src/telephony/esl_client.py"]}
+{"ts":"2026-05-21T18:02:02Z","action":"T009","status":"done","files":["src/api/websockets.py"]}
+{"ts":"2026-05-21T18:02:03Z","action":"T010","status":"done","files":["src/telephony/esl_client.py","freeswitch/conf/dialplan/default.xml"]}
+{"ts":"2026-05-21T18:02:04Z","action":"T011","status":"done","files":["src/audio/ingestor.py","src/telephony/esl_client.py","freeswitch/conf/dialplan/default.xml"]}
+{"ts":"2026-05-21T18:03:00Z","action":"T012","status":"done","files":["src/api/routers/pbxs.py","src/api/auth.py","src/main.py"]}
+{"ts":"2026-05-21T18:03:01Z","action":"T013","status":"done","files":["src/workers/audio_uploader.py","requirements.txt"]}
+{"ts":"2026-05-21T18:04:00Z","action":"T014","status":"done","files":["src/utils/telemetry.py"]}
+{"ts":"2026-05-21T18:04:01Z","action":"T015","status":"done","files":["_reversa_forward/002-escala-eventos/onboarding.md"]}

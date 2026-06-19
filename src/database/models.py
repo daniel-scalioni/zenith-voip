@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Float, JSON, ForeignKey, Text, Enum as SAEnum
+from sqlalchemy import Column, String, DateTime, Float, JSON, ForeignKey, Text, Enum as SAEnum, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -6,6 +6,8 @@ import uuid
 import enum
 
 Base = declarative_base()
+
+TenantBase = declarative_base()
 
 
 class CallDirection(str, enum.Enum):
@@ -20,16 +22,46 @@ class CallStatus(str, enum.Enum):
     failed = "failed"
 
 
-class Call(Base):
+class Tenant(Base):
+    __tablename__ = "tenants"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(128), nullable=False)
+    schema_name = Column(String(64), unique=True, nullable=False)
+    status = Column(String(32), default="active")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    pbxs = relationship("PBX", back_populates="tenant", cascade="all, delete-orphan")
+
+
+class PBX(Base):
+    __tablename__ = "pbxs"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(128), nullable=False)
+    host = Column(String(128), nullable=False)
+    port = Column(Integer, default=5060)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", back_populates="pbxs")
+
+
+class Call(TenantBase):
     __tablename__ = "calls"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     call_id = Column(String(128), unique=True, nullable=False, index=True)
     agent_uuid = Column(String(128), nullable=True)
     customer_uuid = Column(String(128), nullable=True)
+    pbx_id = Column(UUID(as_uuid=True), nullable=True)
+    agent_sip_extension = Column(String(64), nullable=True)
     direction = Column(SAEnum(CallDirection), nullable=False)
     status = Column(SAEnum(CallStatus), default=CallStatus.in_progress)
-    tenant_id = Column(String(64), nullable=True, index=True)
     caller_number = Column(String(32), nullable=True)
     callee_number = Column(String(32), nullable=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -43,7 +75,7 @@ class Call(Base):
     insights = relationship("CallInsight", back_populates="call", cascade="all, delete-orphan")
 
 
-class Transcript(Base):
+class Transcript(TenantBase):
     __tablename__ = "transcripts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -61,7 +93,7 @@ class Transcript(Base):
     call = relationship("Call", back_populates="transcripts")
 
 
-class CallInsight(Base):
+class CallInsight(TenantBase):
     __tablename__ = "call_insights"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -79,7 +111,7 @@ class CallInsight(Base):
     call = relationship("Call", back_populates="insights")
 
 
-class STTMetric(Base):
+class STTMetric(TenantBase):
     __tablename__ = "stt_metrics"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

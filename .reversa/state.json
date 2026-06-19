@@ -1,5 +1,5 @@
 {
-  "version": "1.2.39",
+  "version": "1.2.43",
   "project": "zenith-voip",
   "user_name": "MASTER",
   "chat_language": "pt-br",
@@ -8,18 +8,105 @@
   "doc_level": "completo",
   "output_folder": "specs",
   "forward_folder": "_reversa_forward",
-  "phase": null,
-  "completed": [],
-  "pending": [
+  "phase": "completo",
+  "archaeologist_phase": "completed",
+  "completed": [
     "reconhecimento",
     "escavacao",
     "interpretacao",
     "geracao",
     "revisao"
   ],
-  "checkpoints": {},
+  "pending": [],
+  "checkpoints": {
+    "scout": {
+      "completed_at": "2026-06-19T15:10:00Z",
+      "files": [
+        "_reversa_sdd/inventory.md",
+        "_reversa_sdd/dependencies.md",
+        ".reversa/context/surface.json"
+      ]
+    },
+    "archaeologist": {
+      "completed_at": "2026-06-19T15:10:00Z",
+      "modules_analyzed": ["api", "ai", "audio", "database", "events", "extraction", "observability", "services", "telephony", "workers", "widget", "infra"],
+      "files": [
+        "_reversa_sdd/code-analysis.md",
+        "_reversa_sdd/data-dictionary.md",
+        "_reversa_sdd/api/legacy-mapping.md",
+        "_reversa_sdd/ai/legacy-mapping.md",
+        "_reversa_sdd/audio/legacy-mapping.md",
+        "_reversa_sdd/database/legacy-mapping.md",
+        "_reversa_sdd/events/legacy-mapping.md",
+        "_reversa_sdd/extraction/legacy-mapping.md",
+        "_reversa_sdd/observability/legacy-mapping.md",
+        "_reversa_sdd/services/legacy-mapping.md",
+        "_reversa_sdd/telephony/legacy-mapping.md",
+        "_reversa_sdd/workers/legacy-mapping.md",
+        "_reversa_sdd/widget/legacy-mapping.md",
+        "_reversa_sdd/infra/legacy-mapping.md",
+        "_reversa_sdd/flowcharts/api-flow.md",
+        "_reversa_sdd/flowcharts/ai-flow.md",
+        "_reversa_sdd/flowcharts/services-flow.md",
+        "_reversa_sdd/flowcharts/telephony-flow.md",
+        "_reversa_sdd/flowcharts/workers-flow.md",
+        ".reversa/context/modules.json"
+      ]
+    },
+    "detective": {
+      "completed_at": "2026-06-19T15:10:00Z",
+      "files": [
+        "_reversa_sdd/domain.md",
+        "_reversa_sdd/state-machines.md",
+        "_reversa_sdd/permissions.md",
+        "_reversa_sdd/adrs/001-multitenancy-schema-per-tenant.md",
+        "_reversa_sdd/adrs/002-stt-fallback-automatico.md",
+        "_reversa_sdd/adrs/003-dados-sensiveis-llm-local.md",
+        "_reversa_sdd/adrs/004-consenso-3-ciclos.md",
+        "_reversa_sdd/adrs/005-freewitch-esl-reconexao-automatica.md"
+      ],
+      "rules_identified": 35,
+      "adrs_generated": 5,
+      "state_machines": ["Call", "Tenant", "WebSocket Session", "Consensus"],
+      "gaps": [
+        "channel_detection: _detect_channel() retorna tx hardcoded",
+        "post_call_sentiment: analyze_sentiment() é stub",
+        "post_call_audit: audit_procedure() é stub",
+        "git_archaeology: projeto sem repositório Git local"
+      ]
+    },
+    "reviewer": {
+      "completed_at": "2026-06-19T16:30:00Z",
+      "specs_reviewed": 36,
+      "cross_review": false,
+      "reclassifications": 4,
+      "questions_answered": 3,
+      "confidence_percent": 91,
+      "files": [
+        "_reversa_sdd/confidence-report.md",
+        "_reversa_sdd/questions.md",
+        "_reversa_sdd/gaps.md",
+        "_reversa_forward/001-ai-audio-hub/regression-watch.md",
+        "_reversa_forward/002-escala-eventos/regression-watch.md"
+      ]
+    },
+    "architect": {
+      "completed_at": "2026-06-19T15:20:00Z",
+      "files": [
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/c4-context.md",
+        "_reversa_sdd/c4-containers.md",
+        "_reversa_sdd/c4-components.md",
+        "_reversa_sdd/erd-complete.md",
+        "_reversa_sdd/traceability/spec-impact-matrix.md"
+      ],
+      "c4_levels": ["context", "containers", "components"],
+      "entities_documented": 6,
+      "dependencies_identified": 10,
+      "tech_debt_items": 10
+    }
+  },
   "engines": [
-    "codex",
     "antigravity",
     "opencode"
   ],
@@ -53,10 +140,30 @@
     "reversa-coding",
     "reversa-principles",
     "reversa-resume",
+    "reversa-new",
+    "reversa-ideator",
+    "reversa-researcher",
+    "reversa-drafter",
+    "reversa-spec-sdd",
     "reversa-pricing-profile",
     "reversa-pricing-size",
-    "reversa-pricing-estimate"
+    "reversa-pricing-estimate",
+    "reversa-docs",
+    "reversa-docs-mapper",
+    "reversa-docs-analyst",
+    "reversa-docs-storyteller",
+    "reversa-docs-publisher",
+    "reversa-arquitetura-3d",
+    "reversa-selo-generativo",
+    "reversa-highcharts-visualizer",
+    "reversa-especialista-d3",
+    "reversa-image-prompt-json"
   ],
+  "redator_progress": {
+    "generated_count": 36,
+    "modules_completed": ["api", "ai", "audio", "database", "events", "extraction", "observability", "services", "telephony", "workers", "widget", "infra"],
+    "current_phase": "globals"
+  },
   "created_files": [
     ".agents/skills/reversa",
     ".agents/skills/reversa-scout",
@@ -109,6 +216,21 @@
     ".reversa/plan.md",
     ".reversa/version",
     ".reversa/_config/manifest.yaml",
-    ".agents/skills/reversa-forward"
+    ".agents/skills/reversa-forward",
+    ".agents/skills/reversa-new",
+    ".agents/skills/reversa-ideator",
+    ".agents/skills/reversa-researcher",
+    ".agents/skills/reversa-drafter",
+    ".agents/skills/reversa-spec-sdd",
+    ".agents/skills/reversa-docs",
+    ".agents/skills/reversa-docs-mapper",
+    ".agents/skills/reversa-docs-analyst",
+    ".agents/skills/reversa-docs-storyteller",
+    ".agents/skills/reversa-docs-publisher",
+    ".agents/skills/reversa-arquitetura-3d",
+    ".agents/skills/reversa-selo-generativo",
+    ".agents/skills/reversa-highcharts-visualizer",
+    ".agents/skills/reversa-especialista-d3",
+    ".agents/skills/reversa-image-prompt-json"
   ]
 }

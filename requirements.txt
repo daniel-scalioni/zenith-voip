@@ -46,6 +46,9 @@ opentelemetry-instrumentation-fastapi==0.50b0
 opentelemetry-exporter-otlp==1.29.0
 prometheus-client==0.21.1
 
+# Storage
+boto3==1.35.0
+
 # Utils
 python-multipart==0.0.19
 python-jose[cryptography]==3.3.0

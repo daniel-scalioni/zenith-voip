@@ -7,9 +7,15 @@ from src.config import settings
 security = HTTPBearer()
 
 
-def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
+def create_access_token(subject: str, tenant_id: str = "", role: str = "agent", expires_delta: timedelta | None = None) -> str:
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.JWT_EXPIRATION_MINUTES))
-    payload = {"sub": subject, "exp": expire, "iat": datetime.now(timezone.utc)}
+    payload = {
+        "sub": subject,
+        "tenant_id": tenant_id,
+        "role": role,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+    }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -24,3 +30,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def require_admin_role(payload: dict = Depends(verify_token)) -> dict:
+    if payload.get("role") != "tenant_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas administradores de inquilino podem realizar esta ação.",
+        )
+    return payload

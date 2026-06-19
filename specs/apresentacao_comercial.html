@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenith AI Audio Hub — Demo Técnica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* @MIRA:THEME:START */
+:root {
+    --mira-primary: #FF904D;
+    --mira-bg: #000000;
+    --mira-text: #ffffff;
+    --mira-text-soft: rgba(255, 255, 255, 0.70);
+    --mira-text-softer: rgba(255, 255, 255, 0.50);
+    --mira-card-bg: rgba(255, 255, 255, 0.05);
+    --mira-card-border: rgba(255, 255, 255, 0.10);
+    --mira-glow-soft: rgba(255, 144, 77, 0.15);
+    --mira-glow-strong: rgba(255, 144, 77, 0.25);
+    --mira-icon-bg: rgba(255, 144, 77, 0.15);
+    --mira-icon-border: rgba(255, 144, 77, 0.30);
+    --mira-pill-bg: rgba(255, 255, 255, 0.04);
+    --mira-pill-border: rgba(255, 255, 255, 0.08);
+    --mira-stage-glow: rgba(255, 144, 77, 0.06);
+    --mira-accent-2: #FFC766;
+}
+
+body {
+    background: var(--mira-bg);
+    min-height: 100vh;
+    color: var(--mira-text);
+    font-family: 'Inter', sans-serif;
+}
+
+.primary-color { color: var(--mira-primary); }
+.primary-bg { background: var(--mira-primary); }
+
+.glass-card {
+    background: var(--mira-card-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--mira-card-border);
+    box-shadow: 0 10px 30px var(--mira-glow-soft);
+    transition: all 0.3s ease;
+    border-radius: 0.75rem;
+}
+
+.glass-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px var(--mira-glow-strong);
+}
+
+.icon-hero {
+    width: 48px; height: 48px; border-radius: 14px;
+    display: flex; flex: 0 0 auto;
+    align-items: center; justify-content: center;
+    background: var(--mira-icon-bg);
+    border: 1px solid var(--mira-icon-border);
+}
+
+.attribute-pill {
+    background: var(--mira-pill-bg);
+    border: 1px solid var(--mira-pill-border);
+    transition: all 0.25s ease;
+    border-radius: 9999px;
+}
+
+.attribute-pill:hover {
+    background: var(--mira-icon-bg);
+    border-color: var(--mira-icon-border);
+    transform: translateY(-3px);
+}
+
+.anim-stage {
+    width: 100%; height: clamp(400px, 60vh, 620px);
+    background: radial-gradient(circle at 50% 50%, var(--mira-stage-glow), transparent 70%);
+    border-radius: 8px; overflow: hidden; position: relative;
+}
+
+.anim-stage svg { display: block; width: 100%; height: 100%; }
+
+.replay-btn {
+    position: absolute; top: 12px; right: 12px; z-index: 10;
+    background: var(--mira-pill-bg); border: 1px solid var(--mira-pill-border);
+    color: var(--mira-text-soft); border-radius: 9999px;
+    padding: 6px 14px; font-size: 12px;
+    cursor: pointer; transition: all 0.25s ease;
+}
+
+.replay-btn:hover { background: var(--mira-icon-bg); color: var(--mira-primary); }
+
+.text-soft { color: var(--mira-text-soft); }
+.text-softer { color: var(--mira-text-softer); }
+
+@keyframes mira-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+@keyframes mira-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes mira-gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes mira-shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+
+html { scroll-behavior: smooth; }
+
+#mira-progress {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--mira-primary), var(--mira-accent-2));
+    background-size: 200% 100%; animation: mira-shimmer 2s linear infinite;
+    z-index: 9999; transition: width 0.1s linear;
+    box-shadow: 0 0 10px var(--mira-glow-strong);
+}
+
+#mira-next {
+    position: fixed; bottom: 32px; right: 32px;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--mira-primary); color: var(--mira-bg);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: none;
+    opacity: 0; transform: translateY(20px);
+    transition: all 0.3s ease; z-index: 9998;
+    box-shadow: 0 4px 20px var(--mira-glow-strong);
+}
+
+#mira-next.visible { opacity: 1; transform: translateY(0); }
+#mira-next:hover { transform: translateY(-3px) scale(1.1); }
+
+.code-block {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; line-height: 1.7;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid var(--mira-card-border);
+    border-radius: 12px;
+}
+
+.code-cursor {
+    display: inline-block; width: 9px; height: 18px;
+    background: var(--mira-primary);
+    vertical-align: middle; animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.flow-arrow {
+    stroke: var(--mira-primary); stroke-width: 2; fill: none;
+    marker-end: url(#arrowhead);
+}
+
+@keyframes flow-particle {
+    0% { stroke-dashoffset: 200; }
+    100% { stroke-dashoffset: 0; }
+}
+        /* @MIRA:THEME:END */
+    </style>
+</head>
+
+<body>
+    <div id="mira-progress"></div>
+    <button id="mira-next" aria-label="Próximo slide">
+        <i data-lucide="chevron-down" class="w-6 h-6" id="mira-next-icon"></i>
+    </button>
+
+    <!-- ============ SLIDE 1: CAPA ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-6">
+        <div id="capa-stage" class="absolute inset-0 pointer-events-none"></div>
+        <div class="relative z-10 text-center max-w-4xl" data-aos="fade-up">
+            <p class="attribute-pill inline-block px-5 py-2 text-sm tracking-widest uppercase text-soft mb-8">Demo Técnica · Reversa SDD</p>
+            <h1 class="text-6xl md:text-7xl font-black leading-tight mb-6">
+                Zenith AI Audio Hub<br>
+                <span class="primary-color">Transcrição VoIP em Tempo Real</span>
+            </h1>
+            <p class="text-xl text-soft max-w-2xl mx-auto mb-10">Sistema de IA para transcrição e análise de chamadas VoIP com microsserviços, STT com fallback automático e LLM local</p>
+            <div class="flex items-center justify-center gap-3 text-softer text-sm">
+                <i data-lucide="terminal" class="w-4 h-4 primary-color"></i> FastAPI · PostgreSQL · Redis · LangGraph
+                <span class="opacity-40">|</span>
+                <i data-lucide="github" class="w-4 h-4 primary-color"></i> github.com/sandeco/reversa
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 2: ARQUITETURA (ORBITAL) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-10" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Arquitetura do Sistema</h2>
+            <p class="text-soft text-lg mt-3">FastAPI no centro, módulos especializados ao redor</p>
+        </div>
+        <div class="glass-card w-full max-w-5xl p-8 relative" data-aos="fade-up">
+            <div id="orbital-stage" class="anim-stage"></div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 3: CALL FLOW (FLUXO) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-10" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Fluxo de uma Chamada</h2>
+            <p class="text-soft text-lg mt-3">Do SIP ao insight — o pipeline completo</p>
+        </div>
+        <div class="glass-card w-full max-w-5xl p-8 relative" data-aos="fade-up">
+            <div id="flow-stage" class="anim-stage"></div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 4: TECH STACK (GRID) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-14" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Stack Tecnológica</h2>
+            <p class="text-soft text-lg mt-3">14 containers orquestrados em Docker Compose</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
+            <div class="glass-card p-6" data-aos="fade-up">
+                <div class="icon-hero mb-4"><i data-lucide="server" class="primary-color w-6 h-6"></i></div>
+                <h3 class="text-xl font-bold mb-2">Web & API</h3>
+                <p class="text-soft text-sm">FastAPI 0.115 · Uvicorn · SQLAlchemy 2.0 · BunkerWeb</p>
+            </div>
+            <div class="glass-card p-6" data-aos="fade-up" data-aos-delay="100">
+                <div class="icon-hero mb-4"><i data-lucide="database" class="primary-color w-6 h-6"></i></div>
+                <h3 class="text-xl font-bold mb-2">Dados & Filas</h3>
+                <p class="text-soft text-sm">PostgreSQL 16 · Redis 7 · Redis Streams · ARQ Workers</p>
+            </div>
+            <div class="glass-card p-6" data-aos="fade-up" data-aos-delay="200">
+                <div class="icon-hero mb-4"><i data-lucide="brain" class="primary-color w-6 h-6"></i></div>
+                <h3 class="text-xl font-bold mb-2">IA Local</h3>
+                <p class="text-soft text-sm">Ollama Mistral 7B · LangGraph · LangChain · Piper TTS</p>
+            </div>
+            <div class="glass-card p-6" data-aos="fade-up" data-aos-delay="300">
+                <div class="icon-hero mb-4"><i data-lucide="mic" class="primary-color w-6 h-6"></i></div>
+                <h3 class="text-xl font-bold mb-2">STT</h3>
+                <p class="text-soft text-sm">Deepgram SDK · Whisper.cpp · Auto-fallback (500ms)</p>
+            </div>
+            <div class="glass-card p-6" data-aos="fade-up" data-aos-delay="400">
+                <div class="icon-hero mb-4"><i data-lucide="phone" class="primary-color w-6 h-6"></i></div>
+                <h3 class="text-xl font-bold mb-2">Telefonia</h3>
+                <p class="text-soft text-sm">FreeSWITCH ESL · WebSocket Audio · SIP Auto-link</p>
+            </div>
+            <div class="glass-card p-6" data-aos="fade-up" data-aos-delay="500">
+                <div class="icon-hero mb-4"><i data-lucide="activity" class="primary-color w-6 h-6"></i></div>
+                <h3 class="text-xl font-bold mb-2">Observabilidade</h3>
+                <p class="text-soft text-sm">OpenTelemetry · Prometheus · Grafana · Loki</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 5: STT AUTO-FALLBACK (COMPARACAO) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-10" data-aos="fade-up">
+            <h2 class="text-5xl font-black">STT com Auto-Fallback Inteligente</h2>
+            <p class="text-soft text-lg mt-3">Deepgram como primário, Whisper.cpp como backup local</p>
+        </div>
+        <div class="glass-card w-full max-w-5xl p-8" data-aos="fade-up">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="p-6 rounded-xl" style="background: rgba(255,144,77,0.08); border: 1px solid rgba(255,144,77,0.3);">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="icon-hero"><i data-lucide="cloud" class="primary-color w-5 h-5"></i></div>
+                        <div>
+                            <p class="font-bold text-lg">Deepgram</p>
+                            <p class="text-softer text-xs">Provider primário</p>
+                        </div>
+                    </div>
+                    <ul class="space-y-2 text-soft text-sm">
+                        <li class="flex items-start gap-2"><i data-lucide="check-circle" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Modelo nova-2, pt-BR</li>
+                        <li class="flex items-start gap-2"><i data-lucide="check-circle" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Diarização de falantes</li>
+                        <li class="flex items-start gap-2"><i data-lucide="check-circle" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Latência média &lt; 300ms</li>
+                    </ul>
+                </div>
+                <div class="p-6 rounded-xl" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="icon-hero"><i data-lucide="hard-drive" class="primary-color w-5 h-5"></i></div>
+                        <div>
+                            <p class="font-bold text-lg">Whisper.cpp</p>
+                            <p class="text-softer text-xs">Fallback local</p>
+                        </div>
+                    </div>
+                    <ul class="space-y-2 text-soft text-sm">
+                        <li class="flex items-start gap-2"><i data-lucide="check-circle" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Ativado se timeout &gt; 500ms</li>
+                        <li class="flex items-start gap-2"><i data-lucide="check-circle" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Ativado se confidence &le; 0.3</li>
+                        <li class="flex items-start gap-2"><i data-lucide="check-circle" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> 100% local, sem dependência externa</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="mt-6 p-4 rounded-xl" style="background: rgba(255,255,255,0.02); border: 1px dashed var(--mira-card-border);">
+                <p class="text-soft text-sm text-center">Estratégia <span class="primary-color font-semibold">Strategy Pattern</span> com fallback automático — <span class="font-semibold">zero downtime</span> em caso de falha de rede</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 6: AI PIPELINE (STAIRCASE) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-10" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Pipeline de IA em 3 Ciclos</h2>
+            <p class="text-soft text-lg mt-3">LangGraph orquestra extração, revisão e decisão</p>
+        </div>
+        <div class="glass-card w-full max-w-5xl p-8 relative" data-aos="fade-up">
+            <div id="staircase-stage" class="anim-stage"></div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 7: DOMAIN MODEL (MÉTRICAS) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-14" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Modelo de Domínio</h2>
+            <p class="text-soft text-lg mt-3">Multitenancy físico com schema-per-tenant</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full max-w-5xl">
+            <div class="glass-card p-6 text-center" data-aos="zoom-in">
+                <div class="icon-hero mx-auto mb-3"><i data-lucide="building-2" class="primary-color w-5 h-5"></i></div>
+                <p class="metric-value text-3xl font-black primary-color">Tenant</p>
+                <p class="text-softer text-xs mt-1">Schema isolado</p>
+            </div>
+            <div class="glass-card p-6 text-center" data-aos="zoom-in" data-aos-delay="100">
+                <div class="icon-hero mx-auto mb-3"><i data-lucide="phone" class="primary-color w-5 h-5"></i></div>
+                <p class="metric-value text-3xl font-black primary-color">PBX</p>
+                <p class="text-softer text-xs mt-1">Central SIP</p>
+            </div>
+            <div class="glass-card p-6 text-center" data-aos="zoom-in" data-aos-delay="200">
+                <div class="icon-hero mx-auto mb-3"><i data-lucide="phone-incoming" class="primary-color w-5 h-5"></i></div>
+                <p class="metric-value text-3xl font-black primary-color">Call</p>
+                <p class="text-softer text-xs mt-1">inbound/outbound</p>
+            </div>
+            <div class="glass-card p-6 text-center" data-aos="zoom-in" data-aos-delay="300">
+                <div class="icon-hero mx-auto mb-3"><i data-lucide="file-text" class="primary-color w-5 h-5"></i></div>
+                <p class="metric-value text-3xl font-black primary-color">Transcript</p>
+                <p class="text-softer text-xs mt-1">Segmentos TX/RX</p>
+            </div>
+        </div>
+        <div class="w-full max-w-5xl mt-6" data-aos="fade-up">
+            <div class="glass-card p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <i data-lucide="git-commit" class="w-5 h-5 primary-color"></i>
+                    <span class="font-semibold">Máquina de Estados da Call</span>
+                </div>
+                <div id="state-machine-stage" class="w-full" style="height:160px;"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 8: CÓDIGO EMBLEMÁTICO ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-10" data-aos="fade-up">
+            <div class="flex items-center justify-center gap-4">
+                <div class="icon-hero"><i data-lucide="code-2" class="primary-color w-6 h-6"></i></div>
+                <h2 class="text-5xl font-black">Código que Vigia a Fala</h2>
+            </div>
+            <p class="text-soft text-lg mt-3">Estratégia de STT com fallback em 30 linhas</p>
+        </div>
+        <div class="glass-card w-full max-w-4xl p-8" data-aos="fade-up">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="w-3 h-3 rounded-full bg-red-400/70"></span>
+                <span class="w-3 h-3 rounded-full bg-yellow-400/70"></span>
+                <span class="w-3 h-3 rounded-full bg-green-400/70"></span>
+                <span class="text-softer text-xs ml-3 font-mono">services/stt_autofallback.py</span>
+            </div>
+            <pre class="code-block p-6 overflow-x-auto"><code id="typed-code"></code><span class="code-cursor"></span></pre>
+        </div>
+        <p class="text-softer mt-8 text-center max-w-2xl" data-aos="fade-up">Deepgram ou Whisper? O código decide em milissegundos</p>
+    </section>
+
+    <!-- ============ SLIDE 9: MULTITENANCY (DESTAQUES) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-10" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Isolamento por Tenant</h2>
+            <p class="text-soft text-lg mt-3">Schema-per-tenant com scoped sessions</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl">
+            <div class="glass-card p-8" data-aos="fade-right">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="icon-hero"><i data-lucide="shield" class="primary-color w-5 h-5"></i></div>
+                    <h3 class="text-2xl font-bold">Segurança Física</h3>
+                </div>
+                <ul class="space-y-3 text-soft">
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Schema PostgreSQL isolado por cliente</li>
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> RBAC: agent e tenant_admin</li>
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> LLM local (Ollama): dados nunca saem</li>
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Sessões scoped ao schema ativo</li>
+                </ul>
+            </div>
+            <div class="glass-card p-8" data-aos="fade-left">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="icon-hero"><i data-lucide="gauge" class="primary-color w-5 h-5"></i></div>
+                    <h3 class="text-2xl font-bold">Alta Disponibilidade</h3>
+                </div>
+                <ul class="space-y-3 text-soft">
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> 2 instâncias FastAPI com sticky session</li>
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Workers ARQ processamento assíncrono</li>
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> Auto-reconnect ESL com backoff de 2s</li>
+                    <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 primary-color mt-0.5 shrink-0"></i> WebSocket auto-reconnect a cada 3s</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 10: OBSERVABILITY (MÉTRICAS) ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-14" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Observabilidade Total</h2>
+            <p class="text-soft text-lg mt-3">Métricas, logs e dashboards em tempo real</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+            <div class="glass-card p-8 text-center relative overflow-hidden" data-aos="zoom-in">
+                <svg class="metric-ring absolute -top-10 -right-10 w-32 h-32 opacity-30" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--mira-primary)" stroke-width="2" stroke-dasharray="60 200" stroke-linecap="round"></circle>
+                </svg>
+                <p class="metric-value text-6xl font-black primary-color" data-target="14" data-suffix="">0</p>
+                <p class="text-soft mt-3">Containers Docker</p>
+            </div>
+            <div class="glass-card p-8 text-center relative overflow-hidden" data-aos="zoom-in" data-aos-delay="150">
+                <svg class="metric-ring absolute -top-10 -right-10 w-32 h-32 opacity-30" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--mira-primary)" stroke-width="2" stroke-dasharray="60 200" stroke-linecap="round"></circle>
+                </svg>
+                <p class="metric-value text-6xl font-black primary-color" data-target="354" data-suffix="">0</p>
+                <p class="text-soft mt-3">Itens CONFIRMADOS</p>
+            </div>
+            <div class="glass-card p-8 text-center relative overflow-hidden" data-aos="zoom-in" data-aos-delay="300">
+                <svg class="metric-ring absolute -top-10 -right-10 w-32 h-32 opacity-30" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--mira-primary)" stroke-width="2" stroke-dasharray="60 200" stroke-linecap="round"></circle>
+                </svg>
+                <p class="metric-value text-6xl font-black primary-color" data-target="91" data-suffix="%">0</p>
+                <p class="text-soft mt-3">Confiança na Spec</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 11: GAPS & ROADMAP ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 py-16">
+        <div class="text-center mb-10" data-aos="fade-up">
+            <h2 class="text-5xl font-black">Gaps Técnicos & Roadmap</h2>
+            <p class="text-soft text-lg mt-3">Dividas técnicas identificadas pela Reversa</p>
+        </div>
+        <div class="glass-card w-full max-w-5xl p-8" data-aos="fade-up">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="alert-triangle" class="w-5 h-5 primary-color"></i>Críticos</h3>
+                    <ul class="space-y-3 text-sm">
+                        <li class="flex items-start gap-2 p-3 rounded-lg" style="background:rgba(255,100,100,0.08);">
+                            <span class="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0"></span>
+                            <span class="text-soft">_detect_channel() retorna "tx" hardcoded — canal RX nunca identificado</span>
+                        </li>
+                        <li class="flex items-start gap-2 p-3 rounded-lg" style="background:rgba(255,100,100,0.08);">
+                            <span class="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0"></span>
+                            <span class="text-soft">analyze_sentiment() e audit_procedure() são stubs</span>
+                        </li>
+                        <li class="flex items-start gap-2 p-3 rounded-lg" style="background:rgba(255,100,100,0.08);">
+                            <span class="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0"></span>
+                            <span class="text-soft">JWT_SECRET = "change-me-in-production"</span>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="list-checks" class="w-5 h-5 primary-color"></i>Melhorias Planejadas</h3>
+                    <ul class="space-y-3 text-sm">
+                        <li class="flex items-start gap-2 p-3 rounded-lg" style="background:rgba(255,144,77,0.08);">
+                            <span class="w-2 h-2 rounded-full primary-color mt-1.5 shrink-0"></span>
+                            <span class="text-soft">Rate limit persistente (Redis em vez de dict in-memory)</span>
+                        </li>
+                        <li class="flex items-start gap-2 p-3 rounded-lg" style="background:rgba(255,144,77,0.08);">
+                            <span class="w-2 h-2 rounded-full primary-color mt-1.5 shrink-0"></span>
+                            <span class="text-soft">Webhook dispatcher com confirmação de entrega</span>
+                        </li>
+                        <li class="flex items-start gap-2 p-3 rounded-lg" style="background:rgba(255,144,77,0.08);">
+                            <span class="w-2 h-2 rounded-full primary-color mt-1.5 shrink-0"></span>
+                            <span class="text-soft">Auto-link SIP com fallback se Redis vazio</span>
+                        </li>
+                        <li class="flex items-start gap-2 p-3 rounded-lg" style="background:rgba(255,144,77,0.08);">
+                            <span class="w-2 h-2 rounded-full primary-color mt-1.5 shrink-0"></span>
+                            <span class="text-soft">Limpeza de senhas default (ESL, JWT)</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SLIDE 12: CTA ENCERRAMENTO ============ -->
+    <section class="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-6">
+        <div class="cta-breathe absolute inset-0 pointer-events-none"></div>
+        <div class="relative z-10 text-center max-w-3xl" data-aos="zoom-in">
+            <div class="icon-hero mx-auto mb-8" style="width:72px;height:72px;border-radius:20px;">
+                <i data-lucide="sparkles" class="primary-color w-9 h-9"></i>
+            </div>
+            <h2 class="text-6xl font-black mb-6">Especifique. Evolua. Migre.</h2>
+            <p class="text-xl text-soft mb-10">Use o Reversa para transformar seu legado em especificacoes executaveis para agentes de IA</p>
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <span class="attribute-pill px-6 py-3 text-base"><i data-lucide="github" class="inline w-4 h-4 mr-2 primary-color"></i>github.com/sandeco/reversa</span>
+                <span class="attribute-pill px-6 py-3 text-base"><i data-lucide="book-open" class="inline w-4 h-4 mr-2 primary-color"></i>sandeco.github.io/reversa</span>
+            </div>
+            <p class="text-softer mt-12 text-sm tracking-widest uppercase">Feito com Mira Animator + Reversa</p>
+        </div>
+        <style>
+            .cta-breathe {
+                background: radial-gradient(ellipse at 50% 60%, var(--mira-glow-strong), transparent 65%);
+                animation: mira-pulse 4s ease-in-out infinite;
+            }
+        </style>
+    </section>
+
+    <script>
+        AOS.init({ duration: 800, once: true });
+        lucide.createIcons();
+        const PRIMARY = getComputedStyle(document.documentElement).getPropertyValue('--mira-primary').trim();
+
+        // CAPA: particulas orbitais (loop perpetuo)
+        (function () {
+            const W = window.innerWidth, H = window.innerHeight;
+            const svg = d3.select('#capa-stage').append('svg').attr('viewBox', `0 0 ${W} ${H}`);
+            const cx = W / 2, cy = H / 2;
+            const particles = d3.range(24).map(() => ({
+                r: 180 + Math.random() * Math.min(W, H) * 0.35,
+                angle: Math.random() * Math.PI * 2,
+                speed: 0.002 + Math.random() * 0.004,
+                size: 1.5 + Math.random() * 3
+            }));
+            const dots = svg.selectAll('circle').data(particles).join('circle')
+                .attr('r', d => d.size).attr('fill', PRIMARY).attr('opacity', 0.35);
+            d3.timer(() => {
+                dots.attr('cx', d => { d.angle += d.speed; return cx + Math.cos(d.angle) * d.r; })
+                    .attr('cy', d => cy + Math.sin(d.angle) * d.r * 0.6);
+            });
+        })();
+
+        // ORBITAL: arquitetura FastAPI no centro
+        (function () {
+            const modules = ['Auth JWT', 'WebSocket', 'ESL Client', 'Audio Pipe', 'Rate Limit', 'Webhooks', 'Telemetry'];
+            const W = 960, H = 540;
+            const svg = d3.select('#orbital-stage').append('svg').attr('viewBox', `0 0 ${W} ${H}`);
+            const cx = W / 2, cy = H / 2, R = 190;
+
+            svg.append('defs').append('marker').attr('id', 'orb-arrow')
+                .attr('viewBox', '0 0 10 10').attr('refX', 10).attr('refY', 5)
+                .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+                .append('path').attr('d', 'M 0 0 L 10 5 L 0 10 z').attr('fill', PRIMARY);
+
+            svg.append('ellipse').attr('cx', cx).attr('cy', cy).attr('rx', R).attr('ry', R * 0.62)
+                .attr('fill', 'none').attr('stroke', 'rgba(255,255,255,0.10)').attr('stroke-dasharray', '4 6');
+
+            const core = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+            core.append('circle').attr('r', 0).attr('fill', 'rgba(255,255,255,0.06)')
+                .attr('stroke', PRIMARY).attr('stroke-width', 2.5)
+                .transition().duration(800).ease(d3.easeBackOut).attr('r', 64);
+            core.append('text').text('FastAPI').attr('text-anchor', 'middle').attr('dy', 6)
+                .attr('fill', PRIMARY).attr('font-size', 20).attr('font-weight', 800)
+                .attr('opacity', 0).transition().delay(500).attr('opacity', 1);
+
+            const pulse = core.append('circle').attr('r', 64).attr('fill', 'none').attr('stroke', PRIMARY).attr('opacity', 0);
+            d3.interval(() => {
+                pulse.attr('r', 64).attr('opacity', 0.6)
+                    .transition().duration(1600).ease(d3.easeCubicOut).attr('r', 110).attr('opacity', 0);
+            }, 2000);
+
+            const sats = svg.selectAll('g.sat')
+                .data(modules.map((s, i) => ({ label: s, angle: (i / modules.length) * Math.PI * 2 })))
+                .join('g').attr('class', 'sat');
+            sats.append('circle').attr('r', 0).attr('fill', 'rgba(255,255,255,0.08)')
+                .attr('stroke', PRIMARY).attr('stroke-opacity', 0.5)
+                .transition().delay((d, i) => 800 + i * 150).duration(500).ease(d3.easeBackOut).attr('r', 30);
+            sats.append('text').text(d => d.label).attr('text-anchor', 'middle').attr('dy', 4)
+                .attr('fill', 'rgba(255,255,255,0.85)').attr('font-size', 11).attr('font-weight', 600)
+                .attr('opacity', 0).transition().delay((d, i) => 1000 + i * 150).attr('opacity', 1);
+
+            const conns = svg.selectAll('line.conn')
+                .data(modules.map((_, i) => i)).join('line').attr('class', 'conn')
+                .attr('stroke', 'rgba(255,144,77,0.15)').attr('stroke-width', 1)
+                .attr('x1', cx).attr('y1', cy);
+            d3.timer(() => {
+                sats.attr('transform', d => {
+                    d.angle += 0.003;
+                    return `translate(${cx + Math.cos(d.angle) * R},${cy + Math.sin(d.angle) * R * 0.62})`;
+                });
+                conns.attr('x2', (d, i) => {
+                    const a = modules.length;
+                    const sat = sats._groups[0][i];
+                    if (sat) { const t = sat.getBBox(); return t.x + t.width/2; }
+                    return cx;
+                }).attr('y2', (d, i) => {
+                    const sat = sats._groups[0][i];
+                    if (sat) { const t = sat.getBBox(); return t.y + t.height/2; }
+                    return cy;
+                });
+            });
+        })();
+
+        // FLOW: pipeline da chamada
+        (function () {
+            const W = 960, H = 540;
+            const svg = d3.select('#flow-stage').append('svg').attr('viewBox', `0 0 ${W} ${H}`);
+
+            svg.append('defs').append('marker').attr('id', 'flow-arrow')
+                .attr('viewBox', '0 0 10 10').attr('refX', 10).attr('refY', 5)
+                .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+                .append('path').attr('d', 'M 0 0 L 10 5 L 0 10 z').attr('fill', PRIMARY);
+
+            const steps = [
+                { x: 60, y: 270, label: 'Cliente', icon: 'user' },
+                { x: 220, y: 270, label: 'FreeSWITCH', icon: 'server' },
+                { x: 400, y: 270, label: 'FastAPI', icon: 'cpu' },
+                { x: 560, y: 270, label: 'Redis Streams', icon: 'database' },
+                { x: 740, y: 200, label: 'Workers\nSTT/IA', icon: 'bot' },
+                { x: 740, y: 370, label: 'PostgreSQL', icon: 'hard-drive' },
+                { x: 900, y: 270, label: 'Widget\nTauri', icon: 'monitor' },
+            ];
+
+            const gSteps = svg.selectAll('g.step').data(steps).join('g').attr('class', 'step')
+                .attr('transform', d => `translate(${d.x},${d.y})`).attr('opacity', 0);
+
+            gSteps.append('rect').attr('x', -45).attr('y', -20).attr('width', 90).attr('height', 40)
+                .attr('rx', 8).attr('fill', 'rgba(255,255,255,0.06)')
+                .attr('stroke', PRIMARY).attr('stroke-width', 1);
+
+            gSteps.append('text').text(d => d.label).attr('text-anchor', 'middle').attr('dy', 5)
+                .attr('fill', 'white').attr('font-size', 10).attr('font-weight', 600);
+
+            gSteps.transition().delay((d, i) => i * 200).duration(400).attr('opacity', 1);
+
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4], [3, 5], [4, 6]
+            ];
+
+            connections.forEach(([from, to], i) => {
+                const f = steps[from], t = steps[to];
+                svg.append('line')
+                    .attr('x1', f.x + 45).attr('y1', f.y)
+                    .attr('x2', t.x - 45).attr('y2', t.y)
+                    .attr('stroke', 'rgba(255,144,77,0.3)').attr('stroke-width', 1.5)
+                    .attr('marker-end', 'url(#flow-arrow)');
+            });
+
+            const particle = svg.append('circle').attr('r', 4).attr('fill', PRIMARY).attr('opacity', 0.8);
+            let pathIdx = 0;
+
+            function travelParticle() {
+                if (pathIdx >= connections.length) pathIdx = 0;
+                const [from, to] = connections[pathIdx];
+                const f = steps[from], t = steps[to];
+                particle.attr('cx', f.x + 45).attr('cy', f.y).attr('opacity', 0.8);
+                particle.transition().duration(1200).ease(d3.easeLinear)
+                    .attr('cx', t.x - 45).attr('cy', t.y)
+                    .on('end', () => { pathIdx++; travelParticle(); });
+            }
+            travelParticle();
+        })();
+
+        // STAIRCASE: Pipeline IA 3 ciclos
+        (function () {
+            const W = 960, H = 540;
+            const svg = d3.select('#staircase-stage').append('svg').attr('viewBox', `0 0 ${W} ${H}`);
+
+            const steps = [
+                { label: 'Extracao', desc: 'Regex + LLM', x: 200, y: 380, color: '#FF904D' },
+                { label: 'Anomalias', desc: 'Fury Score', x: 380, y: 300, color: '#FFC766' },
+                { label: 'Consenso', desc: 'LangGraph', x: 560, y: 220, color: '#FF904D' },
+                { label: 'Decisao', desc: '3 ciclos', x: 740, y: 140, color: '#FFC766' },
+            ];
+
+            steps.forEach((s, i) => {
+                if (i > 0) {
+                    const prev = steps[i-1];
+                    const line = svg.append('line')
+                        .attr('x1', prev.x + 60).attr('y1', prev.y - 20)
+                        .attr('x2', s.x).attr('y2', s.y + 20)
+                        .attr('stroke', 'rgba(255,144,77,0.3)').attr('stroke-width', 2)
+                        .attr('stroke-dasharray', '5,5');
+                }
+            });
+
+            const groups = svg.selectAll('g.stair').data(steps).join('g').attr('class', 'stair')
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+
+            groups.append('rect').attr('x', -60).attr('y', -30).attr('width', 120).attr('height', 60)
+                .attr('rx', 12).attr('fill', 'rgba(255,255,255,0.05)')
+                .attr('stroke', d => d.color).attr('stroke-width', 2)
+                .attr('opacity', 0)
+                .transition().delay((d, i) => i * 300).duration(500).ease(d3.easeBackOut).attr('opacity', 1);
+
+            groups.append('text').text(d => d.label).attr('text-anchor', 'middle').attr('dy', -2)
+                .attr('fill', 'white').attr('font-size', 14).attr('font-weight', 700)
+                .attr('opacity', 0)
+                .transition().delay((d, i) => i * 300 + 200).attr('opacity', 1);
+
+            groups.append('text').text(d => d.desc).attr('text-anchor', 'middle').attr('dy', 16)
+                .attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', 10)
+                .attr('opacity', 0)
+                .transition().delay((d, i) => i * 300 + 400).attr('opacity', 1);
+
+            let climberPos = 0;
+            setInterval(() => {
+                climberPos = (climberPos + 1) % steps.length;
+                const s = steps[climberPos];
+                const c = d3.select('#climber');
+                if (c.empty()) {
+                    svg.append('circle').attr('id', 'climber').attr('r', 8).attr('fill', PRIMARY)
+                        .attr('cx', s.x).attr('cy', s.y);
+                } else {
+                    c.transition().duration(600).ease(d3.easeQuadInOut)
+                        .attr('cx', s.x).attr('cy', s.y);
+                }
+            }, 1500);
+        })();
+
+        // STATE MACHINE: Call states
+        (function () {
+            const W = 650, H = 130;
+            const svg = d3.select('#state-machine-stage').append('svg').attr('viewBox', `0 0 ${W} ${H}`);
+
+            const states = [
+                { label: 'Ringing', x: 80, y: 65 },
+                { label: 'In Progress', x: 260, y: 65 },
+                { label: 'Completed', x: 440, y: 30 },
+                { label: 'Failed', x: 440, y: 100 },
+            ];
+
+            svg.selectAll('text.state').data(states).join('text').attr('class', 'state')
+                .text(d => d.label).attr('x', d => d.x).attr('y', d => d.y)
+                .attr('text-anchor', 'middle').attr('dy', 5)
+                .attr('fill', 'rgba(255,255,255,0.7)').attr('font-size', 12).attr('font-weight', 600);
+
+            svg.selectAll('circle.state-dot').data(states).join('circle').attr('class', 'state-dot')
+                .attr('cx', d => d.x).attr('cy', d => d.y).attr('r', 22)
+                .attr('fill', 'none').attr('stroke', PRIMARY).attr('stroke-width', 1.5);
+
+            const conns = [
+                [0, 1], [1, 2], [1, 3]
+            ];
+            conns.forEach(([from, to]) => {
+                const f = states[from], t = states[to];
+                svg.append('line')
+                    .attr('x1', f.x + 22).attr('y1', f.y)
+                    .attr('x2', t.x - 22).attr('y2', t.y)
+                    .attr('stroke', 'rgba(255,144,77,0.3)').attr('stroke-width', 1.5)
+                    .attr('marker-end', 'url(#flow-arrow)');
+            });
+
+            let activeState = 0;
+            setInterval(() => {
+                svg.selectAll('circle.state-dot').attr('fill', 'none');
+                svg.selectAll('circle.state-dot').filter((d, i) => i === activeState)
+                    .attr('fill', 'rgba(255,144,77,0.15)');
+                activeState = (activeState + 1) % 3;
+            }, 1200);
+        })();
+
+        // CODIGO: typing loop
+        (function () {
+            const CODE = `class AutoFallbackSTT:\n    def __init__(self):\n        self.primary = DeepgramSTT()\n        self.fallback = WhisperSTT()\n\n    async def transcribe(self, audio):\n        try:\n            result = await asyncio.wait_for(\n                self.primary.transcribe(audio), timeout=0.5\n            )\n            if result.confidence >= 0.3:\n                return result\n        except (TimeoutError, Exception):\n            pass\n        return await self.fallback.transcribe(audio)`;
+            const el = document.getElementById('typed-code');
+            let i = 0, deleting = false;
+            function tick() {
+                if (!deleting) {
+                    el.textContent = CODE.slice(0, ++i);
+                    if (i >= CODE.length) { deleting = true; return setTimeout(tick, 3500); }
+                    return setTimeout(tick, 28);
+                }
+                el.textContent = CODE.slice(0, --i);
+                if (i <= 0) { deleting = false; return setTimeout(tick, 600); }
+                setTimeout(tick, 8);
+            }
+            const io = new IntersectionObserver(es => {
+                es.forEach(e => { if (e.isIntersecting) { tick(); io.unobserve(e.target); } });
+            }, { threshold: 0.4 });
+            io.observe(el);
+        })();
+
+        // METRICAS: contadores animados
+        (function () {
+            const counters = document.querySelectorAll('.metric-value');
+            const io = new IntersectionObserver(entries => {
+                entries.forEach(e => {
+                    if (!e.isIntersecting) return;
+                    const el = e.target;
+                    const target = parseFloat(el.dataset.target) || 0;
+                    const suffix = el.dataset.suffix || '';
+                    d3.select(el).transition().duration(1800).ease(d3.easeCubicOut)
+                        .tween('count', () => {
+                            const i = d3.interpolateNumber(0, target);
+                            return t => el.textContent = Math.round(i(t)) + suffix;
+                        });
+                    io.unobserve(el);
+                });
+            }, { threshold: 0.4 });
+            counters.forEach(c => io.observe(c));
+
+            document.querySelectorAll('.metric-ring circle').forEach((ring, i) => {
+                let offset = 0;
+                setInterval(() => {
+                    offset = (offset + 1.2 + i * 0.3) % 260;
+                    ring.setAttribute('stroke-dashoffset', -offset);
+                }, 30);
+            });
+        })();
+
+        // CONTROLES DE SLIDE: navegacao card-a-card
+        (function () {
+            const cardSections = Array.from(document.querySelectorAll('body > section'));
+            if (cardSections.length === 0) return;
+            const progress = document.getElementById('mira-progress');
+            const nextBtn = document.getElementById('mira-next');
+            const nextIcon = document.getElementById('mira-next-icon');
+            const atBottom = () => (window.scrollY + window.innerHeight) >= (document.documentElement.scrollHeight - 100);
+            function currentIndex() {
+                const y = window.scrollY + window.innerHeight * 0.3; let idx = -1;
+                for (let i = 0; i < cardSections.length; i++) {
+                    if (cardSections[i].offsetTop <= y) idx = i;
+                }
+                return idx;
+            }
+            function goTo(i) {
+                const idx = Math.max(0, Math.min(cardSections.length - 1, i));
+                cardSections[idx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            window.addEventListener('scroll', () => {
+                const docH = document.documentElement.scrollHeight - window.innerHeight;
+                progress.style.width = (docH > 0 ? (window.scrollY / docH) * 100 : 0) + '%';
+                nextBtn.classList.toggle('visible', window.scrollY > 300);
+                nextIcon.setAttribute('data-lucide', atBottom() ? 'chevron-up' : 'chevron-down');
+                lucide.createIcons();
+            });
+            nextBtn.addEventListener('click', () => {
+                if (atBottom()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+                goTo(currentIndex() + 1);
+            });
+            document.addEventListener('keydown', (e) => {
+                if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(e.key)) {
+                    e.preventDefault(); goTo(currentIndex() + 1);
+                } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) {
+                    e.preventDefault(); const idx = currentIndex();
+                    if (idx <= 0) window.scrollTo({ top: 0, behavior: 'smooth' });
+                    else goTo(idx - 1);
+                } else if (e.key === 'Home') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+                else if (e.key === 'End') { e.preventDefault(); goTo(cardSections.length - 1); }
+                else if (e.key.toLowerCase() === 'f') {
+                    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+                    else document.exitFullscreen();
+                }
+            });
+        })();
+    </script>
+</body>
+
+</html>

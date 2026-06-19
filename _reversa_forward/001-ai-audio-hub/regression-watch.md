@@ -14,7 +14,24 @@ As regras de negócio RN-01 a RN-10 foram implementadas como código novo e deve
 
 ## Histórico de re-extrações
 
-*n/a — primeira execução.*
+| Data | Re-extração | Veredito | Observações |
+|------|-------------|----------|-------------|
+| 2026-06-19 | Revisor (revisão completa) | 🟢 7/10 • 🟡 2/10 • 🔴 1/10 | W009 (DTMF) não documentado em specs; W001 (B2BUA) e W004 (consenso físico) parcialmente cobertos |
+
+## Resultado: re-extração 2026-06-19
+
+| ID | Veredito | Evidência |
+|----|----------|-----------|
+| W001 | 🟡 | Termo "B2BUA" não aparece nas specs, mas integração ESL está documentada em `telephony/requirements.md` |
+| W002 | 🟢 | Events pub/sub documentado em `events/requirements.md` e `telephony/esl-integration/requirements.md` |
+| W003 | 🟢 | STT→WebSocket documentado em `services/stt/requirements.md` e `api/websocket/requirements.md` |
+| W004 | 🟡 | Consenso documentado em `ai/consensus-graph/`, mas sem menção explícita de exclusividade para "ações físicas" |
+| W005 | 🟢 | Contexto de tenant documentado em `domain.md` e `database/multitenancy/requirements.md` |
+| W006 | 🟢 | Whisper mode documentado em `telephony/whisper-mode/requirements.md` |
+| W007 | 🟢 | Filler audio documentado em `telephony/filler-audio/requirements.md` |
+| W008 | 🟢 | LLM self-hosted documentado em `domain.md` R23 e `extraction/llm_layer.py` |
+| W009 | 🔴 | Senhas via DTMF não mencionadas em nenhuma spec — lacuna confirmada |
+| W010 | 🟡 | Channel detection documentado como 🔴 stub em `audio/requirements.md` — speaker tagging não implementado |
 
 ## Arquivadas
 
