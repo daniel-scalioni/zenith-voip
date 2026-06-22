@@ -1,8 +1,11 @@
 import asyncio
 import json
 import re
+from collections import defaultdict
 from src.config import settings
 from src.events.redis_streams import event_bus
+from src.services.calls import create_call_record, finalize_call_record
+from src.workers.audio_uploader import enqueue_recording_upload
 
 SIP_IP_KEY_TTL = 3600
 SIP_EXT_PBX_KEY_TTL = 3600
@@ -115,6 +118,8 @@ class ESLClient:
             await self._handle_channel_create(event)
         elif event_name == "CHANNEL_ANSWER":
             await self._handle_channel_answer(event)
+        elif event_name == "CHANNEL_HANGUP":
+            await self._handle_channel_hangup(event)
 
     async def _handle_register(self, event: dict):
         from_user = event.get("Caller-Caller-ID-Number", "") or event.get("sip_from_user", "")
@@ -147,6 +152,30 @@ class ESLClient:
 
         from src.audio.ingestor import audio_ingestor
         audio_ingestor.register_stream_metadata(call_id, tenant_id, pbx_id, agent_ext)
+
+        if tenant_id:
+            await create_call_record(tenant_id, call_id, pbx_id, agent_ext)
+
+    async def _handle_channel_hangup(self, event: dict):
+        call_id = event.get("Caller-Unique-ID", "") or event.get("Unique-ID", "")
+        tenant_id = event.get("variable_zenith_tenant_id", "") or ""
+
+        if not call_id:
+            return
+
+        if tenant_id:
+            await finalize_call_record(tenant_id, call_id)
+
+        from src.audio.ingestor import audio_ingestor
+        chunks = audio_ingestor.buffers.pop(call_id, [])
+        if not chunks:
+            return
+
+        by_channel: dict[str, bytearray] = defaultdict(bytearray)
+        for chunk in chunks:
+            by_channel[chunk.channel].extend(chunk.data)
+        recordings = [{"channel": channel, "data": bytes(data)} for channel, data in by_channel.items()]
+        await enqueue_recording_upload(tenant_id, call_id, recordings)
 
     async def _handle_manual_linkage(self, event: dict):
         from_user = event.get("Caller-Caller-ID-Number", "") or event.get("sip_from_user", "")

@@ -1,0 +1,5 @@
+Crie sua conta gratuita em https://id.signalwire.com/signup/account/new,
+copie o token de acesso ao repositório FreeSWITCH e cole-o (sem aspas, sem
+quebras de linha extras) num arquivo `freeswitch/signalwire_token.txt`
+(ignorado pelo git). Esse arquivo é consumido como build secret pelo
+freeswitch/Dockerfile — nunca é copiado para a imagem final.

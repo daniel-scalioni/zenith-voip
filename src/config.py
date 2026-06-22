@@ -30,10 +30,7 @@ class Settings(BaseSettings):
     BATCH_INSERT_INTERVAL_SECONDS: int = 5
 
     AUDIO_RETENTION_DAYS: int = 90
-    S3_ENDPOINT: str = ""
-    S3_ACCESS_KEY: str = ""
-    S3_SECRET_KEY: str = ""
-    S3_BUCKET_PREFIX: str = "zenith-audio"
+    RECORDINGS_PATH: str = "/data/recordings"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

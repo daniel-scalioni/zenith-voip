@@ -1,5 +1,5 @@
 # Cleanup de Áudio (workers/audio-cleanup)
 
-**Responsabilidades:** Deletar áudio S3 com > 90 dias, cron 03:00, lotes de 1000
-**Regras:** Retenção 90 dias; delete em lotes de 1000 🟢
+**Responsabilidades:** Deletar arquivos locais em `RECORDINGS_PATH` com mtime > 90 dias, cron 03:00
+**Regras:** Retenção 90 dias; varredura por tenant 🟢
 **Origem:** `src/workers/audio_cleanup.py`

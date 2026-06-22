@@ -9,10 +9,16 @@
   - Critério: conexão estabelecida; reconexão com backoff de 2s em caso de queda
   - Confiança: 🟢
 
-- [ ] T-02, Implementar escuta de eventos FreeSWITCH
-  - Origem: `src/telephony/esl_client.py:130-150`
+- [x] T-02, Implementar escuta de eventos FreeSWITCH
+  - Origem: `src/telephony/esl_client.py` (`_process_event`, `_handle_channel_answer`, `_handle_channel_hangup`)
   - Critério: eventos CHANNEL_CREATE, ANSWER, HANGUP processados
   - Confiança: 🟢
+
+- [x] T-07, Implementar ciclo de vida da `Call` no banco (answer cria, hangup finaliza) e disparo do flush/upload da gravação no hangup
+  - Origem: `src/telephony/esl_client.py::_handle_channel_answer/_handle_channel_hangup`, `src/services/calls.py`, `src/workers/audio_uploader.py::enqueue_recording_upload`
+  - Critério: `CHANNEL_ANSWER` cria `Call` (status=in_progress); `CHANNEL_HANGUP` finaliza (status=completed, ended_at, duration_seconds) e enfileira upload com os buffers acumulados
+  - Testes: `tests/test_call_lifecycle.py` (verde)
+  - Confiança: 🟡 — lógica testada via mocks; ainda não validada contra Postgres/Redis reais (ver Fase 4 do plano de MVP)
 
 - [ ] T-03, Implementar mapeamento SIP → IP no Redis
   - Origem: `src/telephony/esl_client.py:179-184`

@@ -13,7 +13,7 @@ cd "$SCRIPT_DIR"
 APP_COMPOSE="docker-compose.app.yml"
 INFRA_COMPOSE="docker-compose.infra.yml"
 REVISIONS_FILE="revisions.json"
-APP_SERVICES=("freeswitch" "fastapi-1" "fastapi-2" "arq-cleanup" "bunkerweb" "ollama" "piper-tts")
+APP_SERVICES=("freeswitch" "fastapi-1" "fastapi-2" "arq-uploader" "arq-cleanup" "bunkerweb" "ollama" "piper-tts")
 
 # ── Help ──────────────────────────────────────────────────────
 usage() {

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from arq import cron
@@ -7,55 +8,28 @@ from src.utils.telemetry import record_cleanup_deleted, record_cleanup_error, ob
 
 
 async def cleanup_tenant_bucket(ctx, tenant_id: str) -> dict:
-    if not settings.S3_ENDPOINT:
-        return {"tenant": tenant_id, "status": "skipped", "reason": "S3 not configured"}
-
     start = time.monotonic()
     deleted_count = 0
     bytes_freed = 0
 
+    tenant_dir = os.path.join(settings.RECORDINGS_PATH, tenant_id)
+    if not os.path.isdir(tenant_dir):
+        return {"tenant": tenant_id, "status": "skipped", "reason": "Tenant directory not found"}
+
     try:
-        import boto3
-        from botocore.config import Config
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=settings.AUDIO_RETENTION_DAYS)).timestamp()
 
-        session = boto3.Session(
-            aws_access_key_id=settings.S3_ACCESS_KEY,
-            aws_secret_access_key=settings.S3_SECRET_KEY,
-        )
-        s3 = session.client(
-            "s3",
-            endpoint_url=settings.S3_ENDPOINT,
-            config=Config(signature_version="s3v4"),
-        )
+        for root, _dirs, files in os.walk(tenant_dir):
+            for name in files:
+                path = os.path.join(root, name)
+                stat = os.stat(path)
+                if stat.st_mtime < cutoff:
+                    bytes_freed += stat.st_size
+                    os.remove(path)
+                    deleted_count += 1
 
-        bucket_name = f"{settings.S3_BUCKET_PREFIX}-{tenant_id}"
-        cutoff = datetime.now(timezone.utc) - timedelta(days=settings.AUDIO_RETENTION_DAYS)
-
-        try:
-            s3.head_bucket(Bucket=bucket_name)
-        except Exception:
-            return {"tenant": tenant_id, "status": "skipped", "reason": "Bucket not found"}
-
-        paginator = s3.get_paginator("list_objects_v2")
-        objects_to_delete = []
-
-        for page in paginator.paginate(Bucket=bucket_name):
-            if "Contents" not in page:
-                continue
-            for obj in page["Contents"]:
-                last_mod = obj["LastModified"].replace(tzinfo=timezone.utc)
-                if last_mod < cutoff:
-                    objects_to_delete.append({"Key": obj["Key"]})
-                    bytes_freed += obj.get("Size", 0)
-
-                    if len(objects_to_delete) >= 1000:
-                        s3.delete_objects(Bucket=bucket_name, Delete={"Objects": objects_to_delete})
-                        deleted_count += len(objects_to_delete)
-                        objects_to_delete = []
-
-        if objects_to_delete:
-            s3.delete_objects(Bucket=bucket_name, Delete={"Objects": objects_to_delete})
-            deleted_count += len(objects_to_delete)
+                    if deleted_count % 1000 == 0:
+                        await asyncio.sleep(0)
 
         duration = time.monotonic() - start
         record_cleanup_deleted(tenant_id, deleted_count, bytes_freed)
@@ -77,9 +51,6 @@ async def cleanup_tenant_bucket(ctx, tenant_id: str) -> dict:
 async def run_cleanup(ctx):
     from src.database.database import engine
     from sqlalchemy import text
-
-    if not settings.S3_ENDPOINT:
-        return {"status": "skipped", "reason": "S3 not configured"}
 
     results = []
 

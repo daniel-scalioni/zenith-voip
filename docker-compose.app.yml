@@ -9,9 +9,17 @@ volumes:
   ollama_data:
   piper_models:
 
+secrets:
+  signalwire_token:
+    file: ./freeswitch/signalwire_token.txt
+
 services:
   freeswitch:
-    image: safarov/freeswitch:1.10.12
+    build:
+      context: ./freeswitch
+      dockerfile: Dockerfile
+      secrets:
+        - signalwire_token
     container_name: freeswitch
     network_mode: host
     volumes:
@@ -44,8 +52,10 @@ services:
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
       - OLLAMA_URL=http://ollama:11434
+      - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
+      - ./data/recordings:/data/recordings
     depends_on:
       postgres:
         condition: service_healthy
@@ -77,8 +87,10 @@ services:
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
       - OLLAMA_URL=http://ollama:11434
+      - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
+      - ./data/recordings:/data/recordings
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,6 +102,29 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+
+  arq-uploader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zenith-arq-uploader
+    networks:
+      - ai-hub-net
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - RECORDINGS_PATH=/data/recordings
+    volumes:
+      - ./src:/app/src
+      - ./data/recordings:/data/recordings
+    command: ["arq", "src.workers.audio_uploader.WorkerSettings"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   arq-cleanup:
     build:
@@ -103,12 +138,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
       - AUDIO_RETENTION_DAYS=${AUDIO_RETENTION_DAYS:-90}
-      - S3_ENDPOINT=${S3_ENDPOINT}
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
-      - S3_SECRET_KEY=${S3_SECRET_KEY}
-      - S3_BUCKET_PREFIX=${S3_BUCKET_PREFIX:-zenith-audio}
+      - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
+      - ./data/recordings:/data/recordings
     command: ["arq", "src.workers.audio_cleanup.WorkerSettings"]
     depends_on:
       redis:

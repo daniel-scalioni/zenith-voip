@@ -12,6 +12,8 @@ dist/
 build/
 *.egg-info/
 revisions.json
+freeswitch/signalwire_token.txt
+data/recordings/
 
 # Reversa
 .reversa/config.user.toml

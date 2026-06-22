@@ -67,7 +67,7 @@ class Call(TenantBase):
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     ended_at = Column(DateTime(timezone=True), nullable=True)
     duration_seconds = Column(Float, nullable=True)
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -87,7 +87,7 @@ class Transcript(TenantBase):
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=False)
     is_final = Column(default=True)
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     call = relationship("Call", back_populates="transcripts")

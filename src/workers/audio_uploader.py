@@ -1,46 +1,19 @@
 import os
-import tempfile
 from arq import create_pool
 from arq.connections import RedisSettings
 from src.config import settings
-from src.events.redis_streams import event_bus
-
-
-S3_ENDPOINT = os.environ.get("S3_ENDPOINT", "")
-S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY", "")
-S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY", "")
-S3_BUCKET_PREFIX = os.environ.get("S3_BUCKET_PREFIX", "zenith-audio")
 
 
 async def upload_audio_chunk(ctx, tenant_id: str, call_id: str, channel: str, audio_data: bytes):
-    if not S3_ENDPOINT:
-        return {"status": "skipped", "reason": "S3 not configured"}
-
     try:
-        import boto3
-        from botocore.config import Config
+        call_dir = os.path.join(settings.RECORDINGS_PATH, tenant_id, call_id)
+        os.makedirs(call_dir, exist_ok=True)
+        path = os.path.join(call_dir, f"{channel}.raw")
 
-        session = boto3.Session(
-            aws_access_key_id=S3_ACCESS_KEY,
-            aws_secret_access_key=S3_SECRET_KEY,
-        )
-        s3 = session.client(
-            "s3",
-            endpoint_url=S3_ENDPOINT,
-            config=Config(signature_version="s3v4"),
-        )
+        with open(path, "wb") as f:
+            f.write(audio_data)
 
-        bucket_name = f"{S3_BUCKET_PREFIX}-{tenant_id}"
-        key = f"recordings/{call_id}/{channel}.raw"
-
-        try:
-            s3.head_bucket(Bucket=bucket_name)
-        except Exception:
-            s3.create_bucket(Bucket=bucket_name)
-
-        s3.put_object(Bucket=bucket_name, Key=key, Body=audio_data)
-
-        return {"status": "uploaded", "bucket": bucket_name, "key": key}
+        return {"status": "uploaded", "path": path}
     except Exception as e:
         return {"status": "failed", "error": str(e)}
 
@@ -62,3 +35,18 @@ async def upload_recording_batch(ctx, tenant_id: str, call_id: str, recordings: 
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     functions = [upload_audio_chunk, upload_recording_batch]
+
+
+_pool = None
+
+
+async def _get_pool():
+    global _pool
+    if _pool is None:
+        _pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+    return _pool
+
+
+async def enqueue_recording_upload(tenant_id: str, call_id: str, recordings: list[dict]):
+    pool = await _get_pool()
+    await pool.enqueue_job("upload_recording_batch", tenant_id, call_id, recordings)
