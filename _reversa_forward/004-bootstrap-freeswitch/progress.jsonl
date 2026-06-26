@@ -1,0 +1,14 @@
+{"ts":"2026-06-23T19:59:01Z","action":"T001","status":"done","files":["freeswitch/conf/vars.xml"]}
+{"ts":"2026-06-23T19:59:01Z","action":"T002","status":"done","files":["freeswitch/conf/autoload_configs/acl.conf.xml"]}
+{"ts":"2026-06-23T19:59:01Z","action":"T003","status":"done","files":["freeswitch/conf/autoload_configs/event_socket.conf.xml"]}
+{"ts":"2026-06-23T19:59:01Z","action":"T004","status":"done","files":["freeswitch/conf/directory/default.xml"]}
+{"ts":"2026-06-23T19:59:01Z","action":"T012","status":"done","files":["freeswitch/conf/autoload_configs/sofia.conf.xml"]}
+{"ts":"2026-06-23T20:00:42Z","action":"T005","status":"done","files":["freeswitch/conf/freeswitch.xml"]}
+{"ts":"2026-06-23T20:00:42Z","action":"T006","status":"done","files":["freeswitch/conf/sip_profiles/internal.xml"],"note":"nenhuma edicao necessaria: $${domain} ja resolvido automaticamente apos T001 definir a variavel em vars.xml"}
+{"ts":"2026-06-23T20:00:42Z","action":"T007","status":"done","files":["freeswitch/conf/autoload_configs/modules.conf.xml"],"note":"mod_esl (modulo inexistente) trocado por mod_event_socket"}
+{"ts":"2026-06-24T12:10:06Z","action":"T013","status":"done","files":["docker-compose.app.yml"],"note":"build customizado de mod_audio_fork bloqueado por token SignalWire invalido (401); fallback para imagem vanilla neste ciclo"}
+{"ts":"2026-06-24T12:10:06Z","action":"T014","status":"done","files":["freeswitch/conf/autoload_configs/modules.conf.xml"],"note":"mod_audio_fork removido do load list, consistente com T013"}
+{"ts":"2026-06-24T12:13:57Z","action":"T008","status":"done","files":["docker-compose.app.yml"],"note":"docker compose up -d freeswitch executado via SSH em 10.10.10.11 (/home/administrator/zenith-voip)"}
+{"ts":"2026-06-24T12:13:57Z","action":"T009","status":"done","files":[],"note":"90s de observacao, 17 amostras, status running o tempo todo, RestartCount=0, sem erro fatal nos logs"}
+{"ts":"2026-06-24T12:15:02Z","action":"T010","status":"done","files":["_reversa_sdd/gaps.md"]}
+{"ts":"2026-06-24T12:15:02Z","action":"T011","status":"done","files":["_reversa_sdd/infra/deployment/design.md"]}

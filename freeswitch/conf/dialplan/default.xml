@@ -2,6 +2,21 @@
 <include>
   <context name="default">
 
+    <!-- Teste de eco: disque 9196 para confirmar que o registro está funcionando -->
+    <extension name="echo_test">
+      <condition field="destination_number" expression="^9196$">
+        <action application="answer"/>
+        <action application="echo"/>
+      </condition>
+    </extension>
+
+    <!-- Chamadas entre ramais registrados localmente -->
+    <extension name="local_extension">
+      <condition field="destination_number" expression="^(1\d{3})$">
+        <action application="bridge" data="user/$1@$${domain}"/>
+      </condition>
+    </extension>
+
     <extension name="registration_forwarding">
       <condition field="sip_from_user" expression="^(\d+)$">
         <action application="log" data="INFO Proxy REGISTER from ${sip_from_user}@${sip_from_host}"/>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<include>
+  <profile name="upstream">
+    <settings>
+      <param name="debug" value="0"/>
+      <!-- Porta separada do internal (5060) para que rescan deste profile
+           não derrube os REGISTERs ativos dos interfones -->
+      <param name="sip-port" value="5065"/>
+      <param name="sip-ip" value="$${local_ip}"/>
+      <param name="ext-sip-ip" value="$${external_sip_ip}"/>
+      <param name="rtp-ip" value="$${local_ip}"/>
+      <param name="ext-rtp-ip" value="$${external_rtp_ip}"/>
+
+      <param name="dtmf-type" value="rfc2833"/>
+      <param name="inbound-codec-prefs" value="$${global_codec_prefs}"/>
+      <param name="outbound-codec-prefs" value="$${global_codec_prefs}"/>
+
+      <param name="enable-soa" value="true"/>
+      <param name="enable-timer" value="false"/>
+      <param name="session-timeout" value="1800"/>
+
+      <param name="auth-calls" value="false"/>
+    </settings>
+
+    <aliases>
+      <alias name="upstream"/>
+    </aliases>
+
+    <domains>
+      <domain name="$${domain}" alias="false" parse="false"/>
+    </domains>
+
+    <gateways>
+      <!-- Gerado por scripts/import_extensions.py (gitignored — contém senhas) -->
+      <X-PRE-PROCESS cmd="include" data="upstream/*.xml"/>
+    </gateways>
+  </profile>
+</include>

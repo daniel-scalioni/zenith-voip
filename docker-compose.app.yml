@@ -15,11 +15,19 @@ secrets:
 
 services:
   freeswitch:
-    build:
-      context: ./freeswitch
-      dockerfile: Dockerfile
-      secrets:
-        - signalwire_token
+    # Build customizado (mod_audio_fork) desativado temporariamente: token do
+    # SignalWire em freeswitch/signalwire_token.txt está sendo rejeitado (401)
+    # pelo repositório APT real (validado em 10.10.10.11). Gravação de
+    # chamadas está fora do escopo do ciclo "bootstrap FreeSWITCH" — ver
+    # _reversa_forward/004-bootstrap-freeswitch/roadmap.md#D-06. Restaurar o
+    # bloco abaixo (e remover a linha `image:`) quando o token for renovado,
+    # no ciclo que implementar gravação de fato.
+    # build:
+    #   context: ./freeswitch
+    #   dockerfile: Dockerfile
+    #   secrets:
+    #     - signalwire_token
+    image: safarov/freeswitch:1.10.12
     container_name: freeswitch
     network_mode: host
     volumes:

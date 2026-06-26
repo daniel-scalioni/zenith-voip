@@ -102,6 +102,18 @@ Cliente → FreeSWITCH → ESL Events → FastAPI → Redis Streams → Workers
 | TD09 | Observabilidade | Logs do ESL Client sem estruturação adequada | `src/telephony/esl_client.py` | 🟡 Média |
 | TD10 | Configuração | S3 credentials expostas via env, sem secrets management | `docker-compose.app.yml` | 🔴 Alta |
 
+## Papel do FreeSWITCH: B2BUA com Registration Forwarding
+
+O FreeSWITCH **não** é apenas uma "central telefônica" — é um **B2BUA (Back-to-Back User Agent)** posicionado entre os interfones do cliente e o PBX de produção (VitalPBX / GPhone em `sip.akom.tecnorise.com`).
+
+- Interfones registram no FreeSWITCH (profile `internal`, porta 5060)
+- FreeSWITCH registra upstream no VitalPBX *como cada ramal*, com as mesmas credenciais SIP
+- VitalPBX e sistemas satélite enxergam os ramais como registrados normalmente
+- FreeSWITCH captura o áudio para transcrição/IA via `mod_audio_fork`
+- Provisionamento dinâmico via `mod_xml_curl`: banco Zenith (tabela `SIPExtension`) é a fonte de verdade
+
+Ver ADR-006 e `_reversa_sdd/telephony/design.md` para topologia completa.
+
 ## Decisões Arquiteturais (ADRs)
 
 Ver `_reversa_sdd/adrs/`:
@@ -110,3 +122,4 @@ Ver `_reversa_sdd/adrs/`:
 - `003-dados-sensiveis-llm-local.md` — Dados sensíveis nunca saem do ambiente local
 - `004-consenso-3-ciclos.md` — LangGraph com até 3 iterações
 - `005-freewitch-esl-reconexao-automatica.md` — Reconexão ESL com backoff 2s
+- `006-b2bua-registration-forwarding.md` — FreeSWITCH como B2BUA com Registration Forwarding para VitalPBX

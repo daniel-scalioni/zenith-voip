@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<include>
+  <X-PRE-PROCESS cmd="set" data="local_ip_v4=auto"/>
+  <X-PRE-PROCESS cmd="set" data="local_ip=$${local_ip_v4}"/>
+  <X-PRE-PROCESS cmd="set" data="external_rtp_ip=$${local_ip}"/>
+  <X-PRE-PROCESS cmd="set" data="external_sip_ip=$${local_ip}"/>
+
+  <X-PRE-PROCESS cmd="set" data="domain=zenith.local"/>
+  <X-PRE-PROCESS cmd="set" data="pbx_host=sip.akom.tecnorise.com"/>
+
+  <X-PRE-PROCESS cmd="set" data="global_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
+  <X-PRE-PROCESS cmd="set" data="outbound_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
+
+  <X-PRE-PROCESS cmd="set" data="sound_prefix=/usr/share/freeswitch/sounds/en/us/callie"/>
+</include>
