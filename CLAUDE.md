@@ -2,6 +2,10 @@
 
 > Framework de Engenharia Reversa instalado neste projeto.
 
+## Regra permanente de execução
+
+Sempre montar um plano antes de executar ações (mudanças de config, código, infra, comandos remotos via SSH, etc.) e apresentá-lo ao usuário antes de sair executando, mesmo quando o usuário já autorizou execução autônoma da tarefa em si.
+
 ## Como usar
 
 Digite `reversa` para ativar o Reversa e iniciar ou retomar a análise do projeto.

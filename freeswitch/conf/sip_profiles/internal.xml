@@ -17,6 +17,9 @@
       <param name="sip-ip" value="$${local_ip}"/>
 
       <param name="auth-calls" value="false"/>
+      <!-- Softphones migrados da VitalPBX (ex: 3CX) usam o PBXAddr também como domínio do REGISTER,
+           que nunca bate com $${domain} (zenith.local). Força a resolução do domínio real. -->
+      <param name="force-register-domain" value="$${domain}"/>
       <param name="apply-nat-acl" value="rfc1918"/>
       <param name="aggressive-nat-detection" value="true"/>
 
