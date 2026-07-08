@@ -23,10 +23,34 @@ GAP-17 resolvido em 2026-06-26: `internal.xml` corrigido (TLS desativado, porta 
 
 🟢 Estratégia definida e implementada para o MVP (ADR-006):
 
-- **Profile `upstream`** (`sip_profiles/upstream.xml`, porta 5065): perfil SIP separado do `internal` exclusivo para gateways upstream ao VitalPBX (`sip.akom.tecnorise.com`). Separação evita que um `sofia profile upstream rescan` derrube REGISTERs ativos dos interfones no `internal`.
-- **`vars.xml`**: variável `pbx_host=sip.akom.tecnorise.com` adicionada; gateways upstream referenciam via `$${pbx_host}`.
+- **Profile `upstream`** (`sip_profiles/upstream.xml`, porta 5065): perfil SIP separado do `internal` exclusivo para gateways upstream ao VitalPBX (`sip.maisalerta.tecnorise.com`). Separação evita que um `sofia profile upstream rescan` derrube REGISTERs ativos dos interfones no `internal`.
+- **`vars.xml`**: variável `pbx_host=sip.maisalerta.tecnorise.com` adicionada; gateways upstream referenciam via `$${pbx_host}`.
 - **Importação em lote**: `scripts/import_extensions.py` lê `specs/export_extensions.csv` (exportado do VitalPBX) e gera:
   - `freeswitch/conf/directory/extensions.xml` — usuários para autenticação local dos interfones
   - `freeswitch/conf/sip_profiles/upstream/*.xml` — um gateway por ramal para registro upstream no VitalPBX
 - **Segurança**: arquivos gerados com senhas em texto (`extensions.xml`, `upstream/*.xml`, `specs/export_extensions.csv`) são gitignored; apenas estrutura sem credenciais está no repositório.
 - **Futuro**: substituir arquivos estáticos por `mod_xml_curl` → FastAPI → PostgreSQL (`SIPExtension`) quando o ciclo de provisionamento dinâmico for implementado (GAP-PROV-01).
+
+## Status do deploy B2BUA (2026-06-29)
+
+🔴 **GAP-UPSTREAM-01 — Gateways upstream em FAIL_WAIT**
+
+Deploy executado com sucesso (git clone no servidor + 939 arquivos de gateway copiados via scp).
+FreeSWITCH subiu, profiles `internal` e `upstream` carregados. Porém todos os 939 gateways
+estão em `FAIL_WAIT` — o VitalPBX (`sip.maisalerta.tecnorise.com`) está rejeitando os registros.
+
+**Causas prováveis (a verificar em ordem):**
+
+1. **IP não liberado no VitalPBX** ← mais provável
+   O IP `10.10.10.11` nunca registrou SIP no VitalPBX antes. O VitalPBX (FreePBX-based) usa
+   firewall e fail2ban que bloqueiam IPs desconhecidos. O administrador do VitalPBX precisa
+   adicionar `10.10.10.11` à lista de IPs permitidos para registro SIP.
+
+2. **Divergência de senha**
+   As senhas vieram do campo `device_password` do CSV exportado do VitalPBX. Se os ramais usam
+   senhas diferentes para registro externo (SIP trunk vs. registro de dispositivo), podem divergir.
+   Teste: tentar registrar manualmente um ramal com a senha do CSV em um softphone apontando para
+   `sip.maisalerta.tecnorise.com` direto (sem FreeSWITCH no meio) — se falhar, o problema é de senha.
+
+**Ação necessária**: acionar administrador do VitalPBX para liberar `10.10.10.11`.
+Plano de deploy completo: `_reversa_sdd/infra/deployment/deploy-phase1-b2bua.md`

@@ -6,17 +6,29 @@ Lê o CSV exportado pelo VitalPBX e gera:
   - freeswitch/conf/directory/extensions.xml   (usuários para auth local)
   - freeswitch/conf/sip_profiles/upstream/     (gateways upstream por ramal)
 
+Por padrão todos os gateways são gerados com register=false (seguro para produção).
+Use --enable para ativar registros upstream somente nos ramais em migração.
+
 Uso:
-    python scripts/import_extensions.py specs/export_extensions.csv
+    # Gerar tudo com register=false (padrão seguro):
+    python3 scripts/import_extensions.py specs/export_extensions.csv
+
+    # Ativar somente o ramal 1001:
+    python3 scripts/import_extensions.py specs/export_extensions.csv --enable 1001
+
+    # Ativar múltiplos ramais:
+    python3 scripts/import_extensions.py specs/export_extensions.csv --enable 1001,1002,1003
 
 Após executar, copie os arquivos gerados para o servidor (não commitar — contêm senhas):
     scp freeswitch/conf/directory/extensions.xml  administrator@10.10.10.11:~/zenith-voip/freeswitch/conf/directory/
     scp -r freeswitch/conf/sip_profiles/upstream/ administrator@10.10.10.11:~/zenith-voip/freeswitch/conf/sip_profiles/
+
+Para aplicar sem reiniciar o FreeSWITCH (só recarrega os gateways):
+    docker exec freeswitch fs_cli -x "sofia profile upstream rescan"
 """
 
+import argparse
 import csv
-import os
-import sys
 import xml.sax.saxutils as saxutils
 from pathlib import Path
 
@@ -25,9 +37,15 @@ REPO_ROOT = SCRIPT_DIR.parent
 DIRECTORY_OUT = REPO_ROOT / "freeswitch/conf/directory/extensions.xml"
 UPSTREAM_DIR = REPO_ROOT / "freeswitch/conf/sip_profiles/upstream"
 
-PBX_HOST = "sip.akom.tecnorise.com"
+PBX_HOST = "sip.maisalerta.tecnorise.com"
 
-# Colunas relevantes do CSV (índices baseados no cabeçalho)
+# Porta de destino no VitalPBX por tecnologia SIP.
+# PJSIP usa 7060; SIP usa 5060 (ou 5062 — verificar por perfil/ramal).
+PORT_BY_TECH: dict[str, str] = {
+    "pjsip": "7060",
+    "sip": "5060",
+}
+
 COL_EXTENSION = "extension"
 COL_EXT_NAME = "ext_name"
 COL_TECHNOLOGY = "technology"
@@ -79,7 +97,6 @@ def load_extensions(csv_path: Path) -> dict[str, dict]:
                 if tech == "pjsip" and existing_tech == "sip":
                     extensions[ext] = entry
                     duplicates_replaced += 1
-                # qualquer outro caso de dup: manter o que já está
 
     print(f"CSV processado:")
     print(f"  Extensões únicas importadas : {len(extensions)}")
@@ -109,63 +126,88 @@ def write_directory(extensions: dict[str, dict]) -> None:
     print(f"\nDirectory:  {DIRECTORY_OUT}  ({len(extensions)} usuários)")
 
 
-def write_gateways(extensions: dict[str, dict]) -> None:
+def write_gateways(extensions: dict[str, dict], active: set[str]) -> None:
     UPSTREAM_DIR.mkdir(parents=True, exist_ok=True)
     # Remove arquivos anteriores para evitar gateways órfãos
     for f in UPSTREAM_DIR.glob("upstream-*.xml"):
         f.unlink()
 
+    enabled_count = 0
     for ext in sorted(extensions):
         e = extensions[ext]
         gw_name = f"upstream-{ext}"
+        register = "true" if ext in active else "false"
+        if register == "true":
+            enabled_count += 1
+        port = PORT_BY_TECH.get(e["tech"], "5060")
+        proxy = f"{PBX_HOST}:{port}"
         content = f"""<!-- Gerado por scripts/import_extensions.py — NÃO COMMITAR (contém senhas) -->
 <gateway name="{escape(gw_name)}">
   <param name="username" value="{escape(e["user"])}"/>
   <param name="password" value="{escape(e["password"])}"/>
-  <param name="proxy" value="{escape(PBX_HOST)}"/>
-  <param name="register" value="true"/>
+  <param name="proxy" value="{escape(proxy)}"/>
+  <param name="register" value="{register}"/>
   <param name="caller-id-in-from" value="true"/>
   <param name="ping" value="25"/>
 </gateway>
 """
         (UPSTREAM_DIR / f"{gw_name}.xml").write_text(content, encoding="utf-8")
 
-    print(f"Gateways:   {UPSTREAM_DIR}/  ({len(extensions)} arquivos)")
+    total = len(extensions)
+    disabled = total - enabled_count
+    print(f"Gateways:   {UPSTREAM_DIR}/  ({total} arquivos)")
+    print(f"  register=true  (ativos) : {enabled_count}")
+    print(f"  register=false (parados): {disabled}")
+    if active - set(extensions.keys()):
+        missing = active - set(extensions.keys())
+        print(f"  AVISO: extensões em --enable não encontradas no CSV: {', '.join(sorted(missing))}")
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"Uso: python {sys.argv[0]} <caminho_do_csv>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Importa ramais do VitalPBX para o FreeSWITCH."
+    )
+    parser.add_argument("csv_path", help="Caminho para o CSV exportado do VitalPBX")
+    parser.add_argument(
+        "--enable",
+        default="",
+        metavar="EXT1,EXT2,...",
+        help="Ramais a ativar (register=true). Os demais ficam com register=false. "
+             "Padrão: nenhum (todos desabilitados, seguro para produção).",
+    )
+    args = parser.parse_args()
 
-    csv_path = Path(sys.argv[1])
+    csv_path = Path(args.csv_path)
     if not csv_path.exists():
         print(f"Erro: arquivo não encontrado: {csv_path}")
-        sys.exit(1)
+        raise SystemExit(1)
+
+    active = {e.strip() for e in args.enable.split(",") if e.strip()}
 
     extensions = load_extensions(csv_path)
     if not extensions:
         print("Nenhuma extensão válida encontrada. Verifique o CSV.")
-        sys.exit(1)
+        raise SystemExit(1)
 
     write_directory(extensions)
-    write_gateways(extensions)
+    write_gateways(extensions, active)
 
-    print("""
+    active_str = f"--enable {args.enable}" if active else ""
+    print(f"""
 Próximos passos:
   1. Copie os arquivos gerados para o servidor (NÃO commitar):
        scp freeswitch/conf/directory/extensions.xml administrator@10.10.10.11:~/zenith-voip/freeswitch/conf/directory/
        scp -r freeswitch/conf/sip_profiles/upstream/ administrator@10.10.10.11:~/zenith-voip/freeswitch/conf/sip_profiles/
 
-  2. Commit e push das mudanças de estrutura (sem credenciais):
-       git push
+  2. Recarregue os gateways sem reiniciar o FreeSWITCH:
+       docker exec freeswitch fs_cli -x "sofia profile upstream rescan"
 
-  3. No servidor:
-       cd zenith-voip && git pull
-       docker compose -f docker-compose.app.yml restart freeswitch
+  3. Verifique o gateway ativo:
+       docker exec freeswitch fs_cli -x "sofia status gateway upstream-1001"
 
-  4. Verifique os gateways:
-       docker exec -it freeswitch fs_cli -x "sofia status gateway upstream-1001"
+  Para ativar mais ramais depois:
+       python3 scripts/import_extensions.py {args.csv_path} --enable 1001,1002
+       (repetir os passos 1 e 2)
 """)
 
 

@@ -1,10 +1,10 @@
 {
   "schema-version": 1,
-  "feature-dir": "_reversa_forward/004-bootstrap-freeswitch",
-  "feature-id": "004",
-  "short-name": "bootstrap-freeswitch",
-  "started-at": "2026-06-23T19:51:17Z",
-  "current-stage": "requirements",
-  "stages-completed": [],
+  "feature-dir": "_reversa_forward/005-dynamic-external-ip",
+  "feature-id": "005",
+  "short-name": "dynamic-external-ip",
+  "started-at": "2026-06-29T00:00:00Z",
+  "current-stage": "coding",
+  "stages-completed": ["requirements", "clarify", "plan", "to-do", "coding"],
   "paused-features": []
 }

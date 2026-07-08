@@ -104,7 +104,7 @@ Cliente → FreeSWITCH → ESL Events → FastAPI → Redis Streams → Workers
 
 ## Papel do FreeSWITCH: B2BUA com Registration Forwarding
 
-O FreeSWITCH **não** é apenas uma "central telefônica" — é um **B2BUA (Back-to-Back User Agent)** posicionado entre os interfones do cliente e o PBX de produção (VitalPBX / GPhone em `sip.akom.tecnorise.com`).
+O FreeSWITCH **não** é apenas uma "central telefônica" — é um **B2BUA (Back-to-Back User Agent)** posicionado entre os interfones do cliente e o PBX de produção (VitalPBX / GPhone em `sip.maisalerta.tecnorise.com`).
 
 - Interfones registram no FreeSWITCH (profile `internal`, porta 5060)
 - FreeSWITCH registra upstream no VitalPBX *como cada ramal*, com as mesmas credenciais SIP

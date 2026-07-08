@@ -158,6 +158,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  ip-watcher:
+    build: ./sidecar
+    container_name: zenith-ip-watcher
+    network_mode: host
+    volumes:
+      - ./freeswitch/conf:/etc/freeswitch
+    env_file: .env
+    environment:
+      - EXTERNAL_IP_ENDPOINT=${EXTERNAL_IP_ENDPOINT}
+      - FREESWITCH_ESL_HOST=127.0.0.1
+      - FREESWITCH_ESL_PORT=8021
+      - FREESWITCH_ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-ClueCon}
+      - FREESWITCH_CONF_PATH=/etc/freeswitch
+      - MOCK_EXTERNAL_IP=${MOCK_EXTERNAL_IP:-}
+      - POLL_INTERVAL=${POLL_INTERVAL:-60}
+      - SSL_VERIFY=${SSL_VERIFY:-true}
+    depends_on:
+      - freeswitch
+    restart: unless-stopped
+
   bunkerweb:
     image: bunkerity/bunkerweb:1.5.12
     container_name: bunkerweb

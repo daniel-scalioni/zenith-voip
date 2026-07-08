@@ -15,9 +15,9 @@ Interfone / Softphone
     ▼
 FreeSWITCH — profile "internal" (porta 5060)
     │  Aceita o REGISTER do interfone
-    │  Re-registra upstream: REGISTER ext=1001, senha=XXXX → sip.akom.tecnorise.com
+    │  Re-registra upstream: REGISTER ext=1001, senha=XXXX → sip.maisalerta.tecnorise.com
     ▼
-VitalPBX (GPhone) — sip.akom.tecnorise.com
+VitalPBX (GPhone) — sip.maisalerta.tecnorise.com
     │  Enxerga ramal 1001 como "registrado" (via FreeSWITCH, transparente)
     │  Sistemas satélite veem o ramal como online normalmente
     ▼
@@ -78,18 +78,33 @@ A senha SIP é armazenada cifrada no banco e nunca exposta em logs ou arquivos d
 | Profile | Porta | Função |
 |---------|-------|--------|
 | `internal` | 5060 | Recebe REGISTERs dos interfones/softphones |
-| `upstream` | (sem bind local) | Gateways de saída para o VitalPBX do cliente |
+| `upstream` | 5065 | Gateways de saída para o VitalPBX do cliente |
 
 Os dois profiles são separados propositalmente: um rescan de gateways no `upstream` não afeta os REGISTERs estabelecidos no `internal`.
 
-**Gateway por ramal (gerado dinamicamente via mod_xml_curl):**
+### Porta de destino no VitalPBX (por tecnologia)
+
+O VitalPBX expõe perfis SIP distintos em portas diferentes. A tecnologia usada por cada ramal
+está no CSV de exportação (coluna `technology`):
+
+| Tecnologia (`technology`) | Porta no VitalPBX |
+|---------------------------|-------------------|
+| `pjsip`                   | 7060              |
+| `sip`                     | 5060 ou 5062 (depende do perfil — verificar por ramal) |
+
+A coluna `technology` do CSV deve ser preservada no registro de cada ramal para que o gateway
+seja gerado com o `proxy` correto incluindo a porta. O `import_extensions.py` usa o campo `tech`
+do dict de extensão para determinar a porta de destino.
+
+**Gateway por ramal (gerado pelo `import_extensions.py`):**
 ```xml
 <gateway name="upstream-{extension}">
   <param name="username" value="{extension}"/>
   <param name="password" value="{sip_password}"/>
-  <param name="proxy" value="{pbx_host}"/>
+  <param name="proxy" value="{pbx_host}:{port_by_tech}"/>  <!-- ex: sip.maisalerta.tecnorise.com:7060 -->
   <param name="register" value="true"/>
   <param name="caller-id-in-from" value="true"/>
+  <param name="ping" value="25"/>
 </gateway>
 ```
 

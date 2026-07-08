@@ -20,3 +20,7 @@ data/recordings/
 
 # Reversa
 .reversa/config.user.toml
+
+# Arquivos locais não versionáveis
+.claude/settings.local.json
+.claude/deploy-access.local.md
