@@ -84,7 +84,10 @@ alembic/                      # Migrations (3 revisões)
 freeswitch/conf/              # Config FreeSWITCH
 ├── autoload_configs/modules.conf.xml
 ├── dialplan/default.xml
-└── sip_profiles/internal.xml
+└── sip_profiles/
+    ├── internal.xml         # entrada, porta 5060
+    ├── internal-7060.xml    # entrada, porta 7060 (feature 006-registro-porta-vitalpbx)
+    └── internal-5062.xml    # entrada, porta 5062 (feature 006-registro-porta-vitalpbx)
 
 grafana/dashboards/           # Dashboards
 └── ai-hub.json

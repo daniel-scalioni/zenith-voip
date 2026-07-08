@@ -22,6 +22,17 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-08 22:31
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | `internal` (5060) permanece `RUNNING` — confirmado ao vivo durante deploy da feature 006 (dois profiles novos criados/iniciados sem interrupção do `internal`) |
+| W002 | 🟢 verde | Regra preservada em `telephony/design.md#3` — profiles de entrada continuam isolados do `upstream` |
+| W003 | 🟢 verde | `gaps.md#GAP-UPSTREAM-01` atualizado para ✅ Resolvida — `upstream-1001` confirmado `REGED`/`UP` nesta sessão |
+| W004 | 🟡 amarelo | Não re-verificado diretamente nesta sessão (foco foi na feature 006); sem evidência de regressão |
+| W005 | 🟡 amarelo | Não re-verificado diretamente nesta sessão; sem evidência de regressão |
+| W006 | 🟡 amarelo | Não re-verificado diretamente nesta sessão; sem evidência de regressão |
+
 <!-- Preenchido automaticamente pelo /reversa quando a pipeline reversa for re-executada. -->
 
 ## Arquivadas

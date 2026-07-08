@@ -18,7 +18,15 @@
 
 ## Histórico de re-extrações
 
-_Vazio — será preenchido na próxima execução de `/reversa` (extração reversa)._
+### Re-extração 2026-07-08 22:31
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | `domain.md#R07` atualizado nesta re-extração para refletir 7060/5062 como portas de entrada válidas, preservando 5060 como padrão |
+| W002 | 🟢 verde | `telephony/design.md#3` documenta explicitamente que os três profiles compartilham `force-register-domain` e devem ser atualizados juntos |
+| W003 | 🟢 verde | Confirmado ao vivo nesta sessão: `upstream-1001` aponta para `sip.maisalerta.tecnorise.com:7060`, consistente com a tecnologia `pjsip` do ramal |
+| W004 | 🟢 verde | `internal` (5060) permaneceu `RUNNING` durante todo o deploy, confirmado via `sofia status` |
+| W005 | 🟢 verde | Comportamento documentado em `onboarding.md#Resultado real do teste`, evidência direta do teste ao vivo |
 
 ## Arquivadas
 

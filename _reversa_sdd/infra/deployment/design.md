@@ -19,6 +19,8 @@ Validado com boot real: container subiu via `docker compose -f docker-compose.in
 
 GAP-17 resolvido em 2026-06-26: `internal.xml` corrigido (TLS desativado, porta 5060 apenas).
 
+**Atualização 2026-07-08 (feature `006-registro-porta-vitalpbx`):** `internal.xml` deixou de ser o único profile de entrada. Dois profiles novos foram adicionados — `sip_profiles/internal-7060.xml` (porta 7060) e `sip_profiles/internal-5062.xml` (porta 5062) — para que um ramal migre da VitalPBX trocando só o endereço do servidor no aparelho, sem reconfigurar porta. Os três profiles de entrada compartilham `force-register-domain=$${domain}` (correção aplicada primeiro em `internal.xml`, feature `006-registro-porta-vitalpbx`, para resolver mismatch de domínio em softphones como o 3CX) e as mesmas variáveis dinâmicas de IP (`$${local_ip}`, `$${external_sip_ip}`) já usadas pelo sidecar `ip-watcher` (feature `005-dynamic-external-ip`). Validado em produção com o ramal 1001 (registro real via 3CXPhone na porta 7060).
+
 ## B2BUA Registration Forwarding — provisão de ramais (2026-06-26)
 
 🟢 Estratégia definida e implementada para o MVP (ADR-006):

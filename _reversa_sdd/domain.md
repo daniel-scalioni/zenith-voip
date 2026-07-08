@@ -44,7 +44,7 @@
 |----|-------|--------|-----------|
 | R05 | PBX sempre pertence a um tenant (FK com CASCADE) | `models.py:44` | 🟢 |
 | R06 | Apenas tenant_admin pode criar/listar PBXs | `auth.py:35-40` | 🟢 |
-| R07 | Porta SIP padrão é 5060 | `models.py:48` | 🟢 |
+| R07 | Porta SIP padrão é 5060 (default do modelo de aplicação; a topologia FreeSWITCH aceita também 7060/5062 na camada de entrada — ver `telephony/design.md#3`, feature `006-registro-porta-vitalpbx`) | `models.py:48` | 🟢 |
 
 ### STT
 

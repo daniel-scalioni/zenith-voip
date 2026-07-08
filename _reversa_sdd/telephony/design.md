@@ -77,10 +77,12 @@ A senha SIP é armazenada cifrada no banco e nunca exposta em logs ou arquivos d
 
 | Profile | Porta | Função |
 |---------|-------|--------|
-| `internal` | 5060 | Recebe REGISTERs dos interfones/softphones |
+| `internal` | 5060 | Recebe REGISTERs dos interfones/softphones (porta padrão/original) |
+| `internal-7060` | 7060 | Recebe REGISTERs de ramais cadastrados como `pjsip` na VitalPBX — permite migrar um ramal trocando só o servidor SIP no aparelho, sem mudar porta (feature `006-registro-porta-vitalpbx`) 🟢 |
+| `internal-5062` | 5062 | Recebe REGISTERs de ramais cadastrados em `sip`/5062 na VitalPBX, mesmo padrão de `internal-7060` (feature `006-registro-porta-vitalpbx`) 🟡 — sem ramal real validado ainda nesta porta |
 | `upstream` | 5065 | Gateways de saída para o VitalPBX do cliente |
 
-Os dois profiles são separados propositalmente: um rescan de gateways no `upstream` não afeta os REGISTERs estabelecidos no `internal`.
+Os profiles de entrada (`internal`, `internal-7060`, `internal-5062`) e o de saída (`upstream`) são separados propositalmente: um rescan de gateways no `upstream` não afeta os REGISTERs estabelecidos em qualquer profile de entrada. Os três profiles de entrada compartilham o mesmo diretório de usuários (`directory/extensions.xml`, global) e a mesma lógica de resolução de domínio (`force-register-domain=$${domain}` — necessário porque softphones como o 3CX usam o próprio endereço/porta do servidor como domínio do REGISTER, não um campo de domínio separado). Os três devem ser atualizados em conjunto quando essa lógica mudar (ver `_reversa_forward/006-registro-porta-vitalpbx/regression-watch.md#W002`).
 
 ### Porta de destino no VitalPBX (por tecnologia)
 
