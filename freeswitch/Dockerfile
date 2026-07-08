@@ -11,8 +11,11 @@
 
 # Repositório APT da SignalWire exige uma conta + token pessoal desde a
 # migração do repo público (o antigo login de convidado não existe mais).
-# Gere o seu em https://id.signalwire.com/signup/account/new e passe via
-# build secret (não fica gravado em nenhuma layer da imagem):
+# A URL antiga de cadastro (id.signalwire.com/signup/account/new) está morta.
+# O token válido é um "Personal Access Token" (prefixo pat_), gerado no painel
+# da SignalWire — não confundir com o Project Token (PT...)/SignIn Key (PSK_...)
+# do Space, que são para as APIs de voz/vídeo, não para este repositório.
+# Passe via build secret (não fica gravado em nenhuma layer da imagem):
 #   docker compose -f docker-compose.app.yml build \
 #     --secret id=signalwire_token,src=./freeswitch/signalwire_token.txt \
 #     freeswitch
@@ -32,7 +35,7 @@ RUN --mount=type=secret,id=signalwire_token \
     && echo "deb [signed-by=/usr/share/keyrings/signalwire-freeswitch-repo.gpg] https://freeswitch.signalwire.com/repo/deb/debian-release/ $(lsb_release -sc) main" \
         > /etc/apt/sources.list.d/freeswitch.list \
     && apt-get update && apt-get install -y --no-install-recommends \
-        freeswitch-dev \
+        libfreeswitch-dev \
         build-essential git autoconf automake libtool pkg-config \
         libwebsockets-dev \
     && rm -rf /var/lib/apt/lists/*
