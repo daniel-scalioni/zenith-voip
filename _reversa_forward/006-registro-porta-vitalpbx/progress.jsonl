@@ -1,0 +1,15 @@
+{"ts":"2026-07-08T21:31:45Z","action":"T001","status":"done","files":["freeswitch/conf/sip_profiles/internal-7060.xml"]}
+{"ts":"2026-07-08T21:31:45Z","action":"T002","status":"done","files":["freeswitch/conf/sip_profiles/internal-5062.xml"]}
+{"ts":"2026-07-08T21:31:45Z","action":"T003","status":"done","files":["freeswitch/conf/sip_profiles/internal.xml","freeswitch/conf/sip_profiles/internal-7060.xml","freeswitch/conf/sip_profiles/internal-5062.xml"]}
+{"ts":"2026-07-08T21:33:09Z","action":"T004","status":"done","files":["freeswitch/conf/sip_profiles/internal-7060.xml"]}
+{"ts":"2026-07-08T21:33:09Z","action":"T005","status":"done","files":["freeswitch/conf/sip_profiles/internal-5062.xml"]}
+{"ts":"2026-07-08T21:33:09Z","action":"T006","status":"done","files":["freeswitch/conf/sip_profiles/internal-7060.xml"]}
+{"ts":"2026-07-08T21:33:09Z","action":"T007","status":"done","files":["freeswitch/conf/sip_profiles/internal-5062.xml"]}
+{"ts":"2026-07-08T21:33:09Z","action":"T008","status":"corrected","note":"marcado X por engano por regex de bulk-replace, revertido para [ ]"}
+{"ts":"2026-07-08T21:33:09Z","action":"T009","status":"corrected","note":"marcado X por engano por regex de bulk-replace, revertido para [ ]"}
+{"ts":"2026-07-08T22:22:59Z","action":"T008","status":"done","files":[],"note":"ramal 1001 REGED em internal-7060 via 3CXPhone 192.168.50.99"}
+{"ts":"2026-07-08T22:22:59Z","action":"T009","status":"done","files":[],"note":"profile internal permanece RUNNING; 1001 nao aparece pois migrou para 7060 (mesmo aparelho), sem regressao no profile"}
+{"ts":"2026-07-08T22:22:59Z","action":"T010","status":"done","files":[],"note":"gateway upstream-1001 REGED, proxy sip.maisalerta.tecnorise.com:7060, sem mudanca necessaria"}
+{"ts":"2026-07-08T22:24:02Z","action":"T011","status":"done","files":["_reversa_forward/006-registro-porta-vitalpbx/onboarding.md"]}
+{"ts":"2026-07-08T22:24:02Z","action":"T012","status":"done","files":["_reversa_forward/006-registro-porta-vitalpbx/regression-watch.md"]}
+{"ts":"2026-07-08T22:24:02Z","action":"T013","status":"done","files":["_reversa_forward/006-registro-porta-vitalpbx/roadmap.md"]}

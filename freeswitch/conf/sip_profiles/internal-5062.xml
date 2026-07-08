@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <include>
-  <profile name="internal">
+  <profile name="internal-5062">
     <settings>
       <param name="debug" value="0"/>
-      <param name="sip-port" value="5060"/>
+      <param name="sip-port" value="5062"/>
       <!-- TLS desativado: sem certificados em /etc/freeswitch/tls/ neste ciclo -->
-      <!-- <param name="tls-sip-port" value="5061"/> -->
+      <!-- <param name="tls-sip-port" value="5063"/> -->
       <!-- <param name="tls-only" value="false"/> -->
       <!-- <param name="tls-version" value="tlsv1.2,tlsv1.3"/> -->
       <!-- <param name="tls-cert-dir" value="/etc/freeswitch/tls"/> -->
@@ -17,9 +17,7 @@
       <param name="sip-ip" value="$${local_ip}"/>
 
       <param name="auth-calls" value="false"/>
-      <!-- Softphones migrados da VitalPBX (ex: 3CX) usam o PBXAddr também como domínio do REGISTER,
-           que nunca bate com $${domain} (zenith.local). Força a resolução do domínio real.
-           Compartilha essa lógica com internal-7060.xml e internal-5062.xml
+      <!-- Compartilha a mesma lógica de domínio/IP dinâmico de internal.xml e internal-7060.xml
            (feature 006-registro-porta-vitalpbx) — atualizar os três profiles em conjunto. -->
       <param name="force-register-domain" value="$${domain}"/>
       <param name="apply-nat-acl" value="rfc1918"/>
@@ -42,7 +40,7 @@
     </settings>
 
     <aliases>
-      <alias name="internal"/>
+      <alias name="internal-5062"/>
     </aliases>
 
     <domains>
@@ -50,7 +48,7 @@
     </domains>
 
     <gateways>
-      <X-PRE-PROCESS cmd="include" data="internal/*.xml"/>
+      <X-PRE-PROCESS cmd="include" data="internal-5062/*.xml"/>
     </gateways>
   </profile>
 </include>

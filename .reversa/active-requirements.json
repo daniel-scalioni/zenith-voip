@@ -1,10 +1,10 @@
 {
   "schema-version": 1,
-  "feature-dir": "_reversa_forward/005-dynamic-external-ip",
-  "feature-id": "005",
-  "short-name": "dynamic-external-ip",
-  "started-at": "2026-06-29T00:00:00Z",
-  "current-stage": "coding",
-  "stages-completed": ["requirements", "clarify", "plan", "to-do", "coding"],
+  "feature-dir": "_reversa_forward/006-registro-porta-vitalpbx",
+  "feature-id": "006",
+  "short-name": "registro-porta-vitalpbx",
+  "started-at": "2026-07-08T20:38:12Z",
+  "current-stage": "requirements",
+  "stages-completed": [],
   "paused-features": []
 }
