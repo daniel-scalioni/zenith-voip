@@ -1,0 +1,5 @@
+{"ts":"2026-07-09T23:39:54Z","action":"T001","status":"done","files":["requirements.txt"]}
+{"ts":"2026-07-09T23:39:55Z","action":"T002","status":"done","files":["audio/voices/","\.gitignore"]}
+{"ts":"2026-07-09T23:40:58Z","action":"T003","status":"done","files":["src/services/tts_service.py"]}
+{"ts":"2026-07-09T23:40:58Z","action":"T004","status":"done","files":["src/services/tts_service.py"],"note":"health() agora carrega o modelo local em vez de checar endpoint HTTP"}
+{"ts":"2026-07-09T23:40:58Z","action":"T005","status":"done","files":["docker-compose.app.yml","src/config.py"]}

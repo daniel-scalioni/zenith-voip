@@ -19,7 +19,7 @@ langchain-community==0.3.14
 deepgram-sdk==3.7.0
 
 # TTS
-piper-tts==1.2.0
+piper-tts==1.4.2
 
 # Database
 sqlalchemy==2.0.36

@@ -7,7 +7,6 @@ networks:
 
 volumes:
   ollama_data:
-  piper_models:
 
 secrets:
   signalwire_token:
@@ -222,14 +221,7 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  piper-tts:
-    image: rhasspy/piper-tts:2023.11.14
-    container_name: zenith-piper
-    networks:
-      - ai-hub-net
-    ports:
-      - "5000:5000"
-    volumes:
-      - piper_models:/usr/share/piper/voices
-    command: ["python3", "-m", "piper.http_server", "--port", "5000"]
-    restart: unless-stopped
+  # Serviço piper-tts removido (feature 008-piper-tts-standalone): a imagem
+  # rhasspy/piper-tts:2023.11.14 nunca existiu (GAP-18). TTS agora roda como
+  # processo local via API Python do pacote piper-tts (ver
+  # src/services/tts_service.py), sem microserviço separado.

@@ -9,14 +9,14 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     DATABASE_URL: str = "postgresql+asyncpg://zenith:zenith@postgres:5432/zenith"
 
-    FREESWITCH_ESL_HOST: str = "172.20.0.1"
+    FREESWITCH_ESL_HOST: str = "172.21.0.1"
     FREESWITCH_ESL_PORT: int = 8021
     FREESWITCH_ESL_PASSWORD: str = "ClueCon"
 
     DEEPGRAM_API_KEY: str = ""
     OLLAMA_URL: str = "http://ollama:11434"
 
-    PIPER_TTS_URL: str = "http://piper-tts:5000"
+    PIPER_VOICE_PATH: str = "audio/voices/pt_BR-faber-medium.onnx"
 
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
