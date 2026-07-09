@@ -37,9 +37,9 @@
 
 | ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
 |----|-----------|--------------|-------------|--------------|-------------|--------|
-| T006 | Rodar `pip install --dry-run -r requirements.txt` e confirmar que resolve sem travar no `piper-phonemize`/`piper-tts` | T001 | - | `-` | 🟢 | `[ ]` |
-| T007 | Rodar `docker compose config --services` e confirmar que `piper-tts` não aparece mais na lista | T005 | - | `-` | 🟢 | `[ ]` |
-| T008 | Testar síntese real: `TTSWithFallback.synthesize("...")` retorna WAV válido e não vazio (RF-05) | T004, T006 | - | `-` | 🟡 | `[ ]` |
+| T006 | Rodar `pip install --dry-run -r requirements.txt` e confirmar que resolve sem travar no `piper-phonemize`/`piper-tts` | T001 | - | `-` | 🟢 | `[X]` |
+| T007 | Rodar `docker compose config --services` e confirmar que `piper-tts` não aparece mais na lista | T005 | - | `-` | 🟢 | `[X]` |
+| T008 | Testar síntese real: `TTSWithFallback.synthesize("...")` retorna WAV válido e não vazio (RF-05) | T004, T006 | - | `-` | 🟡 | `[X]` |
 
 ## Fase 5, Polimento
 
@@ -47,7 +47,7 @@
 
 | ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
 |----|-----------|--------------|-------------|--------------|-------------|--------|
-| T009 | Atualizar `_reversa_sdd/gaps.md#GAP-18` e `_reversa_sdd/services/tts/design.md` para refletir a nova implementação, e gerar `regression-watch.md` | T007, T008 | - | `_reversa_sdd/gaps.md`, `_reversa_sdd/services/tts/design.md`, `_reversa_forward/008-piper-tts-standalone/regression-watch.md` | 🟢 | `[ ]` |
+| T009 | Atualizar `_reversa_sdd/gaps.md#GAP-18` e `_reversa_sdd/services/tts/design.md` para refletir a nova implementação, e gerar `regression-watch.md` | T007, T008 | - | `_reversa_sdd/gaps.md`, `_reversa_sdd/services/tts/design.md`, `_reversa_forward/008-piper-tts-standalone/regression-watch.md` | 🟢 | `[X]` |
 
 ## Notas de execução
 

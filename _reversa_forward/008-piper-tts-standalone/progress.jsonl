@@ -3,3 +3,7 @@
 {"ts":"2026-07-09T23:40:58Z","action":"T003","status":"done","files":["src/services/tts_service.py"]}
 {"ts":"2026-07-09T23:40:58Z","action":"T004","status":"done","files":["src/services/tts_service.py"],"note":"health() agora carrega o modelo local em vez de checar endpoint HTTP"}
 {"ts":"2026-07-09T23:40:58Z","action":"T005","status":"done","files":["docker-compose.app.yml","src/config.py"]}
+{"ts":"2026-07-09T23:43:58Z","action":"T006","status":"done","files":["requirements.txt"]}
+{"ts":"2026-07-09T23:43:58Z","action":"T007","status":"done","files":["docker-compose.app.yml"]}
+{"ts":"2026-07-09T23:44:51Z","action":"T008","status":"done","files":[],"note":"sintese real via PiperVoice confirmada, 78380 bytes de WAV valido"}
+{"ts":"2026-07-09T23:45:34Z","action":"T009","status":"done","files":["_reversa_sdd/gaps.md","_reversa_sdd/services/tts/design.md","_reversa_forward/008-piper-tts-standalone/regression-watch.md"]}

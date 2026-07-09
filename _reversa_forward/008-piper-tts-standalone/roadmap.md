@@ -69,13 +69,13 @@ Nenhum contrato HTTP/fila/gRPC/GraphQL externo afetado — a mudança elimina um
 
 ## 10. Critério de pronto
 
-- [ ] Todas as ações do `actions.md` marcadas `[X]`
-- [ ] `regression-watch.md` gerado
-- [ ] `pip install -r requirements.txt` não trava mais no `piper-phonemize`/`piper-tts`
-- [ ] `docker compose config` não lista mais o serviço `piper-tts` quebrado
-- [ ] Teste real de síntese confirma WAV válido (RF-05)
-- [ ] `GAP-18` atualizado em `_reversa_sdd/gaps.md`
-- [ ] Re-extração reversa executada e sem regressão vermelha (recomendado, não obrigatório)
+- [X] Todas as ações do `actions.md` marcadas `[X]`
+- [X] `regression-watch.md` gerado
+- [X] `pip install -r requirements.txt` não trava mais no `piper-phonemize`/`piper-tts` — confirmado, resolve 100%
+- [X] `docker compose config` não lista mais o serviço `piper-tts` quebrado
+- [X] Teste real de síntese confirma WAV válido (RF-05) — 78.380 bytes gerados com sucesso
+- [X] `GAP-18` atualizado em `_reversa_sdd/gaps.md`
+- [ ] Re-extração reversa executada e sem regressão vermelha (recomendado, não obrigatório) — pendente, decisão do usuário
 
 ## 11. Histórico de alterações
 
