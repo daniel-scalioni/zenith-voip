@@ -13,6 +13,7 @@ build/
 *.egg-info/
 revisions.json
 freeswitch/signalwire_token.txt
+freeswitch/vendor/debs/
 freeswitch/conf/directory/extensions.xml
 freeswitch/conf/sip_profiles/upstream/
 specs/export_extensions.csv

@@ -2,10 +2,10 @@
 <configuration name="modules.conf" description="Modules">
   <modules>
     <load module="mod_sofia"/>
-    <!-- mod_audio_fork removido temporariamente: requer build customizado
-         (freeswitch/Dockerfile) hoje bloqueado por token SignalWire inválido.
-         Fora de escopo deste ciclo (sem gravação) — ver roadmap D-06.
-         Restaurar junto com o build customizado no ciclo de gravação. -->
+    <!-- mod_audio_fork substituído por mod_audio_stream (feature
+         007-audio-stream-migration): repositório de origem do mod_audio_fork
+         (drachtio-freeswitch-modules) foi descontinuado. -->
+    <load module="mod_audio_stream"/>
     <load module="mod_dptools"/>
     <load module="mod_event_socket"/>
     <load module="mod_commands"/>

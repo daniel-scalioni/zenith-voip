@@ -109,7 +109,7 @@ O FreeSWITCH **não** é apenas uma "central telefônica" — é um **B2BUA (Bac
 - Interfones registram no FreeSWITCH (profile `internal`, porta 5060)
 - FreeSWITCH registra upstream no VitalPBX *como cada ramal*, com as mesmas credenciais SIP
 - VitalPBX e sistemas satélite enxergam os ramais como registrados normalmente
-- FreeSWITCH captura o áudio para transcrição/IA via `mod_audio_fork`
+- FreeSWITCH captura o áudio para transcrição/IA via `mod_audio_stream` (substituiu `mod_audio_fork`, descontinuado — feature `007-audio-stream-migration`)
 - Provisionamento dinâmico via `mod_xml_curl`: banco Zenith (tabela `SIPExtension`) é a fonte de verdade
 
 Ver ADR-006 e `_reversa_sdd/telephony/design.md` para topologia completa.

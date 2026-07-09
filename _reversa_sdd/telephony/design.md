@@ -21,14 +21,14 @@ VitalPBX (GPhone) — sip.maisalerta.tecnorise.com
     │  Enxerga ramal 1001 como "registrado" (via FreeSWITCH, transparente)
     │  Sistemas satélite veem o ramal como online normalmente
     ▼
-FreeSWITCH — captura áudio dos dois lados via mod_audio_fork
+FreeSWITCH — captura áudio dos dois lados via mod_audio_stream
     │  Stream WebSocket → FastAPI → Redis Streams → Workers (STT, IA)
 ```
 
 **Por que B2BUA e não proxy SIP simples:**
 - O proxy SIP encaminha SDP sem tocar no áudio — impossível capturar para transcrição
 - O B2BUA termina a chamada em cada lado e a reconstrói, permitindo controle total do áudio
-- `mod_audio_fork` só funciona quando o FreeSWITCH é o ponto de terminação de mídia
+- `mod_audio_stream` (como `mod_audio_fork` antes dele) só funciona quando o FreeSWITCH é o ponto de terminação de mídia
 
 **Garantia de visibilidade no VitalPBX:**
 O VitalPBX e seus sistemas satélite (portaria, integrações externas) dependem de ver os ramais como "registrados". Com o B2BUA, o FreeSWITCH registra *em nome* de cada ramal — o VitalPBX nunca sabe que há um intermediário.
@@ -151,4 +151,4 @@ disconnected → connecting → connected
 | GAP-PROV-01 | 🔴 | `mod_xml_curl` não implementado ainda — provisionamento dinâmico pendente (ciclo futuro: `SIPExtension` + FastAPI) |
 | GAP-PROV-02 | ✅ | Estratégia de importação em lote definida (2026-06-26): `scripts/import_extensions.py` lê CSV exportado do VitalPBX, gera `directory/extensions.xml` + `sip_profiles/upstream/*.xml`. Dedup: pjsip > sip. Credenciais nunca commitadas (gitignored). |
 | GAP-17 | ✅ | `sip_profiles/internal.xml` corrigido (2026-06-26): TLS desativado (sem certs), `sip-port` duplicado removido (porta 5060 apenas). |
-| GAP-AUDIO-01 | 🔴 | `mod_audio_fork` requer build customizado bloqueado por token SignalWire inválido (GAP-11) |
+| GAP-AUDIO-01 | ✅ | Substituído `mod_audio_fork` por `mod_audio_stream` (feature `007-audio-stream-migration`) — o repositório de origem do `mod_audio_fork` foi descontinuado, não era mais questão de token. Módulo novo confirmado carregado em produção; validação end-to-end de payload pendente (ver GAP-11 em `_reversa_sdd/gaps.md`) |

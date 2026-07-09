@@ -1,9 +1,9 @@
 {
   "schema-version": 1,
-  "feature-dir": "_reversa_forward/006-registro-porta-vitalpbx",
-  "feature-id": "006",
-  "short-name": "registro-porta-vitalpbx",
-  "started-at": "2026-07-08T20:38:12Z",
+  "feature-dir": "_reversa_forward/007-audio-stream-migration",
+  "feature-id": "007",
+  "short-name": "audio-stream-migration",
+  "started-at": "2026-07-08T23:24:30Z",
   "current-stage": "requirements",
   "stages-completed": [],
   "paused-features": []
