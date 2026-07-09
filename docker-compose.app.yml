@@ -3,7 +3,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.21.0.0/16
 
 volumes:
   ollama_data:
@@ -53,7 +53,7 @@ services:
       - INSTANCE_ID=1
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
-      - FREESWITCH_ESL_HOST=172.20.0.1
+      - FREESWITCH_ESL_HOST=172.21.0.1
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
       - OLLAMA_URL=http://ollama:11434
@@ -88,7 +88,7 @@ services:
       - INSTANCE_ID=2
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
-      - FREESWITCH_ESL_HOST=172.20.0.1
+      - FREESWITCH_ESL_HOST=172.21.0.1
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
       - OLLAMA_URL=http://ollama:11434
@@ -189,7 +189,7 @@ services:
       - REVERSE_PROXY_URL=/
       - REVERSE_PROXY_HOST=http://fastapi-1:8000
       - MULTISITE=yes
-      - API_WHITELIST_IP=172.20.0.0/16
+      - API_WHITELIST_IP=172.21.0.0/16
       - USE_CUSTOM_HEADERS=yes
       - CUSTOM_HEADERS=X-Call-ID $http_x_call_id
       - STICKY_SESSION=yes

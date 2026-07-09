@@ -22,9 +22,6 @@ deepgram-sdk==3.7.0
 # TTS
 piper-tts==1.2.0
 
-# Telephony (FreeSWITCH ESL)
-greenswitch==1.1.0
-
 # Database
 sqlalchemy==2.0.36
 asyncpg==0.30.0
@@ -33,11 +30,9 @@ psycopg2-binary==2.9.10
 
 # Redis
 redis[hiredis]==5.2.1
-redis-streams==0.6.0
 
 # NLP / Extraction
 spacy==3.8.3
-python-brasilcpf==2.0.0
 
 # Observability
 opentelemetry-api==1.29.0

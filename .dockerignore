@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+freeswitch/conf/
+freeswitch/vendor/
+data/recordings/
+.env
+.env.*

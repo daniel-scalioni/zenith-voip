@@ -1,5 +1,5 @@
 {
-  "version": "1.2.43",
+  "version": "1.2.50",
   "project": "zenith-voip",
   "user_name": "MASTER",
   "chat_language": "pt-br",
@@ -29,7 +29,20 @@
     },
     "archaeologist": {
       "completed_at": "2026-06-19T15:10:00Z",
-      "modules_analyzed": ["api", "ai", "audio", "database", "events", "extraction", "observability", "services", "telephony", "workers", "widget", "infra"],
+      "modules_analyzed": [
+        "api",
+        "ai",
+        "audio",
+        "database",
+        "events",
+        "extraction",
+        "observability",
+        "services",
+        "telephony",
+        "workers",
+        "widget",
+        "infra"
+      ],
       "files": [
         "_reversa_sdd/code-analysis.md",
         "_reversa_sdd/data-dictionary.md",
@@ -67,7 +80,12 @@
       ],
       "rules_identified": 35,
       "adrs_generated": 5,
-      "state_machines": ["Call", "Tenant", "WebSocket Session", "Consensus"],
+      "state_machines": [
+        "Call",
+        "Tenant",
+        "WebSocket Session",
+        "Consensus"
+      ],
       "gaps": [
         "channel_detection: _detect_channel() retorna tx hardcoded",
         "post_call_sentiment: analyze_sentiment() é stub",
@@ -100,7 +118,11 @@
         "_reversa_sdd/erd-complete.md",
         "_reversa_sdd/traceability/spec-impact-matrix.md"
       ],
-      "c4_levels": ["context", "containers", "components"],
+      "c4_levels": [
+        "context",
+        "containers",
+        "components"
+      ],
       "entities_documented": 6,
       "dependencies_identified": 10,
       "tech_debt_items": 10
@@ -161,7 +183,20 @@
   ],
   "redator_progress": {
     "generated_count": 36,
-    "modules_completed": ["api", "ai", "audio", "database", "events", "extraction", "observability", "services", "telephony", "workers", "widget", "infra"],
+    "modules_completed": [
+      "api",
+      "ai",
+      "audio",
+      "database",
+      "events",
+      "extraction",
+      "observability",
+      "services",
+      "telephony",
+      "workers",
+      "widget",
+      "infra"
+    ],
     "current_phase": "globals"
   },
   "created_files": [

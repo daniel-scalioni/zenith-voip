@@ -3,7 +3,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.21.0.0/16
 
 volumes:
   postgres_data:
@@ -38,8 +38,9 @@ services:
     container_name: zenith-redis
     networks:
       - ai-hub-net
-    ports:
-      - "6379:6379"
+    # Sem publish de porta no host: 6379 já está em uso por outro serviço
+    # (sre_redis) neste host compartilhado. Comunicação interna via rede
+    # ai-hub-net (redis://redis:6379) não depende dessa porta publicada.
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
