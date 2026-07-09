@@ -12,7 +12,6 @@ websockets==14.1
 
 # AI / LangGraph
 langgraph==0.2.60
-langgraph-checkpoint-redis==0.1.0
 langchain-ollama==0.2.2
 langchain-community==0.3.14
 

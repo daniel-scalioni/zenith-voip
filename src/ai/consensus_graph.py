@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.memory import MemorySaver
 from typing import TypedDict, Annotated, Any
 from src.extraction.regex_layer import RegexExtractor
 from src.extraction.llm_layer import LocalLLMExtractor
@@ -25,7 +25,13 @@ class ConsensusGraph:
     def __init__(self):
         self.extractor = RegexExtractor()
         self.llm = LocalLLMExtractor()
-        self.redis_saver = RedisSaver.from_conn_info(host="redis", port=6379)
+        # MemorySaver (não RedisSaver): consenso é resolvido dentro de uma
+        # única chamada síncrona a self.graph.ainvoke() (até 3 iterações,
+        # ver ADR-004), não precisa sobreviver a restart de processo nem
+        # ser compartilhado entre fastapi-1/fastapi-2. Evita conflito de
+        # dependência: arq exige redis<6, langgraph-checkpoint-redis exige
+        # redis>=6.2.0 — sem interseção possível no mesmo requirements.txt.
+        self.checkpointer = MemorySaver()
         self.graph = self._build_graph()
 
     def _build_graph(self):
@@ -44,7 +50,7 @@ class ConsensusGraph:
             {"reviewer": "reviewer", END: END},
         )
 
-        return builder.compile(checkpointer=self.redis_saver)
+        return builder.compile(checkpointer=self.checkpointer)
 
     async def _extractor_node(self, state: AgentState) -> dict:
         entities = await self.extractor.extract(state["transcript"])
