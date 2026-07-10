@@ -1,21 +1,10 @@
 {
   "schema-version": 1,
-  "feature-dir": "_reversa_forward/008-piper-tts-standalone",
-  "feature-id": "008",
-  "short-name": "piper-tts-standalone",
-  "started-at": "2026-07-09T23:33:34Z",
-  "current-stage": "requirements",
-  "stages-completed": [],
-  "paused-features": [
-    {
-      "feature-dir": "_reversa_forward/007-audio-stream-migration",
-      "feature-id": "007",
-      "short-name": "audio-stream-migration",
-      "started-at": "2026-07-08T23:24:30Z",
-      "current-stage": "requirements",
-      "stages-completed": [],
-      "paused-at": "2026-07-09T23:33:34Z",
-      "paused-from-stage": "coding-em-progresso"
-    }
-  ]
+  "feature-dir": "_reversa_forward/007-audio-stream-migration",
+  "feature-id": "007",
+  "short-name": "audio-stream-migration",
+  "started-at": "2026-07-08T23:24:30Z",
+  "current-stage": "coding",
+  "stages-completed": ["requirements", "clarify", "plan", "to-do"],
+  "paused-features": []
 }

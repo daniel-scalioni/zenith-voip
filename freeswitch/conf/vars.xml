@@ -10,6 +10,11 @@
   <X-PRE-PROCESS cmd="set" data="domain=zenith.local"/>
   <X-PRE-PROCESS cmd="set" data="pbx_host=sip.maisalerta.tecnorise.com"/>
 
+  <!-- FreeSWITCH roda em network_mode: host (não resolve nomes de container
+       Docker como "zenith-api-1" via DNS interno). zenith_api_host aponta
+       para a porta publicada no host (feature 007-audio-stream-migration). -->
+  <X-PRE-PROCESS cmd="set" data="zenith_api_host=127.0.0.1:8001"/>
+
   <X-PRE-PROCESS cmd="set" data="global_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
   <X-PRE-PROCESS cmd="set" data="outbound_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
 

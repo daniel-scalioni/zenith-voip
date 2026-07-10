@@ -40,8 +40,8 @@
 |----|-----------|--------------|-------------|--------------|-------------|--------|
 | T007 | Rodar o build da nova imagem no host de produção (10.10.10.11) com o secret do token SignalWire e confirmar via `fs_cli -x "module_exists mod_audio_stream"` que retorna `true` | T004, T005 | - | `-` | 🟢 | `[X]` |
 | T008 | Restart do container `freeswitch` em produção com a nova imagem (fora de horário de uso ou com aviso prévio) e confirmar via `sofia status` que os profiles `internal`, `internal-7060` e `internal-5062` continuam `RUNNING` sem regressão | T006, T007 | - | `-` | 🟢 | `[X]` |
-| T009 | Realizar uma chamada real de teste (ramal registrado) passando pela extensão `zenith_audio_fork` e confirmar em `src/audio/ingestor.py`/eventos `audio_chunk` do Redis Streams que o payload PCM16 estéreo chega e é de-intercalado corretamente (valida a premissa D-05 do `roadmap.md` e fecha RF-04) | T008 | - | `-` | 🟡 | `[ ]` |
-| T010 | Caso T009 revele payload incompatível com `_split_stereo_frame`, ajustar `src/audio/ingestor.py` num commit dedicado para acomodar o formato real observado (ação condicional — só executar se T009 encontrar incompatibilidade) | T009 | - | `src/audio/ingestor.py` | 🟡 | `[ ]` |
+| T009 | Realizar uma chamada real de teste (ramal registrado) passando pela extensão `zenith_audio_fork` e confirmar em `src/audio/ingestor.py`/eventos `audio_chunk` do Redis Streams que o payload PCM16 estéreo chega e é de-intercalado corretamente (valida a premissa D-05 do `roadmap.md` e fecha RF-04) | T008 | - | `-` | 🟡 | `[X]` |
+| T010 | Caso T009 revele payload incompatível com `_split_stereo_frame`, ajustar `src/audio/ingestor.py` num commit dedicado para acomodar o formato real observado (ação condicional — só executar se T009 encontrar incompatibilidade) | T009 | - | `src/audio/ingestor.py` | 🟡 | `[X]` (condição não disparada — payload compatível, ver T009) |
 
 ## Fase 5, Polimento
 

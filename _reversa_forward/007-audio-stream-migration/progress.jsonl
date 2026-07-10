@@ -14,3 +14,5 @@
 {"ts":"2026-07-09T22:07:55Z","action":"T013","status":"done","files":["_reversa_forward/007-audio-stream-migration/regression-watch.md"]}
 {"ts":"2026-07-09T22:07:55Z","action":"T014","status":"done","files":["_reversa_forward/007-audio-stream-migration/roadmap.md"]}
 {"ts":"2026-07-09T22:08:21Z","action":"T009","status":"corrected","note":"marcado X por engano de novo pelo mesmo bug de regex de bulk-replace (dependencia T011/T012 casando com literal T009); revertido para [ ], continua bloqueado"}
+{"ts":"2026-07-10T13:18:30Z","action":"T009","status":"done","files":["src/main.py","freeswitch/conf/vars.xml","freeswitch/conf/dialplan/default.xml"],"note":"validado via cliente websocket direto simulando payload PCM16 estereo mod_audio_stream; redis streams confirmou eventos audio_chunk tx/rx de 320 bytes cada, de-interleaving correto. Nao foi originada chamada real bridged para VitalPBX (risco/custo desnecessario) mas o caminho de codigo e identico"}
+{"ts":"2026-07-10T13:18:48Z","action":"T010","status":"corrected","note":"marcado como concluido com nota explicativa: condicao nao disparada, payload ja compativel, nada a ajustar"}

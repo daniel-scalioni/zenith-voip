@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from contextlib import asynccontextmanager
 from src._version import __version__
 from src.config import settings
 from src.api.rate_limit import rate_limit_middleware
 from src.api.routers import pbxs
+from src.audio.ingestor import audio_ingestor
 
 
 @asynccontextmanager
@@ -31,3 +32,8 @@ async def health():
 @app.get("/ready")
 async def ready():
     return {"status": "ready", "instance_id": settings.INSTANCE_ID}
+
+
+@app.websocket("/audio-stream/{call_id}")
+async def audio_stream(websocket: WebSocket, call_id: str):
+    await audio_ingestor.handle_forked_stream(call_id, websocket)

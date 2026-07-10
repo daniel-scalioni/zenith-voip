@@ -1,8 +1,8 @@
 # Legacy Impact: Migração de mod_audio_fork para mod_audio_stream
 
 > Identificador: `007-audio-stream-migration`
-> Data: `2026-07-09`
-> Execução: quase completa (12/14 ações) — T009/T010 bloqueadas nesta sessão por ausência do serviço `zenith-api-1`/FastAPI no ambiente e de ramal registrado no momento do teste
+> Data: `2026-07-09` (atualizado `2026-07-10`)
+> Execução: **completa (14/14 ações)** — T009/T010 retomadas em 2026-07-10 após a feature `008-piper-tts-standalone` remover os bloqueios de dependência que impediam `zenith-api-1` de buildar. Validação end-to-end feita com sucesso (cliente WebSocket simulando payload real, de-interleaving tx/rx confirmado via Redis Streams). Dois gaps adicionais descobertos e corrigidos no processo: rota `/audio-stream` nunca registrada em `src/main.py`, e resolução de nome quebrada entre FreeSWITCH (`network_mode: host`) e o container `zenith-api-1`.
 
 ## Tabela de impacto
 

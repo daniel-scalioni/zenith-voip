@@ -38,9 +38,9 @@
         <action application="set" data="zenith_tenant_id=${tenant_id}"/>
         <action application="set" data="zenith_pbx_id=${pbx_id}"/>
         <action application="set" data="zenith_agent_extension=${sip_from_user}"/>
-        <action application="set" data="audio_fork_dest=ws://zenith-api-1:8000/audio-stream"/>
+        <action application="set" data="audio_fork_dest=ws://${zenith_api_host}/audio-stream/${uuid}"/>
         <action application="start_dtmf"/>
-        <action application="uuid_audio_stream" data="${uuid} start ws://zenith-api-1:8000/audio-stream stereo 8k {&quot;call_id&quot;:&quot;${uuid}&quot;}"/>
+        <action application="uuid_audio_stream" data="${uuid} start ws://${zenith_api_host}/audio-stream/${uuid} stereo 8k {&quot;call_id&quot;:&quot;${uuid}&quot;}"/>
         <action application="bridge" data="sofia/external/${destination_number}@${pbx_host}"/>
       </condition>
     </extension>

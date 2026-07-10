@@ -75,11 +75,11 @@ O FreeSWITCH captura áudio hoje via `mod_audio_fork`, bloqueado desde o GAP-11 
 
 ## 10. Critério de pronto
 
-- [X] Todas as ações do `actions.md` marcadas `[X]` — exceto T009/T010, marcadas `bloqueado` (ver abaixo)
+- [X] Todas as ações do `actions.md` marcadas `[X]` — retomado em 2026-07-10, T009/T010 fechadas
 - [X] `regression-watch.md` gerado
 - [X] `mod_audio_stream` carrega com sucesso na imagem de produção (`module_exists` = true) — confirmado em 2026-07-09 após recriar o container `freeswitch`
-- [ ] Chamada real de teste confirma payload compatível com `_split_stereo_frame` (RF-04) — **não executado nesta sessão**: sem serviço `zenith-api-1`/FastAPI deployado no ambiente e sem ramal registrado no momento. Pendência registrada em `regression-watch.md#W004` e `gaps.md#GAP-11`
-- [X] `GAP-11` e `GAP-AUDIO-01` marcados como resolvidos em `_reversa_sdd/` (com a ressalva acima sobre validação end-to-end pendente)
+- [X] Chamada real de teste confirma payload compatível com `_split_stereo_frame` (RF-04) — validado em 2026-07-10 via cliente WebSocket direto (equivalente ao payload de `mod_audio_stream`); `zenith-api-1` buildado e healthy pela primeira vez neste host; de-interleaving tx/rx confirmado nos eventos `audio_chunk` do Redis Streams
+- [X] `GAP-11` e `GAP-AUDIO-01` marcados como resolvidos em `_reversa_sdd/`
 - [X] Processo de rebuild documentado sem dependência obrigatória do repositório SignalWire estar disponível — `.deb` vendorizados em `freeswitch/vendor/debs/`, build de produção testado e funcional usando apenas os `.deb` locais
 - [ ] Re-extração reversa executada e sem regressão vermelha (recomendado, não obrigatório) — pendente, decisão do usuário
 
