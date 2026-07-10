@@ -3,6 +3,7 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from arq import cron
+from arq.connections import RedisSettings
 from src.config import settings
 from src.utils.telemetry import record_cleanup_deleted, record_cleanup_error, observe_cleanup_duration
 
@@ -67,8 +68,11 @@ async def run_cleanup(ctx):
 
 
 class WorkerSettings:
-    redis_settings = settings.REDIS_URL
+    redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     cron_jobs = [
-        cron(run_cleanup, hour=3, minute=0, run_on_startup=False),
+        # A cada 15 min: com retenção de ~1h (AUDIO_RETENTION_DAYS), rodar só
+        # 1x/dia às 03:00 deixaria arquivos vivos por até 24h antes de serem
+        # avaliados para exclusão — não respeitaria o TTL de verdade.
+        cron(run_cleanup, minute={0, 15, 30, 45}, run_at_startup=False),
     ]
     functions = [run_cleanup, cleanup_tenant_bucket]

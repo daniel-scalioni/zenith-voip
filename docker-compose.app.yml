@@ -7,6 +7,13 @@ networks:
 
 volumes:
   ollama_data:
+  # Gravação de chamadas em RAM (tmpfs), não no HD do sistema — combina com
+  # a retenção curta (1h, ver arq-cleanup). Ver backlog Fase 1C.
+  recordings_tmpfs:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=512m"
 
 secrets:
   signalwire_token:
@@ -59,7 +66,7 @@ services:
       - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
-      - ./data/recordings:/data/recordings
+      - recordings_tmpfs:/data/recordings
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,7 +101,7 @@ services:
       - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
-      - ./data/recordings:/data/recordings
+      - recordings_tmpfs:/data/recordings
     depends_on:
       postgres:
         condition: service_healthy
@@ -121,7 +128,7 @@ services:
       - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
-      - ./data/recordings:/data/recordings
+      - recordings_tmpfs:/data/recordings
     command: ["arq", "src.workers.audio_uploader.WorkerSettings"]
     depends_on:
       redis:
@@ -141,11 +148,12 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
-      - AUDIO_RETENTION_DAYS=${AUDIO_RETENTION_DAYS:-90}
+      # ~1 hora (Fase 1 do MVP: gravação é temporária, para auditoria imediata).
+      - AUDIO_RETENTION_DAYS=${AUDIO_RETENTION_DAYS:-0.0417}
       - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
-      - ./data/recordings:/data/recordings
+      - recordings_tmpfs:/data/recordings
     command: ["arq", "src.workers.audio_cleanup.WorkerSettings"]
     depends_on:
       redis:
