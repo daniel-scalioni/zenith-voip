@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Float, JSON, ForeignKey, Text, Enum as SAEnum, Integer
+from sqlalchemy import Column, String, DateTime, Float, JSON, ForeignKey, Text, Enum as SAEnum, Integer, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -86,7 +86,7 @@ class Transcript(TenantBase):
     confidence = Column(Float, nullable=True)
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=False)
-    is_final = Column(default=True)
+    is_final = Column(Boolean, default=True)
     extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -103,7 +103,7 @@ class CallInsight(TenantBase):
     entities = Column(JSONB, nullable=True)
     consensus_log = Column(JSONB, nullable=True)
     pop_checklist = Column(JSONB, nullable=True)
-    anomaly_detected = Column(default=False)
+    anomaly_detected = Column(Boolean, default=False)
     summary = Column(Text, nullable=True)
     raw_insight = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -119,7 +119,7 @@ class STTMetric(TenantBase):
     provider = Column(String(32), nullable=False)
     latency_ms = Column(Float, nullable=False)
     chunk_duration_ms = Column(Float, nullable=True)
-    success = Column(default=True)
-    fallback_activated = Column(default=False)
+    success = Column(Boolean, default=True)
+    fallback_activated = Column(Boolean, default=False)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -10,6 +10,14 @@
   <X-PRE-PROCESS cmd="set" data="domain=zenith.local"/>
   <X-PRE-PROCESS cmd="set" data="pbx_host=sip.maisalerta.tecnorise.com"/>
 
+  <!-- Tenant Akom (primeiro cliente real, feature Fase 1 — registro+gravação).
+       Ramais registrados nativamente no FreeSWITCH (não via bypass_to_pbx da
+       VitalPBX) usam esses valores fixos, provisionados via
+       scripts/provision_tenant.py. Sem isso, esl_client.py não cria a linha
+       Call (guard "if tenant_id:") e a gravação fica órfã. -->
+  <X-PRE-PROCESS cmd="set" data="tenant_id=akom"/>
+  <X-PRE-PROCESS cmd="set" data="pbx_id=0cc6c169-c319-4a3f-8daf-ad8412737d68"/>
+
   <!-- FreeSWITCH roda em network_mode: host (não resolve nomes de container
        Docker como "zenith-api-1" via DNS interno). zenith_api_host aponta
        para a porta publicada no host (feature 007-audio-stream-migration). -->
