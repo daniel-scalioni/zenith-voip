@@ -53,7 +53,7 @@ services:
     networks:
       - ai-hub-net
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     env_file: .env
     environment:
       - INSTANCE_ID=1
@@ -88,7 +88,7 @@ services:
     networks:
       - ai-hub-net
     ports:
-      - "8002:8000"
+      - "127.0.0.1:8002:8000"
     env_file: .env
     environment:
       - INSTANCE_ID=2

@@ -24,6 +24,16 @@ class AudioIngestor:
         self.stream_metadata: dict[str, dict] = {}
 
     async def handle_forked_stream(self, call_id: str, websocket: WebSocket):
+        # Só aceita stream para um call_id que o FreeSWITCH já registrou via
+        # evento ESL CHANNEL_ANSWER real (register_stream_metadata). Sem isso,
+        # qualquer conexão WebSocket com um call_id inventado era aceita e
+        # bufferizada como se fosse uma chamada real (achado de segurança,
+        # revisão 2026-07-12) — o endpoint fica exposto na porta publicada do
+        # host (docker-compose.app.yml), não só em loopback.
+        if call_id not in self.stream_metadata:
+            await websocket.close(code=4401)
+            return
+
         await websocket.accept()
         self.active_streams[call_id]
 
