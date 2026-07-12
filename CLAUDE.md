@@ -162,7 +162,7 @@ Containers NO MESMO HOST (10.10.10.11), comunicação via Docker network.
 
 | Item | Local | Nota |
 |---|---|---|
-| SSH server (10.10.10.11) | Usuario `administrator`, senha `&sol53AL` | Para acessar logs/debug do FreeSWITCH |
+| SSH server (10.10.10.11) | Usuario `administrator`, chave `~/.ssh/id_ed25519` (senha local/sudo em `.claude/deploy-access.local.md`, gitignored) | Para acessar logs/debug do FreeSWITCH |
 | JWT_SECRET | `config.py` | ALTERAR em produção (atual: "change-me-in-production") |
 | ESL password | `config.py` | Default FreeSWITCH ("ClueCon") — registrado em ADR-005 como to-do |
 | Senhas SIP | CSV + senhas salvas em banco (cifradas) | NUNCA commitar `upstream-*.xml` ou `extensions.xml` |
