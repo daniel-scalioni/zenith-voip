@@ -4,7 +4,7 @@
 **HA:** 2 instâncias FastAPI com sticky session via X-Call-ID
 **GPU:** Reservada para Ollama via docker-compose device mapping
 **Deploy:** deploy.sh com backup + health check + rollback; `scripts/setup-recording-mvp.sh` para provisionar a infra do MVP de gravação (build do FreeSWITCH custom, migrations, workers)
-**Storage de gravação:** disco local (`./data/recordings` no host, bind mount em `fastapi-1`/`fastapi-2`/`arq-uploader`/`arq-cleanup`) — decisão de produto em 2026-06-22, substitui S3 (nunca chegou a ser provisionado: `S3_ENDPOINT` vazio nos `.env.*.example`, sem MinIO no compose)
+**Storage de gravação:** volume `recordings_tmpfs` (RAM, `driver_opts: type=tmpfs, size=512m`, montado em `fastapi-1`/`fastapi-2`/`arq-uploader`/`arq-cleanup`) — decisão de produto em 2026-06-22 (substitui S3, nunca chegou a ser provisionado: `S3_ENDPOINT` vazio nos `.env.*.example`, sem MinIO no compose); trocado de bind mount em disco (`./data/recordings`) para tmpfs em 2026-07-10 (MVP Fase 1 — gravação de chamada não deve ocupar o HD do sistema, combina com a retenção curta de ~1h). Auditoria manual via `docker exec <container> ls/cat` ou `docker cp` (tmpfs não aparece como pasta no filesystem do host)
 **Origem:** `docker-compose.app.yml`, `deploy.sh`, `scripts/setup-recording-mvp.sh` 🟢
 
 ## Risco em resolução (2026-06-22, atualizado 2026-06-24)
