@@ -1,6 +1,7 @@
 # Telephony — Design Técnico
 
-> Atualizado em 2026-06-26 (revisão arquitetural: B2BUA + Registration Forwarding documentados)
+> Atualizado em 2026-07-13 (dialplan: removidas extensions mortas que bloqueavam captura de áudio)
+> Revisão anterior: 2026-06-26 (B2BUA + Registration Forwarding documentados)
 > Gerado originalmente pelo Writer — 2026-06-19
 
 ---
@@ -141,7 +142,50 @@ disconnected → connecting → connected
 
 ---
 
-## 5. Riscos e Lacunas
+## 5. Dialplan — Extensions do contexto `default` (ordem importa)
+
+O FreeSWITCH avalia as `<extension>` de um contexto na ordem em que aparecem no XML. Sem o atributo
+`continue="true"`, a **primeira** extension cuja `<condition>` casar interrompe o processamento —
+extensions seguintes no arquivo nunca são avaliadas, mesmo que também casassem.
+
+Ordem atual (`freeswitch/conf/dialplan/default.xml`) e efeito:
+
+1. `echo_test` — `destination_number=9196` → answer + echo (teste de sanidade de registro).
+2. `local_extension` — `destination_number=^(1\d{3})$` → bridge direto entre dois ramais internos
+   registrados no FreeSWITCH (`user/$1@domain`). Loopback interno, fora do escopo de gravação.
+3. `zenith_audio_fork` — `destination_number=^(\d+)$` → único caminho de saída para o PBX upstream.
+   Inicia `uuid_audio_stream` (captura de áudio via `mod_audio_stream`) e só então bridga via
+   `sofia/external/${destination_number}@${pbx_host}`.
+4. `manual_linkage` — `*88`.
+5. `playback_filler` — `play:filler`.
+
+**Garantia de design:** toda chamada originada por um ramal do Zenith e destinada a um número
+externo (fila, ramal fora do FreeSWITCH etc.) passa obrigatoriamente por `zenith_audio_fork` — não
+existe hoje nenhum caminho de bridge que pule a captura de áudio.
+
+### Removido em 2026-07-13: `bypass_to_pbx` e `registration_forwarding`
+
+Ambas existiam desde o commit de scaffolding inicial do projeto (`cfd12b5`, `48da5b1`) e nunca foram
+documentadas em spec. Encontradas durante a primeira chamada de teste real ponta a ponta (ramal 1001
+→ fila 30001), que falhou com "Server Failure":
+
+- **`bypass_to_pbx`** casava `destination_number=^(\d+)$` **antes** de `zenith_audio_fork` no arquivo
+  e, sem `continue="true"`, sempre tinha precedência — tornando `zenith_audio_fork` inalcançável para
+  qualquer chamada externa desde o primeiro commit do projeto. Setava `bypass_media=true` e bridgava
+  sem qualquer captura, contradizendo diretamente o design descrito na seção 1 deste documento.
+- **`registration_forwarding`** casava `sip_from_user=^(\d+)$` (ou seja, qualquer chamada originada
+  por um ramal registrado) e sua única ação real era `set sip_forward_host=${pbx_host}` — variável
+  nunca lida em nenhum outro lugar de `freeswitch/conf/`. Sem `continue="true"`, essa extension
+  interrompia o dialplan antes mesmo de chegar em `bypass_to_pbx`/`zenith_audio_fork`, fazendo a
+  sessão terminar sem ser atendida nem bridgada — isso é o que produzia a falha de chamada.
+
+Nenhuma chamada real havia sido originada antes desta data: a feature `007-audio-stream-migration`
+foi validada apenas com um cliente WebSocket simulando o payload (ver commit `2f313a3`), então esse
+bug nunca tinha sido exercitado por uma chamada de fato.
+
+---
+
+## 6. Riscos e Lacunas
 
 | ID | Severidade | Descrição |
 |----|------------|-----------|
@@ -152,3 +196,4 @@ disconnected → connecting → connected
 | GAP-PROV-02 | ✅ | Estratégia de importação em lote definida (2026-06-26): `scripts/import_extensions.py` lê CSV exportado do VitalPBX, gera `directory/extensions.xml` + `sip_profiles/upstream/*.xml`. Dedup: pjsip > sip. Credenciais nunca commitadas (gitignored). |
 | GAP-17 | ✅ | `sip_profiles/internal.xml` corrigido (2026-06-26): TLS desativado (sem certs), `sip-port` duplicado removido (porta 5060 apenas). |
 | GAP-AUDIO-01 | ✅ | Substituído `mod_audio_fork` por `mod_audio_stream` (feature `007-audio-stream-migration`) — o repositório de origem do `mod_audio_fork` foi descontinuado, não era mais questão de token. Módulo novo confirmado carregado em produção; validação end-to-end de payload pendente (ver GAP-11 em `_reversa_sdd/gaps.md`) |
+| GAP-DIALPLAN-01 | ✅ | `bypass_to_pbx` e `registration_forwarding` (código morto de scaffolding, sem spec, sem `continue="true"`) interceptavam toda chamada externa antes de `zenith_audio_fork` — impediam a captura de áudio e causavam falha de chamada ("Server Failure"). Nunca detectado porque nenhuma chamada real tinha sido originada antes. Removidos em 2026-07-13 na primeira validação de chamada real ponta a ponta (ver seção 5). |

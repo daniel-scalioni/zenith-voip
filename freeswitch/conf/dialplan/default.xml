@@ -17,20 +17,6 @@
       </condition>
     </extension>
 
-    <extension name="registration_forwarding">
-      <condition field="sip_from_user" expression="^(\d+)$">
-        <action application="log" data="INFO Proxy REGISTER from ${sip_from_user}@${sip_from_host}"/>
-        <action application="set" data="sip_forward_host=${pbx_host}"/>
-      </condition>
-    </extension>
-
-    <extension name="bypass_to_pbx">
-      <condition field="destination_number" expression="^(\d+)$">
-        <action application="set" data="bypass_media=true"/>
-        <action application="bridge" data="sofia/external/${destination_number}@${pbx_host}"/>
-      </condition>
-    </extension>
-
     <extension name="zenith_audio_fork">
       <condition field="destination_number" expression="^(\d+)$">
         <action application="answer"/>
