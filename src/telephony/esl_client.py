@@ -1,11 +1,14 @@
 import asyncio
 import json
+import logging
 import re
 from collections import defaultdict
 from src.config import settings
 from src.events.redis_streams import event_bus
 from src.services.calls import create_call_record, finalize_call_record
 from src.workers.audio_uploader import enqueue_recording_upload
+
+logger = logging.getLogger(__name__)
 
 SIP_IP_KEY_TTL = 3600
 SIP_EXT_PBX_KEY_TTL = 3600
@@ -155,6 +158,20 @@ class ESLClient:
 
         if tenant_id:
             await create_call_record(tenant_id, call_id, pbx_id, agent_ext)
+
+        await self._start_audio_capture(call_id)
+
+    async def _start_audio_capture(self, call_id: str):
+        ws_url = f"ws://{settings.AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id}"
+        metadata = json.dumps({"call_id": call_id})
+        command = f"uuid_audio_stream {call_id} start {ws_url} stereo 8k {metadata}"
+        try:
+            response = await self.send_bgapi(command)
+        except (ConnectionError, asyncio.TimeoutError, OSError) as e:
+            logger.warning("uuid_audio_stream dispatch failed for call_id=%s: %s", call_id, e)
+            return
+        if "-ERR" in response or "+OK" not in response:
+            logger.warning("uuid_audio_stream rejected for call_id=%s: %s", call_id, response.strip())
 
     async def _handle_channel_hangup(self, event: dict):
         call_id = event.get("Caller-Unique-ID", "") or event.get("Unique-ID", "")
