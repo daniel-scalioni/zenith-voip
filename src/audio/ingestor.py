@@ -39,8 +39,13 @@ class AudioIngestor:
 
         try:
             while True:
-                raw = await websocket.receive_bytes()
-                if not raw:
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    raise WebSocketDisconnect(message.get("code", 1000))
+                raw = message.get("bytes")
+                if raw is None:
+                    # mod_audio_stream manda um frame de texto (JSON de controle) na
+                    # conexão antes do áudio binário — não é um chunk de áudio, ignora.
                     continue
 
                 tx_bytes, rx_bytes = self._split_stereo_frame(raw)

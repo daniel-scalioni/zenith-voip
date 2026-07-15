@@ -19,11 +19,11 @@
 
     <extension name="zenith_audio_fork">
       <condition field="destination_number" expression="^(\d+)$">
-        <action application="answer"/>
         <action application="set" data="zenith_call_id=${uuid}"/>
-        <action application="set" data="zenith_tenant_id=${tenant_id}"/>
-        <action application="set" data="zenith_pbx_id=${pbx_id}"/>
+        <action application="set" data="zenith_tenant_id=$${tenant_id}"/>
+        <action application="set" data="zenith_pbx_id=$${pbx_id}"/>
         <action application="set" data="zenith_agent_extension=${sip_from_user}"/>
+        <action application="answer"/>
         <action application="start_dtmf"/>
         <action application="bridge" data="sofia/gateway/upstream-${sip_from_user}/${destination_number}"/>
       </condition>
