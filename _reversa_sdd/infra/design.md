@@ -29,20 +29,20 @@ FreeSWITCH (network_mode: host, fora do Docker bridge)
 
 ### Serviços (14 containers)
 
-| Serviço | Imagem | Portas |
-|---------|--------|--------|
-| bunkerweb | bunkerity/bunkerweb:1.5.12 | 80, 443 |
-| zenith-api-1 | Dockerfile (app) | 8000 |
-| zenith-api-2 | Dockerfile (app) | 8001 |
-| zenith-worker | Dockerfile (worker) | - |
-| postgres | postgres:16-alpine | 5432 |
-| redis | redis:7-alpine | 6379 |
-| ollama | ollama/ollama:0.5.7 | 11434 |
-| piper-tts | rhasspy/piper-tts:2023.11.14 | 5000 |
-| freeswitch | safarov/freeswitch:1.10.12 | SIP/ESL |
-| prometheus | prom/prometheus:v2.55.1 | 9090 |
-| grafana | grafana/grafana:11.3.0 | 3000 |
-| loki | grafana/loki:3.2.1 | 3100 |
+| Serviço | Imagem | Portas (Host : Container) | Container Name |
+|---------|--------|--------|----------------|
+| bunkerweb | bunkerity/bunkerweb:1.5.12 | 80:80, 443:443 | zenith-bunkerweb |
+| zenith-api-1 | Dockerfile (app) | 127.0.0.1:8001:8000 | zenith-api-1 |
+| zenith-api-2 | Dockerfile (app) | 127.0.0.1:8002:8000 | zenith-api-2 |
+| zenith-worker | Dockerfile (worker) | - | zenith-arq-uploader, zenith-arq-cleanup |
+| postgres | postgres:16-alpine | 5433:5432 | zenith-postgres |
+| redis | redis:7-alpine | - : 6379 | zenith-redis |
+| ollama | ollama/ollama:0.5.7 | 11434:11434 | zenith-ollama |
+| piper-tts | - | - | - |
+| freeswitch | safarov/freeswitch:1.10.12 | SIP/ESL (host network) | zenith-freeswitch |
+| prometheus | prom/prometheus:v2.55.1 | 9091:9090 | zenith-prometheus |
+| grafana | grafana/grafana:11.3.0 | 3002:3000 | zenith-grafana |
+| loki | grafana/loki:3.2.1 | 3102:3100 | zenith-loki |
 
 ## Sticky Session (BunkerWeb)
 

@@ -21,20 +21,20 @@
 ## Topologia Docker
 
 ### Infraestrutura (docker-compose.infra.yml)
-- PostgreSQL 16-alpine (porta 5432)
-- Redis 7-alpine com appendonly (porta 6379)
-- Prometheus v2.55.1 (porta 9090)
-- Grafana 11.3.0 (porta 3000)
-- Loki 3.2.1 (porta 3100)
+- PostgreSQL 16-alpine (porta do host 5433, container 5432)
+- Redis 7-alpine com appendonly (comunicação interna via rede Docker bridge, sem porta exposta no host)
+- Prometheus v2.55.1 (porta do host 9091, container 9090)
+- Grafana 11.3.0 (porta do host 3002, container 3000)
+- Loki 3.2.1 (porta do host 3102, container 3100)
 
 ### Aplicação (docker-compose.app.yml)
-- FreeSWITCH 1.10.12 (network_mode: host)
-- FastAPI-1 (porta 8001)
-- FastAPI-2 (porta 8002)
+- FreeSWITCH 1.10.12 (network_mode: host, container_name: zenith-freeswitch)
+- FastAPI-1 (porta 8001 no host)
+- FastAPI-2 (porta 8002 no host)
 - ARQ Cleanup Worker
-- BunkerWeb (portas 80/443) — reverse proxy com sticky session
+- BunkerWeb (portas 80/443, container_name: zenith-bunkerweb) — reverse proxy com sticky session
 - Ollama 0.5.7 (porta 11434, GPU opcional)
-- Piper TTS 2023.11.14 (porta 5000)
+- Piper TTS (removido, integrado localmente via API Python)
 
 ### Infra de Rede
 - Subnet: 172.20.0.0/16

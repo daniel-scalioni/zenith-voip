@@ -19,7 +19,7 @@ services:
     networks:
       - ai-hub-net
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -57,7 +57,7 @@ services:
     networks:
       - ai-hub-net
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -72,7 +72,7 @@ services:
     networks:
       - ai-hub-net
     ports:
-      - "3000:3000"
+      - "3002:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
@@ -88,7 +88,7 @@ services:
     networks:
       - ai-hub-net
     ports:
-      - "3100:3100"
+      - "3102:3100"
     volumes:
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml

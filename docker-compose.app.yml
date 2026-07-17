@@ -31,7 +31,7 @@ services:
       dockerfile: Dockerfile
       secrets:
         - signalwire_token
-    container_name: freeswitch
+    container_name: zenith-freeswitch
     network_mode: host
     volumes:
       - ./freeswitch/conf:/etc/freeswitch
@@ -184,7 +184,7 @@ services:
 
   bunkerweb:
     image: bunkerity/bunkerweb:1.5.12
-    container_name: bunkerweb
+    container_name: zenith-bunkerweb
     networks:
       - ai-hub-net
     ports:
@@ -220,13 +220,13 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_KEEP_ALIVE=24h
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
     restart: unless-stopped
 
   # Serviço piper-tts removido (feature 008-piper-tts-standalone): a imagem
