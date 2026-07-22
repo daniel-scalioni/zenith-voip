@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     FREESWITCH_ESL_PORT: int = 8021
     FREESWITCH_ESL_PASSWORD: str = "ClueCon"
 
+    AUDIO_STREAM_CALLBACK_HOST: str = "127.0.0.1:8001"
+
     DEEPGRAM_API_KEY: str = ""
     OLLAMA_URL: str = "http://ollama:11434"
 

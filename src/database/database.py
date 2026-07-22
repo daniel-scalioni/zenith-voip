@@ -21,6 +21,11 @@ async def get_tenant_db(tenant_schema: str) -> AsyncSession:
         session = AsyncSession(bind=conn, expire_on_commit=False)
         try:
             yield session
+            # session.commit() só finaliza a transação lógica do ORM; a Connection
+            # (aberta via engine.connect(), com autobegin pelo SET search_path) só
+            # persiste de verdade com um commit explícito nela. Sem isso, sair do
+            # `async with engine.connect()` faz rollback silencioso de tudo.
+            await conn.commit()
         finally:
             await session.close()
 

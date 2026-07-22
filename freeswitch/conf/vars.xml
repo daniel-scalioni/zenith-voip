@@ -18,11 +18,6 @@
   <X-PRE-PROCESS cmd="set" data="tenant_id=akom"/>
   <X-PRE-PROCESS cmd="set" data="pbx_id=0cc6c169-c319-4a3f-8daf-ad8412737d68"/>
 
-  <!-- FreeSWITCH roda em network_mode: host (não resolve nomes de container
-       Docker como "zenith-api-1" via DNS interno). zenith_api_host aponta
-       para a porta publicada no host (feature 007-audio-stream-migration). -->
-  <X-PRE-PROCESS cmd="set" data="zenith_api_host=127.0.0.1:8001"/>
-
   <X-PRE-PROCESS cmd="set" data="global_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
   <X-PRE-PROCESS cmd="set" data="outbound_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
 

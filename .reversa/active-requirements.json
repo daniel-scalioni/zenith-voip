@@ -1,10 +1,10 @@
 {
   "schema-version": 1,
-  "feature-dir": "_reversa_forward/007-audio-stream-migration",
-  "feature-id": "007",
-  "short-name": "audio-stream-migration",
-  "started-at": "2026-07-08T23:24:30Z",
-  "current-stage": "coding",
-  "stages-completed": ["requirements", "clarify", "plan", "to-do"],
+  "feature-dir": "_reversa_forward/010-record-real-call-audio-e2e",
+  "feature-id": "010",
+  "short-name": "record-real-call-audio-e2e",
+  "started-at": "2026-07-14T15:12:08Z",
+  "current-stage": "requirements",
+  "stages-completed": [],
   "paused-features": []
 }
