@@ -56,3 +56,17 @@ estão em `FAIL_WAIT` — o VitalPBX (`sip.maisalerta.tecnorise.com`) está reje
 
 **Ação necessária**: acionar administrador do VitalPBX para liberar `10.10.10.11`.
 Plano de deploy completo: `_reversa_sdd/infra/deployment/deploy-phase1-b2bua.md`
+
+## Gate de build + healthcheck para `mod_audio_stream` (2026-07-22, GAP-24)
+
+🔴 **Achado:** o serviço `freeswitch` em `docker-compose.app.yml` nunca teve `healthcheck:` próprio — dependia só do `HEALTHCHECK` genérico embutido na imagem base (`safarov/freeswitch:1.10.12`, script `/healthcheck.sh`), que não sabe nada sobre módulos específicos do projeto. Consequência real: a imagem em produção rodou **24h reportando `healthy`** sem `mod_audio_stream` carregado (o build customizado do `freeswitch/Dockerfile` nunca tinha sido promovido a produção — só existia validado numa imagem de teste separada, `zenith-freeswitch-audiostream:test`). Nenhum sinal de saúde acusou o problema.
+
+🟢 **Fix (validado via consulta multi-LLM antes de implementar, ver `_reversa_forward` desta feature para o registro completo da consulta):**
+
+1. **Build-time gate** — `freeswitch/Dockerfile` ganha `RUN test -s /usr/lib/freeswitch/mod/mod_audio_stream.so` logo após o `COPY` do `.so`, no stage final. Falha o build (não só o deploy) se o artefato não existir ou tiver tamanho zero.
+2. **Runtime healthcheck** — `docker-compose.app.yml` ganha `healthcheck:` próprio no serviço `freeswitch`, checando `fs_cli -x "module_exists mod_audio_stream" | grep -q true`. Isso **substitui** (não soma) o healthcheck herdado da imagem base. `start_period: 90s` (não 20s) porque o profile `upstream` carrega ~939 gateways no boot e pode não aceitar comandos ESL/CLI nos primeiros segundos.
+3. **Risco descartado após verificação empírica:** cogitou-se que `mod_audio_stream.so` pudesse depender de `libwebsockets.so` em runtime (não copiada pelo Dockerfile, só usada como dependência de build). Extraído o `.so` real de `zenith-freeswitch-audiostream:test` e verificado via `ldd` no host: dependências reais são só `libfreeswitch.so.1`, `libevent-2.1.so.7`, `libevent_pthreads-2.1.so.7` e libs padrão do sistema — nenhuma dependência de `libwebsockets`. O módulo linka o cliente WebSocket estaticamente (via submódulo git, `--recurse-submodules` no Dockerfile). Não foi necessário copiar `libwebsockets` para a imagem final.
+4. **Decisão consciente, não corrigida:** `restart: unless-stopped` continua sem reagir a `unhealthy` (Docker só reinicia se o processo morrer, não se o healthcheck falhar). Aceito de propósito — auto-restart de um B2BUA com chamadas ativas por causa de uma falha de healthcheck seria pior que o problema original. O healthcheck serve para **visibilidade** (Prometheus/Grafana já existentes no stack), não remediação automática. Alerta de monitoramento sobre esse status fica como follow-up, não bloqueia este fix.
+5. **Fora de escopo:** smoke test automatizado de ponta a ponta (chamada real + verificação de áudio no pipeline) — fica como follow-up; a validação manual com chamada real feita logo após este fix cumpre esse papel por enquanto.
+
+**Origem:** `freeswitch/Dockerfile`, `docker-compose.app.yml` 🟢

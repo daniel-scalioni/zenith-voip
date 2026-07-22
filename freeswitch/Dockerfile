@@ -72,3 +72,8 @@ COPY --from=builder /usr/lib/x86_64-linux-gnu/libevent_pthreads-2.1.so.7* /usr/l
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libevent_openssl-2.1.so.7* /usr/lib/x86_64-linux-gnu/
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libevent_extra-2.1.so.7* /usr/lib/x86_64-linux-gnu/
 COPY --from=builder /usr/src/mod_audio_stream/build/mod_audio_stream.so /usr/lib/freeswitch/mod/mod_audio_stream.so
+
+# Gate de build (GAP-24): sem isso, uma falha silenciosa no stage builder (ou
+# uma promoção de imagem errada, como já aconteceu em produção) só seria
+# percebida em runtime, sem gravação de áudio nenhuma.
+RUN test -s /usr/lib/freeswitch/mod/mod_audio_stream.so

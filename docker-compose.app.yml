@@ -42,6 +42,17 @@ services:
       - SYS_RESOURCE
     environment:
       - TZ=America/Sao_Paulo
+    # Healthcheck próprio (GAP-24) — substitui o genérico da imagem base, que
+    # não sabe nada sobre módulos do projeto. Sem isso, a imagem rodou 24h
+    # "healthy" em produção sem mod_audio_stream carregado, sem nenhum sinal.
+    # start_period alto porque o profile upstream carrega ~939 gateways no
+    # boot e pode não aceitar comandos ESL/CLI nos primeiros segundos.
+    healthcheck:
+      test: ["CMD-SHELL", "fs_cli -x 'module_exists mod_audio_stream' | grep -q true"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     restart: unless-stopped
 
   fastapi-1:
