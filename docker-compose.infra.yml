@@ -6,11 +6,11 @@ networks:
         - subnet: 172.21.0.0/16
 
 volumes:
-  postgres_data:
-  redis_data:
-  prometheus_data:
-  grafana_data:
-  loki_data:
+  zenith_postgres_data:
+  zenith_redis_data:
+  zenith_prometheus_data:
+  zenith_grafana_data:
+  zenith_loki_data:
 
 services:
   postgres:
@@ -21,7 +21,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - zenith_postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=zenith
       - POSTGRES_PASSWORD=zenith
@@ -42,7 +42,7 @@ services:
     # (sre_redis) neste host compartilhado. Comunicação interna via rede
     # ai-hub-net (redis://redis:6379) não depende dessa porta publicada.
     volumes:
-      - redis_data:/data
+      - zenith_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -60,7 +60,7 @@ services:
       - "9091:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
+      - zenith_prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -74,7 +74,7 @@ services:
     ports:
       - "3002:3000"
     volumes:
-      - grafana_data:/var/lib/grafana
+      - zenith_grafana_data:/var/lib/grafana
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
     environment:
@@ -90,6 +90,6 @@ services:
     ports:
       - "3102:3100"
     volumes:
-      - loki_data:/loki
+      - zenith_loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     restart: unless-stopped

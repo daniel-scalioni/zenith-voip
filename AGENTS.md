@@ -92,3 +92,98 @@ SQL solto fora de `services/`/`Repository` · `print()` em vez de logging estrut
 
 ### 🧠 Legibilidade
 Nomes que revelam intenção · máximo 2 níveis de indentação · métodos pequenos e de responsabilidade única · comentários só para o "porquê" (decisão não-óbvia), nunca para o "o quê"
+
+### 🐳 Política de Containers e Isolamento de Projetos
+
+**REGRA CRÍTICA:** Todo container deve ter o prefixo `zenith-`.
+
+**Prefixo definido para ESTE projeto:** `zenith-`
+
+#### Obrigações
+- **Prefixo obrigatório:** `zenith-*` para containers, volumes e redes deste projeto
+- **Isolamento:** Nunca reutilizar ou tocar em containers de outro projeto, mesmo que disponíveis
+- **Confirmação:** Se um container necessário já existe em outro projeto, sempre solicitar confirmação ao usuário antes de reutilizar ou criar um novo
+- **Documentação:** Containers, redes e volumes devem estar claramente marcados com prefixo no `docker-compose.yml`
+
+#### Regras não-negociáveis
+1. **Containers são exclusivos do projeto** — nunca reutilize containers, volumes ou serviços de outros projetos (Redis, PostgreSQL, etc.), a menos que o usuário diga explicitamente para reutilizar
+2. **Nunca toque em recursos fora do prefixo `zenith-`** — proibido parar, remover, reiniciar ou modificar containers de terceiros, mesmo para resolver conflito de porta. Servidores de deploy são compartilhados com outros stacks
+3. **Comandos em massa são proibidos** — nunca use `docker rm -f`, `docker stop`, `docker prune` ou loops sobre TODOS os containers. Sempre filtre pelo prefixo: `docker ps --filter "name=zenith-"`
+4. **Conflito de porta:** se uma porta estiver ocupada por container de terceiro, **mude a porta do NOSSO serviço** no docker-compose.yml — nunca derrube o container alheio
+
+#### Exemplo
+```yaml
+services:
+  zenith-postgres:
+    image: postgres:16-alpine
+    container_name: zenith-postgres
+    volumes:
+      - zenith_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  zenith_postgres_data:
+    driver: local
+```
+
+### 🔴 TDD (Test-Driven Development) — obrigatório
+
+#### Fluxo Red → Green → Refactor
+1. **Red** — escreva o teste que falha *antes* de implementar qualquer código
+2. **Green** — escreva o mínimo de código para o teste passar
+3. **Refactor** — melhore sem quebrar os testes
+
+#### Estrutura de testes
+- Arquivo: `test_<componente>.py` no mesmo diretório do arquivo testado
+- Nomenclatura: `def test_<verbo>_<comportamento>()`
+- Padrão **AAA**: `# Arrange` / `# Act` / `# Assert` — cada bloco separado por linha em branco
+- Mocks: use `pytest.MonkeyPatch` ou `unittest.mock` apenas em *ports* (interfaces externas); nunca mocke código de domínio
+- Framework: `pytest` + `pytest-asyncio`
+
+#### Escopo por camada
+| Camada | Tipo de teste | O que mockar |
+|--------|--------------|--------------|
+| `services/` | Unitário com mocks | Repositórios, clientes externos (ESL, Redis, S3) |
+| `database/` | Integração | Substituir conexão real por test double ou banco de teste temporário |
+| `api/` | Integração com TestClient | Sessão de banco, autenticação |
+| `workers/` | Unitário com mocks | Redis, banco, S3 |
+| `ai/`, `extraction/` | Unitário puro | Nada — funções determinísticas |
+
+#### Cobertura mínima (quality gate bloqueante)
+```
+pytest tests/ -v --cov --cov-fail-under=80
+```
+- Toda nova feature: ≥ 80% de linhas cobertas
+- Toda correção de bug: teste de regressão obrigatório, nomeando explicitamente o cenário
+
+#### Veredito de LLM independente (anti-viés) — obrigatório
+
+Quando o mesmo agente escreve código **e** testes, existe risco sistêmico de viés: os testes cobrem o que foi implementado, não necessariamente o que deveria funcionar.
+
+**Regra:** após escrever testes para código que você mesmo gerou, chame `advisor()` com os arquivos de código e teste abertos no contexto e a pergunta explícita:
+
+> "Há casos de borda não cobertos? Os testes estão viesados para esta implementação específica?"
+
+O advisor deve verificar:
+- Casos de borda ausentes (`None`, `{}`, `[]`, valores-limite, concorrência, erros de rede)
+- Testes que testam o *como* em vez do *o quê* (acoplamento à implementação interna)
+- Cenários de falha não testados (caminho infeliz)
+- Se a cobertura ≥ 80% é real ou inflada por testes triviais que não provam comportamento
+
+**Sem o veredito do advisor**, testes escritos pelo mesmo agente que gerou o código são considerados 🟡 (inferidos) nas specs SDD — não 🟢 confirmados.
+
+### 🔍 Descoberta de Caminhos (Path Discovery)
+
+Caminhos NÃO são fixados nas instruções. O projeto já possui um mecanismo de descoberta implementado em `.reversa/context/`:
+- `surface.json` — varredura superficial: linguagens, frameworks, entry points, arquivos de configuração, módulos, integrações
+- `modules.json` — análise detalhada por módulo: propósito, arquivos principais, funções, entidades, regras de negócio, dependências
+
+#### Como consultar
+Sempre consulte `.reversa/context/surface.json` antes de assumir caminhos no projeto:
+- `config_files` → lista de arquivos de configuração do projeto
+- `docker` → arquivos compose e Dockerfile
+- `modules` → camadas/layers encontradas
+- `entry_points` → pontos de entrada da aplicação
+
+O diretório de specs SDD é `_reversa_sdd/` (configurado em `.reversa/config.toml` `[output] folder = "specs"`).
+
+Reexecute a descoberta se o projeto mudar estruturalmente (novas pastas, frameworks, etc.).
