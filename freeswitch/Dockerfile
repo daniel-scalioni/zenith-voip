@@ -40,7 +40,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # de versão do FreeSWITCH), descomente o bloco de repositório SignalWire
 # abaixo para baixar uma versão atualizada.
 COPY vendor/debs/*.deb /tmp/debs/
-RUN apt-get install -y --no-install-recommends /tmp/debs/*.deb \
+# --allow-downgrades: os .deb vendorizados (2026-07-08) trazem libcurl4 numa
+# versão mais antiga que a já presente na imagem base debian:bookworm-slim
+# (atualizada por patch de segurança desde então). Downgrade só afeta este
+# stage de build, descartado — não chega na imagem final.
+RUN apt-get install -y --no-install-recommends --allow-downgrades /tmp/debs/*.deb \
     && rm -rf /tmp/debs /var/lib/apt/lists/*
 
 # --- Fallback via repositório SignalWire (descomentar se vendor/debs/ não
