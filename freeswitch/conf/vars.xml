@@ -16,7 +16,7 @@
        scripts/provision_tenant.py. Sem isso, esl_client.py não cria a linha
        Call (guard "if tenant_id:") e a gravação fica órfã. -->
   <X-PRE-PROCESS cmd="set" data="tenant_id=akom"/>
-  <X-PRE-PROCESS cmd="set" data="pbx_id=0cc6c169-c319-4a3f-8daf-ad8412737d68"/>
+  <X-PRE-PROCESS cmd="set" data="pbx_id=c5bf3191-75b4-4a45-b5e1-c9b7942f8176"/>
 
   <X-PRE-PROCESS cmd="set" data="global_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
   <X-PRE-PROCESS cmd="set" data="outbound_codec_prefs=OPUS,G722,PCMU,PCMA,G729,H264,VP8"/>
