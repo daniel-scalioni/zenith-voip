@@ -11,8 +11,12 @@
       <!-- <param name="tls-cert-dir" value="/etc/freeswitch/tls"/> -->
       <!-- <param name="tls-certificate" value="/etc/freeswitch/tls/tls.crt"/> -->
       <!-- <param name="tls-private-key" value="/etc/freeswitch/tls/tls.key"/> -->
-      <param name="ext-rtp-ip" value="$${external_rtp_ip}"/>
-      <param name="ext-sip-ip" value="$${external_sip_ip}"/>
+      <!-- GAP-NET-01: interfones/ramais hoje chegam por rede roteada dentro do
+           mesmo CPD, sem NAT — anunciar IP público aqui quebra ACK/RTP de volta
+           (hairpin). Se o FreeSWITCH migrar pra uma VPS no futuro, reverter pra
+           $${external_rtp_ip}/$${external_sip_ip} (ver _reversa_sdd/telephony/design.md). -->
+      <param name="ext-rtp-ip" value="$${local_ip}"/>
+      <param name="ext-sip-ip" value="$${local_ip}"/>
       <param name="rtp-ip" value="$${local_ip}"/>
       <param name="sip-ip" value="$${local_ip}"/>
 
