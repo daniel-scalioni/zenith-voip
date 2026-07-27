@@ -38,5 +38,5 @@
 
 ## Lacunas Pendentes (🔴)
 
-- JWT_SECRET, ESL password e S3 credentials expostos — migrar para secrets management
+- JWT_SECRET e ESL password ainda expostos via env — migrar para secrets management (S3 saiu do projeto; `signalwire_token` já usa Docker secret)
 - FreeSWITCH em network_mode host — considerar isolamento de rede

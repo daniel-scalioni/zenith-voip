@@ -15,6 +15,17 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | Container estável; ganhou healthcheck próprio (`module_exists mod_audio_stream`) e boot validado em produção |
+| W002 | 🟢 verde | `sofia.conf.xml` segue incluindo os profiles; hoje são quatro (`internal`, `internal-5062`, `internal-7060`, `upstream`) |
+| W003 | 🟡 amarelo | **Superado por design.** A ausência de `mod_audio_fork` deixou de ser espera por renovação de token: o módulo foi substituído por `mod_audio_stream` (ADR-010, feature `007-audio-stream-migration`). O cenário que o item pressupõe não existe mais — mantido no histórico justamente para impedir que a ausência seja diagnosticada como bug numa leitura futura |
+| W004 | 🟡 amarelo | **Superado por design.** O `image:` temporário foi substituído pelo `build:` próprio (`freeswitch/Dockerfile`, `.deb` vendorizados), exatamente o desfecho que o item protegia. Objetivo cumprido; candidato a arquivamento |
+| W005 | 🟢 verde | `gaps.md` GAP-11 está ✅ Resolvida com evidência de produção — a confiança subiu, nunca foi rebaixada |
+
+
 <!-- Preenchido pelo agente reverso (/reversa) na próxima execução completa. -->
 
 ## Arquivadas

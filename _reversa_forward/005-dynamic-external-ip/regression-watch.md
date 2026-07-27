@@ -22,6 +22,18 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟡 amarelo | Sem verificação ao vivo nesta re-extração (análise estática de código/config); sem evidência de regressão |
+| W002 | 🟡 amarelo | Idem — requer `sofia status profile internal reg` em ambiente rodando |
+| W003 | 🟢 verde | `gaps.md` GAP-UPSTREAM-01 ✅ Resolvida, `upstream-1001` confirmado `REGED`/`UP` |
+| W004 | 🟢 verde | Veredito revisado na mesma sessão após verificação direta dos profiles: `internal.xml`, `internal-7060.xml` e `internal-5062.xml` usam `$${local_ip}` **literal** (linhas 18-19), não a variável. Só `upstream.xml` consome `$${external_sip_ip}`/`$${external_rtp_ip}` — e IP público ali é o valor correto. Não há conflito com o fix do GAP-NET-01; a regra do watch item segue válida. Decisão do usuário (2026-07-27): watcher roda no deploy atual |
+| W005 | 🟢 verde | Leitura de `sidecar/watcher.py` confirma: o log JSON emite apenas `ts`, `ip_anterior`, `ip_atual`, `acao_tomada` e mensagens de erro sem credencial |
+| W006 | 🟢 verde | `restart: unless-stopped` e `depends_on` simples; nenhum outro serviço tem dependência de saúde do `ip-watcher` |
+
+
 ### Re-extração 2026-07-08 22:31
 
 | ID | Veredito | Observação |

@@ -1,6 +1,6 @@
 ---
 name: reversa-coding
-description: Conduz a execução do actions.md em código. Atualiza checkboxes para [X], escreve progress.jsonl, gera legacy-impact.md e regression-watch.md. Funciona ancorado no legado (extração do Discovery em `_reversa_sdd/`) ou em greenfield (prd.md + specs SDD do `/reversa-new`). Use quando o usuário digitar "/reversa-coding", "reversa-coding", "executar plano" ou pedir para começar a codar a feature ativa. Último skill do ciclo forward, depois de `/reversa-to-do` (e opcionalmente `/reversa-audit` ou `/reversa-quality`).
+description: 'Executa o actions.md em código: marca checkboxes [X], escreve progress.jsonl e gera legacy-impact.md e regression-watch.md. Funciona ancorado no legado (`_reversa_sdd/`) ou greenfield (`/reversa-new`). Último passo do ciclo forward. Use com "/reversa-coding", "executar plano", "codar a feature ativa".'
 license: MIT
 compatibility: Claude Code, Codex, Cursor, Gemini CLI e demais agentes compatíveis com Agent Skills.
 metadata:
@@ -140,11 +140,11 @@ Aplique `after-coding` da forma padrão.
 2. Quantas falharam (se houver)
 3. Caminho absoluto de `actions.md`, `progress.jsonl`, `legacy-impact.md`, `regression-watch.md`
 4. Quantos watch items foram criados nessa rodada
-5. Aviso explícito: para fechar o ciclo, rode `/reversa` (extração reversa) novamente em algum momento futuro
+5. Aviso explícito: rode `/reversa-sync` para converger a entrega em `_reversa_sdd/addenda/` e mantenha no radar rodar `/reversa` (re-extração) novamente em algum momento futuro para fechar o ciclo
 6. Se a execução foi parcial, indique a próxima fase ou ação pendente
 
 NUNCA dispare a re-extração sozinho, isso é decisão do usuário.
 
 Termine com:
 
-> Digite **CONTINUAR** para prosseguir com `/reversa` (re-extração) ou outra ação que o usuário quiser.
+> Digite **CONTINUAR** para prosseguir com `/reversa-sync` (convergência da entrega na extração) ou outra ação que o usuário quiser.

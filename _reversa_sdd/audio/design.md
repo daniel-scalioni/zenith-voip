@@ -17,7 +17,14 @@
 | data | bytes | Áudio PCM16 de um canal, já de-interleado |
 | timestamp | float | Timestamp do chunk |
 
-## Protocolo `mod_audio_fork` (atualizado em 2026-06-19, investigação pós-MVP)
+## Protocolo `mod_audio_stream` (revisado em 2026-07-27)
+
+> ⚠️ `mod_audio_fork` foi substituído por `mod_audio_stream` (ADR-010). O protocolo de frame
+> descrito abaixo continua válido — PCM16 estéreo intercalado — e foi **confirmado em chamada
+> real em 2026-07-23**, fechando a pendência de validação. Nota adicional: o `mod_audio_stream`
+> envia um frame **de texto** (JSON de controle) antes do binário, que o ingestor ignora.
+
+### Referência original (mod_audio_fork, 2026-06-19)
 
 > Fonte: [README mod_audio_fork (drachtio-freeswitch-modules)](https://github.com/mdslaney/drachtio-freeswitch-modules/blob/main/modules/mod_audio_fork/README.md). Sem acesso a FreeSWITCH real neste ambiente de investigação — pendência de validação marcada abaixo.
 

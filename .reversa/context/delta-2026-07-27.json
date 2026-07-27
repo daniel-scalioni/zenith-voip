@@ -1,0 +1,262 @@
+{
+  "generated_at": "2026-07-27",
+  "type": "incremental-reextraction",
+  "base_commit": "48da5b1",
+  "head_commit": "0658157",
+  "commit_count": 37,
+  "diffstat": {
+    "files_changed": 41,
+    "insertions": 1692,
+    "deletions": 253
+  },
+  "modules_affected": [
+    "telephony",
+    "audio",
+    "workers",
+    "services",
+    "database",
+    "api",
+    "ai",
+    "infra",
+    "sidecar"
+  ],
+  "modules_unaffected": [
+    "events",
+    "extraction",
+    "observability",
+    "widget"
+  ],
+  "new_module": {
+    "name": "sidecar",
+    "path": "sidecar/",
+    "reason": "Watcher de IP externo dinâmico (feature 005-dynamic-external-ip) — não existia na extração de 2026-06-19, sem artefato correspondente em _reversa_sdd/",
+    "artifacts_to_create": [
+      "_reversa_sdd/sidecar/legacy-mapping.md",
+      "_reversa_sdd/sidecar/requirements.md",
+      "_reversa_sdd/sidecar/design.md",
+      "_reversa_sdd/sidecar/tasks.md"
+    ]
+  },
+  "deltas": [
+    {
+      "id": "D-01",
+      "source": "src/telephony/esl_client.py",
+      "change": "+169/-30. Conexão ESL dedicada a api/bgapi separada da de eventos (_cmd_reader/_cmd_writer/_cmd_lock); consumo da saudação auth/request antes do auth; parser de eventos respeitando Content-Length em vez de split por '\\n\\n'; timeout de leitura 30s->300s; novo handler _handle_channel_hangup; novo _start_audio_capture disparando uuid_audio_stream via bgapi; create_call_record/finalize_call_record; logging estruturado e except por evento.",
+      "affected_artifacts": [
+        "_reversa_sdd/telephony/legacy-mapping.md",
+        "_reversa_sdd/telephony/design.md",
+        "_reversa_sdd/telephony/requirements.md",
+        "_reversa_sdd/flowcharts/telephony-flow.md",
+        "_reversa_sdd/code-analysis.md",
+        "_reversa_sdd/state-machines.md"
+      ],
+      "severity": "alta"
+    },
+    {
+      "id": "D-02",
+      "source": "src/audio/ingestor.py",
+      "change": "+69/-... _detect_channel() hardcoded 'tx' substituído por _split_stereo_frame() (de-interleaving PCM16 LE, tx=pares, rx=ímpares); guard de segurança exigindo call_id previamente registrado via ESL (close 4401); receive() em vez de receive_bytes() para tolerar frame de texto de controle do mod_audio_stream.",
+      "affected_artifacts": [
+        "_reversa_sdd/audio/legacy-mapping.md",
+        "_reversa_sdd/audio/design.md",
+        "_reversa_sdd/audio/requirements.md",
+        "_reversa_sdd/gaps.md",
+        "_reversa_sdd/code-analysis.md",
+        "_reversa_sdd/permissions.md"
+      ],
+      "severity": "alta",
+      "closes_gap": "channel_detection: _detect_channel() retorna tx hardcoded"
+    },
+    {
+      "id": "D-03",
+      "source": "src/workers/audio_uploader.py",
+      "change": "S3/boto3 removido por completo; gravação em filesystem local (RECORDINGS_PATH) + conversão para MP3 via ffmpeg (subprocess assíncrono); fallback uploaded_raw_only quando ffmpeg falha; nova função enqueue_recording_upload com pool arq lazy.",
+      "affected_artifacts": [
+        "_reversa_sdd/workers/legacy-mapping.md",
+        "_reversa_sdd/workers/design.md",
+        "_reversa_sdd/workers/requirements.md",
+        "_reversa_sdd/flowcharts/workers-flow.md",
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "alta"
+    },
+    {
+      "id": "D-04",
+      "source": "src/workers/audio_cleanup.py",
+      "change": "Varredura S3 substituída por os.walk sobre RECORDINGS_PATH/<tenant>; cron diário 03:00 -> a cada 15 min; redis_settings agora via RedisSettings.from_dsn; run_at_startup (nome correto) em vez de run_on_startup.",
+      "affected_artifacts": [
+        "_reversa_sdd/workers/legacy-mapping.md",
+        "_reversa_sdd/workers/design.md",
+        "_reversa_sdd/flowcharts/workers-flow.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "média"
+    },
+    {
+      "id": "D-05",
+      "source": "src/services/calls.py",
+      "change": "Arquivo novo. create_call_record()/finalize_call_record() sobre Repository(Call), com schema tenant_<id>; calcula duration_seconds no hangup.",
+      "affected_artifacts": [
+        "_reversa_sdd/services/legacy-mapping.md",
+        "_reversa_sdd/services/design.md",
+        "_reversa_sdd/flowcharts/services-flow.md",
+        "_reversa_sdd/state-machines.md",
+        "_reversa_sdd/domain.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "alta"
+    },
+    {
+      "id": "D-06",
+      "source": "src/database/models.py + src/database/database.py",
+      "change": "Boolean explícito em is_final/anomaly_detected/success/fallback_activated (antes Column(default=...) sem tipo); metadata -> extra_metadata mapeado para coluna 'metadata'; get_tenant_db agora faz conn.commit() explícito (antes rollback silencioso).",
+      "affected_artifacts": [
+        "_reversa_sdd/database/legacy-mapping.md",
+        "_reversa_sdd/database/design.md",
+        "_reversa_sdd/data-dictionary.md",
+        "_reversa_sdd/erd-complete.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "alta"
+    },
+    {
+      "id": "D-07",
+      "source": "src/main.py",
+      "change": "lifespan agora inicia esl_client.start_event_listener() apenas em INSTANCE_ID==1 (evita processamento duplicado de eventos); endpoint WebSocket /audio-stream/{call_id} registrado no app; logging.basicConfig global.",
+      "affected_artifacts": [
+        "_reversa_sdd/api/legacy-mapping.md",
+        "_reversa_sdd/api/design.md",
+        "_reversa_sdd/flowcharts/api-flow.md",
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "alta"
+    },
+    {
+      "id": "D-08",
+      "source": "src/config.py",
+      "change": "S3_* e AUDIO_RETENTION_DAYS:int removidos/alterados -> RECORDINGS_PATH + AUDIO_RETENTION_DAYS:float; PIPER_TTS_URL -> PIPER_VOICE_PATH; novo AUDIO_STREAM_CALLBACK_HOST; subnet ESL 172.20.0.1 -> 172.21.0.1.",
+      "affected_artifacts": [
+        "_reversa_sdd/infra/legacy-mapping.md",
+        "_reversa_sdd/infra/design.md",
+        "_reversa_sdd/dependencies.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "média"
+    },
+    {
+      "id": "D-09",
+      "source": "src/services/tts_service.py",
+      "change": "PiperTTS deixa de ser cliente HTTP de microserviço e passa a carregar PiperVoice local (lru_cache + asyncio.to_thread); método close() removido.",
+      "affected_artifacts": [
+        "_reversa_sdd/services/legacy-mapping.md",
+        "_reversa_sdd/services/design.md",
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/c4-containers.md",
+        "_reversa_sdd/dependencies.md"
+      ],
+      "severity": "média"
+    },
+    {
+      "id": "D-10",
+      "source": "src/ai/consensus_graph.py",
+      "change": "RedisSaver -> MemorySaver (conflito de dependência: arq exige redis<6, langgraph-checkpoint-redis exige redis>=6.2.0). Checkpoint de consenso deixa de ser durável/compartilhado entre instâncias.",
+      "affected_artifacts": [
+        "_reversa_sdd/ai/legacy-mapping.md",
+        "_reversa_sdd/ai/design.md",
+        "_reversa_sdd/flowcharts/ai-flow.md",
+        "_reversa_sdd/adrs/004-consenso-3-ciclos.md",
+        "_reversa_sdd/dependencies.md"
+      ],
+      "severity": "alta",
+      "note": "Candidato a novo ADR — decisão arquitetural forçada por conflito de dependência"
+    },
+    {
+      "id": "D-11",
+      "source": "sidecar/watcher.py + sidecar/Dockerfile + sidecar/test_watcher.py",
+      "change": "Módulo novo. Poll de IP externo (HTTP + fallback getsockname), escrita atômica de vars-external-ip.xml, reloadxml + sofia profile upstream restart via ESL bruto, log estruturado JSON.",
+      "affected_artifacts": [
+        "_reversa_sdd/sidecar/legacy-mapping.md",
+        "_reversa_sdd/inventory.md",
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/c4-containers.md",
+        "_reversa_sdd/c4-components.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "alta",
+      "is_new": true
+    },
+    {
+      "id": "D-12",
+      "source": "freeswitch/conf/** + freeswitch/Dockerfile",
+      "change": "mod_audio_fork -> mod_audio_stream (build próprio, .deb vendorizados); mod_esl -> mod_event_socket; dialplan reescrito (echo_test 9196, local_extension, bridge via sofia/gateway/upstream-<ext>, sem mod_audio_fork inline); vars.xml novo com local_ip/pbx_host/tenant_id/pbx_id; profiles internal-5062, internal-7060, upstream; acl.conf, event_socket.conf, sofia.conf, directory/default.xml.",
+      "affected_artifacts": [
+        "_reversa_sdd/telephony/legacy-mapping.md",
+        "_reversa_sdd/telephony/design.md",
+        "_reversa_sdd/infra/legacy-mapping.md",
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/c4-containers.md",
+        "_reversa_sdd/flowcharts/telephony-flow.md"
+      ],
+      "severity": "alta"
+    },
+    {
+      "id": "D-13",
+      "source": "docker-compose.app.yml + docker-compose.infra.yml",
+      "change": "Namespace zenith- em todos os containers e zenith_ em volumes/networks; subnet 172.20 -> 172.21; portas 8001/8002 publicadas só em 127.0.0.1; volume tmpfs zenith_recordings_tmpfs (512m); serviço arq-uploader novo; serviço ip-watcher novo; piper-tts removido; freeswitch passa a build local com healthcheck de mod_audio_stream; secret signalwire_token.",
+      "affected_artifacts": [
+        "_reversa_sdd/infra/legacy-mapping.md",
+        "_reversa_sdd/infra/design.md",
+        "_reversa_sdd/infra/requirements.md",
+        "_reversa_sdd/architecture.md",
+        "_reversa_sdd/c4-containers.md",
+        "_reversa_sdd/inventory.md"
+      ],
+      "severity": "alta"
+    },
+    {
+      "id": "D-14",
+      "source": "scripts/provision_tenant.py + scripts/import_extensions.py + scripts/setup-recording-mvp.sh",
+      "change": "provision_tenant.py novo (cria tenant/schema/pbx); import_extensions.py +215 (gera extensions.xml e gateways upstream por ramal a partir do CSV do VitalPBX, dedup PJSIP>SIP); setup-recording-mvp.sh novo.",
+      "affected_artifacts": [
+        "_reversa_sdd/infra/legacy-mapping.md",
+        "_reversa_sdd/database/legacy-mapping.md",
+        "_reversa_sdd/telephony/legacy-mapping.md",
+        "_reversa_sdd/inventory.md"
+      ],
+      "severity": "média"
+    },
+    {
+      "id": "D-15",
+      "source": "requirements.txt",
+      "change": "Removidos: langgraph-checkpoint-redis, greenswitch, redis-streams, python-brasilcpf, boto3. Piper 1.2.0 -> 1.4.2.",
+      "affected_artifacts": [
+        "_reversa_sdd/dependencies.md",
+        "_reversa_sdd/extraction/legacy-mapping.md",
+        "_reversa_sdd/telephony/legacy-mapping.md",
+        "_reversa_sdd/code-analysis.md"
+      ],
+      "severity": "alta",
+      "note": "greenswitch e python-brasilcpf estavam documentados como dependências ativas na extração anterior"
+    },
+    {
+      "id": "D-16",
+      "source": "tests/",
+      "change": "4 arquivos de teste novos: test_audio_ingestor.py, test_audio_uploader.py, test_call_lifecycle.py (+ test_multitenancy.py e test_telephony_matching.py já presentes).",
+      "affected_artifacts": [
+        "_reversa_sdd/traceability/code-spec-matrix.md",
+        "_reversa_sdd/confidence-report.md"
+      ],
+      "severity": "baixa"
+    }
+  ],
+  "gaps_potencialmente_resolvidos": [
+    "channel_detection: _detect_channel() retorna tx hardcoded (D-02)",
+    "git_archaeology: projeto sem repositório Git local (agora há 37 commits com histórico rico)"
+  ],
+  "gaps_ainda_abertos": [
+    "post_call_sentiment: analyze_sentiment() é stub",
+    "post_call_audit: audit_procedure() é stub"
+  ]
+}

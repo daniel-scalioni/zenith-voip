@@ -78,7 +78,6 @@ Deepgram/Whisper Stream → [Camada 1: Regex/spaCy] → padrão detectado?
 
 - **Camada 1 (Regex/spaCy):** Custo zero, ~0ms. Detecta padrões fixos (CPF: `\d{3}\.?\d{3}\.?\d{3}-?\d{2}`, Placa, RG). Filtra ~90% dos chunks sem custo.
 - **Camada 2 (LLM Local):** Mistral 7B via Ollama. Só invocado quando Camada 1 detecta suspeita. Higieniza dados hesitados ("nove dois... não, oito dois"). SLA: ~300-500ms.
-- **Senhas:** EXCLUÍDAS do pipeline. Coletadas via DTMF com mascaramento. Zero persistência.
 
 ## 6. Consenso Multi-Agente (Orquestração LangGraph)
 

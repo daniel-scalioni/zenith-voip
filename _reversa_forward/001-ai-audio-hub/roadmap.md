@@ -31,7 +31,7 @@ A abordagem técnica será a construção de um Hub Intermediário (SBC/B2BUA) b
 | D-05 | Redis Streams (Event Bus unificado) | Persistência com ACK + Consumer Groups. Um broker só para RT e pós-chamada. Elimina RabbitMQ. | Redis Pub/Sub (fire-and-forget), RabbitMQ (peso extra), Kafka (overengineering). | 🟢 |
 | D-06 | LangGraph com RedisSaver (Checkpointing) | Estado do orquestrador persistido a cada transição. Em crash, recupera pelo call_id. | LangGraph sem checkpointing (perda total em crash). | 🟢 |
 | D-07 | Pipeline Multi-Agente (escopo: ações físicas) | Consenso (Extrator→Revisor→Decisor) apenas para ações críticas. Extração RT usa saída direta sem consenso. | Consenso para tudo (latência inaceitável no Agent Assist). | 🟢 |
-| D-08 | Extração Triage Mista (Regex + LLM local) | Regex filtra ~90% dos chunks; LLM local (Mistral 7B) só para validação de suspeitas. Senhas via DTMF. | Regex puro (falha com hesitação), LLM para tudo (custo/latência alto). | 🟢 |
+| D-08 | Extração Triage Mista (Regex + LLM local) | Regex filtra ~90% dos chunks; LLM local (Mistral 7B) só para validação de suspeitas. | Regex puro (falha com hesitação), LLM para tudo (custo/latência alto). | 🟢 |
 | D-09 | TTS Local (Piper/Coqui) + Fallback WAV | Piper em CPU, Coqui com GPU. Se TTS travar, WAV pré-gravados via ESL playback. | TTS em nuvem (latência), sem fallback (mudo em crash). | 🟢 |
 | D-10 | LLM Self-hosted (Mistral 7B / Ollama) para LGPD | CPF/RG processados localmente. Nenhum dado sensível sai da infra. | GPT-4o-mini via API (violação LGPD). | 🟢 |
 | D-11 | Speaker Diarization por canal + Deepgram | mod_audio_fork envia TX/RX em canais separados. Deepgram com `diarize:true` como backup. | Transcrição sem diarização (sopa de vozes inútil). | 🟢 |
@@ -112,7 +112,7 @@ A abordagem técnica será a construção de um Hub Intermediário (SBC/B2BUA) b
 | Latência do consenso multi-agente (3-5s) | médio | alto | Fan-out paralelo no LangGraph. SLM local para Revisor. Cache de POPs em Redis. Filler Audio. |
 | TTS local trava (Piper/Coqui crash) | médio | baixo | Fallback WAV pré-gravados + supervisord auto-restart. Health check `/health`. |
 | LLM local (Ollama) lento sem GPU | médio | médio | Usar modelo quantizado (Q4/Q5). Ollama com `num_gpu=0` em CPU é viável para Mistral 7B. |
-| Violação LGPD (dados sensíveis na nuvem) | alto | baixo | LLM local obrigatório. Senhas via DTMF. Zero persistência de senhas. |
+| Violação LGPD (dados sensíveis na nuvem) | alto | baixo | LLM local obrigatório para dados sensíveis. |
 
 ## 10. Critério de pronto
 - [ ] Todas as ações do `actions.md` marcadas `[X]`

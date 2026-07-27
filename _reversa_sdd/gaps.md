@@ -1,6 +1,7 @@
 # Lacunas Identificadas — zenith-voip
 
 > Gerado pelo Revisor em 2026-06-19
+> **Re-extração incremental — 2026-07-27**: GAP-01 fechado; 10 lacunas novas (GAP-RE-*) ao final
 > Categorizadas por severidade
 
 ---
@@ -9,7 +10,7 @@
 
 | ID | Módulo | Descrição | Spec afetada | Status |
 |----|--------|-----------|-------------|--------|
-| GAP-01 | `audio` | `_detect_channel()` é stub — canal RX nunca detectado. Investigação (2026-06-19) mostrou que o protocolo real (`mod_audio_fork` stereo) intercala os dois canais no mesmo frame PCM16 — corrigido para de-interleaving em `src/audio/ingestor.py`. Convenção de qual canal é tx/rx ainda não validada contra FreeSWITCH real (🟡, ver `audio/design.md`) | `audio/requirements.md` | Parcialmente resolvida |
+| GAP-01 | `audio` | `_detect_channel()` é stub — canal RX nunca detectado. Investigação (2026-06-19) mostrou que o protocolo real (`mod_audio_fork` stereo) intercala os dois canais no mesmo frame PCM16 — corrigido para de-interleaving em `src/audio/ingestor.py`. Convenção de qual canal é tx/rx ainda não validada contra FreeSWITCH real (🟡, ver `audio/design.md`) | `audio/requirements.md` | ✅ **Resolvida (2026-07-27)** — `_split_stereo_frame()` faz o de-interleaving PCM16 (pares=tx, ímpares=rx); convenção confirmada contra `mod_audio_stream` em chamada real (2026-07-23) |
 | GAP-02 | `workers` | `analyze_sentiment()` e `audit_procedure()` são stubs | `workers/requirements.md` | Aberta |
 
 | GAP-11 | `infra` | Imagem `safarov/freeswitch:1.10.12` usada em `docker-compose.app.yml` **não contém `mod_audio_fork` compilado** — a gravação via fork de áudio não funcionava sem build customizado do módulo (`drachtio-freeswitch-modules`) | `infra/deployment` | ✅ Resolvida (2026-07-10, features `007-audio-stream-migration` + `008-piper-tts-standalone`) — `drachtio-freeswitch-modules` foi descontinuado; substituído por `mod_audio_stream` (`amigniter/mod_audio_stream`, MIT, ativo), build customizado sem depender do repositório SignalWire estar sempre disponível (`.deb` vendorizados). `zenith-api-1` buildado e rodando `healthy` pela primeira vez neste host (após GAP-18 remover os bloqueios de `requirements.txt`). Validação end-to-end feita via cliente WebSocket direto simulando o payload de `mod_audio_stream`: Redis Streams confirmou de-interleaving correto tx/rx. Gap adicional descoberto e corrigido no processo: a rota WebSocket `/audio-stream` nunca tinha sido registrada em `src/main.py` (`AudioIngestor.handle_forked_stream` existia mas não estava conectado a nenhum endpoint) — corrigido como `/audio-stream/{call_id}`. Também corrigido: FreeSWITCH roda em `network_mode: host` e não resolvia `zenith-api-1` por DNS de container — dialplan agora usa `${zenith_api_host}` (`127.0.0.1:8001`, `vars.xml`) |
@@ -48,3 +49,44 @@
 | GAP-23 | `telephony` | `esl_client` (`src/telephony/esl_client.py`) **nunca era conectado em lugar nenhum do código** — nem `connect()` nem `start_event_listener()` eram chamados. Descoberto ao validar o fix de GAP-22: sem isso, `CHANNEL_ANSWER`/`CHANNEL_HANGUP` nunca eram processados de verdade para nenhuma chamada real, então `register_stream_metadata()` nunca populava `audio_ingestor.stream_metadata` — o pipeline de gravação (features `005`-`008`) nunca tinha sido validado ponta a ponta com uma chamada real de fato, só com simulação direta de WebSocket (bypass do ESL) | `telephony/esl-integration/design.md` | ✅ Resolvida (2026-07-12) — `esl_client.start_event_listener()` chamado no `lifespan` de `src/main.py`, só na instância `INSTANCE_ID=1` (evita `fastapi-1`/`fastapi-2` processarem o mesmo evento em duplicidade, já que `create_call_record` não é idempotente). Conexão TCP confirmada ativa (`ss -tnp` no host: `172.21.0.1:8021 ESTAB`). Validação ponta a ponta com chamada real feita em 2026-07-22 (ver GAP-24) |
 | GAP-24 | `infra` | **Imagem de produção do FreeSWITCH rodava sem `mod_audio_stream` carregado** — o build customizado (`freeswitch/Dockerfile`) nunca tinha sido promovido a produção (só existia validado numa imagem de teste separada, `zenith-freeswitch-audiostream:test`); `zenith-voip-freeswitch:latest` em produção era a imagem base vanilla, zero camadas próprias. Passou despercebido por 24h porque o serviço `freeswitch` não tinha `healthcheck:` próprio — só herdava o genérico da imagem base, que não sabe nada sobre módulos do projeto | `infra/deployment/design.md` | 🟡 Parcialmente resolvida (2026-07-22) — gate de build (`RUN test -s .../mod_audio_stream.so`) e `healthcheck:` próprio no compose (`module_exists mod_audio_stream`) implementados e **rebuild + redeploy real já feito em produção** (10.10.10.11): `module_exists mod_audio_stream` → `true`, container `healthy`, gateway `upstream-1001` seguiu `REGED`/`UP` sem regressão. No processo, reconciliado o desalinhamento de `main` no servidor (HEAD destacado numa tag antiga, 18 commits atrás — as branches `009-api-invocation-via-esl-client`/`010-record-real-call-audio-e2e`, já validadas com chamada real em 2026-07-14/15 mas nunca merged, foram trazidas para `main`) e corrigido um bloqueio de build real (downgrade de `libcurl4` nos `.deb` vendorizados, precisa de `--allow-downgrades`). Decisão validada via consulta multi-LLM (`/brainstorming-multiagent`, duas rodadas) antes de implementar. Risco residual assumido conscientemente: `.deb` vendorizados são do FreeSWITCH 1.11.1, mas o runtime é 1.10.12 — sem garantia de ABI estável entre minors, a ser observado na próxima chamada real. **Validado com chamada real em 2026-07-23**: pipeline de software completo confirmado ponta a ponta pela primeira vez — `CHANNEL_ANSWER` processado, `uuid_audio_stream` disparado via `bgapi`, WebSocket `/audio-stream/{call_id}` aceito, chunks publicados em `call:events` (Redis). No processo, descoberto que `zenith-api-1`/`zenith-api-2` estavam com 35h de uptime sem reiniciar — o código do merge 009/010 já estava no disco (bind mount `./src:/app/src`), mas o processo Python em memória (sem `--reload`) ainda era o antigo; corrigido com `docker compose restart`, sem necessidade de rebuild. **Ainda pendente**: `GAP-NET-01` (RTP quase nulo — só 2 pacotes em toda a chamada, ambos saindo do FreeSWITCH sem retorno; achado novo: uma das pernas leva a um IP privado `192.168.50.92` anunciado pelo próprio softphone 3CX do ramal 1001, que o `rtp-auto-adjust` do profile `internal` não corrigiu por falta de RTP de entrada para disparar o auto-adjust — ver `telephony/design.md`) |
 | GAP-25 | `database` | `public.tenants` estava vazio e o schema `tenant_akom` não existia em nenhum volume Postgres do host — o provisionamento de tenant de 2026-07-10 (GAP-21) nunca persistiu de fato ou foi perdido. Sintoma: `create_call_record` falhava com `relation "calls" does not exist`, capturado e logado pelo tratamento de exceção do merge 010, sem interromper a captura de áudio | `database/multitenancy/design.md` | ✅ Resolvida (2026-07-23) — reprovisionado via `scripts/provision_tenant.py` (mesmos parâmetros); novo `pbx_id` (`c5bf3191-75b4-4a45-b5e1-c9b7942f8176`) atualizado em `freeswitch/conf/vars.xml` |
+
+
+---
+
+## Lacunas identificadas na re-extração de 2026-07-27
+
+Achados novos, produzidos pela comparação entre o código atual (`0658157`) e a extração de
+2026-06-19 (`48da5b1`). Não são regressões das features do ciclo forward — são pontos que a
+releitura do código expôs.
+
+### Críticas
+
+| ID | Módulo | Descrição | Spec afetada | Status |
+|----|--------|-----------|-------------|--------|
+| GAP-RE-01 | `api`/`telephony` | **HA é parcial.** Só `INSTANCE_ID == 1` consome o event stream ESL (`main.py`). Se `fastapi-1` cair, `fastapi-2` continua servindo HTTP normalmente e **nenhuma chamada é gravada** — sem alarme, sem failover. O `depends_on`/healthcheck do compose não cobre esse cenário porque `fastapi-2` está saudável | `api/design.md`, `infra/deployment` | Aberta |
+| GAP-RE-02 | `database` | `CallStatus.failed` e `CallStatus.ringing` **não são atribuídos por nenhum caminho de código**. Chamada que cai por erro fica eternamente `in_progress` no banco. Não há como distinguir chamada em curso de chamada abortada | `database/design.md`, `state-machines.md` | Aberta |
+| GAP-RE-03 | `telephony`/`database` | Chamada sem `tenant_id` populado **não gera linha nenhuma** (guard `if tenant_id:`). Perda silenciosa: não há como distinguir "não houve chamada" de "houve chamada não registrada". Não há métrica nem log de contagem desse descarte | `telephony/design.md` | Aberta |
+
+### Moderadas
+
+| ID | Módulo | Descrição | Spec afetada | Status |
+|----|--------|-----------|-------------|--------|
+| GAP-RE-04 | `workers`/`infra` | **tmpfs de 512 MB sem backpressure.** Com chamadas simultâneas suficientes o volume enche; `upload_audio_chunk` retorna `failed` por chamada, sem alarme agregado e sem política de descarte do mais antigo | `workers/audio-upload/design.md` | Aberta |
+| GAP-RE-05 | `audio` | `AudioChunk.timestamp` é sempre `0.0` — nunca populado. O eixo temporal do áudio não é reconstruível a partir do buffer; a ordenação depende exclusivamente da ordem de chegada na lista | `audio/design.md` | Aberta |
+| GAP-RE-06 | `sidecar`/`telephony` | ~~O `ip-watcher` reintroduziria o IP público nos profiles internos~~ — **avaliação revista em 2026-07-27**: os profiles `internal.xml`, `internal-7060.xml` e `internal-5062.xml` usam `$${local_ip}` **literal** (linhas 18-19 de cada), não a variável `external_*_ip`. O que o watcher escreve só é consumido por `upstream.xml`, que fala com o VitalPBX pela internet e deve mesmo anunciar IP público. O fix do GAP-NET-01 desacoplou os dois. **Decisão do usuário (2026-07-27): o watcher roda no deploy atual.** | `sidecar/design.md` | ✅ Fechada — sem conflito |
+| GAP-RE-07 | `telephony`/`database` | `tenant_id`/`pbx_id` têm **duas fontes de verdade**: `public.tenants`/`pbxs` no Postgres e as variáveis globais de `freeswitch/conf/vars.xml`. Se divergirem (como já ocorreu no GAP-25), chamadas gravam com `pbx_id` inválido sem erro visível | `database/multitenancy/design.md` | Aberta |
+| GAP-RE-08 | `observability` | As métricas Prometheus de S3 continuam registradas e expostas, mas medem um subsistema **que não existe mais** (ADR-009). Dashboards do Grafana que dependem delas mostram zero permanente | `observability/design.md` | Aberta |
+
+### Cosméticas / a investigar
+
+| ID | Módulo | Descrição | Spec afetada | Status |
+|----|--------|-----------|-------------|--------|
+| GAP-RE-09 | `extraction` | `python-brasilcpf` foi removido do `requirements.txt` (GAP-18). Verificar se a extração de CPF perdeu a **validação de dígito verificador** e passou a aceitar qualquer sequência de 11 dígitos que case com o regex | `extraction/design.md` | A investigar |
+| GAP-RE-10 | `services` | `PiperTTS.synthesize()` mantém `voice` e `speaker_id` na assinatura, mas **ignora ambos** — a voz é fixa em `PIPER_VOICE_PATH`. Assinatura mente sobre a capacidade | `services/design.md` | Aberta |
+
+### Observação de arquitetura (não é gap)
+
+`ESLClient` acumulou orquestração do ciclo de vida da chamada: em dois handlers ele fala com
+`audio`, `services`, `database` e `workers`. 🟡 Aproxima-se do anti-padrão *God Class*
+listado no `CLAUDE.md`. Candidato natural a extração de um `CallLifecycleService` se os
+handlers continuarem crescendo.

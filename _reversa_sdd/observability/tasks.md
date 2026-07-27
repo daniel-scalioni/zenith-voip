@@ -11,7 +11,7 @@
 
 - [ ] T-02, Implementar 16 métricas Prometheus
   - Origem: `src/utils/telemetry.py`
-  - Critério: métricas de STT, LLM, calls, S3, Redis, DB exportadas
+  - Critério: métricas de STT, LLM, calls, Redis, DB exportadas (as de S3 devem ser removidas ou reapontadas para a gravação local — GAP-RE-08)
   - Confiança: 🟢
 
 - [ ] T-03, Implementar endpoint /metrics

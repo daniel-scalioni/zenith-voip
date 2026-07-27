@@ -58,7 +58,7 @@ C4Component
     Component(stt, "stt_autofallback.py", "STT Strategy", "Deepgram → Whisper fallback (500ms/0.3)")
     Component(stt_dg, "stt_deepgram.py", "Deepgram Provider", "Implementa STTStrategy")
     Component(stt_wh, "stt_whisper.py", "Whisper Provider", "Implementa STTStrategy")
-    Component(tts, "tts_service.py", "TTS Service", "Piper TTS provider")
+    Component(tts, "tts_service.py", "TTS Service", "PiperVoice in-process, lru_cache + to_thread")
     Component(tts_fb, "tts_fallback.py", "TTS Fallback", "WAV local se Piper falhar")
     Component(ext_regex, "extraction/regex_layer.py", "Regex Extractor", "6 padrões: CPF, RG, tel, placa, CEP, cartão")
     Component(ext_llm, "extraction/llm_layer.py", "LLM Extractor", "Correção contextual via Ollama")
@@ -66,8 +66,8 @@ C4Component
     Component(consensus, "ai/consensus_graph.py", "Consensus Graph", "LangGraph: extract → review → decide (3 ciclos)")
     Component(pops, "ai/pops_cache.py", "POPs Cache", "Cache Redis de POPs (TTL 1h)")
     Component(persist, "workers/transcript_persist.py", "Transcript Persister", "Buffer + batch insert no PostgreSQL")
-    Component(upload, "workers/audio_uploader.py", "Audio Uploader", "Upload para S3")
-    Component(cleanup, "workers/audio_cleanup.py", "Audio Cleanup", "Delete S3 lote 1000, cron 03:00")
+    Component(upload, "workers/audio_uploader.py", "Audio Uploader", "Grava .raw em tmpfs e converte para MP3 via ffmpeg")
+    Component(cleanup, "workers/audio_cleanup.py", "Audio Cleanup", "os.walk + remove por mtime, cron a cada 15min")
     Component(postcall, "workers/post_call.py", "Post-Call Worker", "Sentiment (🔴 stub) + audit (🔴 stub)")
   }
 

@@ -55,7 +55,6 @@ Criar uma Camada de Inteligência (Hub de IA) em FreeSWITCH + Python para opera�
 6. **RN-06 (Isolamento de Áudio - Whisper):** A IA deve ser capaz de injetar áudio sintético APENAS no canal receptor do Atendente (`uuid_play <agent_uuid>`), mantendo o morador sem escutar. Validação obrigatória via teste de gravação bilateral. 🟢
 7. **RN-07 (Gestão de Latência):** Sempre que o fluxo exigir validação profunda (tempo real), o FreeSWITCH injetará um áudio de "processando" para não causar quebra de expectativa no morador. 🟢
 8. **RN-08 (LGPD / Compliance):** Dados pessoais (CPF, RG) extraídos da voz devem ser processados exclusivamente por LLM self-hosted (ex: Mistral 7B via Ollama). Nenhum dado sensível pode sair da infraestrutura física do cliente. 🟢
-9. **RN-09 (Senhas via DTMF):** Senhas de coação e segurança NÃO passam pelo pipeline de extração de entidades por IA. São coletadas exclusivamente via DTMF (digitação no teclado do telefone) com mascaramento automático e zero persistência em log. 🟢
 10. **RN-10 (Speaker Diarization):** A transcrição deve identificar quem falou (morador vs atendente) para garantir precisão na extração e auditoria. 🟢
 
 ## 5. Requisitos Funcionais
@@ -66,7 +65,7 @@ Criar uma Camada de Inteligência (Hub de IA) em FreeSWITCH + Python para opera�
 | RF-02 | Análise de Sentimento (Pós) | Must | O sistema analisa o áudio após a chamada e identifica o sentimento dominante do cliente. | 🟢 |
 | RF-03 | Auditoria de Procedimentos (Pós) | Must | O sistema valida se o roteiro foi cumprido e envia o relatório para um webhook. | 🟢 |
 | RF-04 | Transcrição em Tempo Real com Diarização | Must | O áudio é transcrito com identificação de speaker e exibido na interface durante a chamada. | 🟢 |
-| RF-05 | Extração de Entidades em Tempo Real (Triage) | Must | Camada 1 (Regex/spaCy) detecta padrões numéricos; Camada 2 (LLM local) higieniza sob demanda. Senhas excluídas. | 🟢 |
+| RF-05 | Extração de Entidades em Tempo Real (Triage) | Must | Camada 1 (Regex/spaCy) detecta padrões numéricos; Camada 2 (LLM local) higieniza sob demanda. | 🟢 |
 | RF-06 | Auto-treinamento e Checklist | Should | O atendente recebe dicas visuais em tempo real conforme fala com o cliente. | 🟡 |
 | RF-07 | FreeSWITCH Conference/Forking | Must | O sistema captura áudio bilateral e permite injeção de áudio seletivo (para atendente, morador, ou ambos). | 🟢 |
 | RF-08 | Consenso Multi-Agente (Ações Físicas) | Must | A IA Extratora aciona a IA Auditora antes de emitir um webhook de ação crítica. O log armazena o debate. Escopo: somente ações que mexem no mundo físico. | 🟢 |
@@ -88,7 +87,7 @@ Criar uma Camada de Inteligência (Hub de IA) em FreeSWITCH + Python para opera�
 | Integração | WebSockets e Webhooks | Necessário para fluxo de dados contínuo e callbacks para sistemas terceiros. | 🟢 |
 | Segurança | Operação Mission-Critical (Fail-safe) | Portaria remota envolve vidas. Erros da IA não podem abrir portas inadvertidamente. Bypass humano obrigatório. | 🟢 |
 | Segurança | TLS/SRTP + JWT + Segregação de Rede | SIP com SRTP obrigatório, API com JWT + rate limiting, VLAN separada para o AI Hub. | 🟢 |
-| Compliance | LGPD — Dados sensíveis processados localmente | CPF/RG processados exclusivamente por LLM self-hosted. Senhas coletadas via DTMF. Zero persistência de senhas. | 🟢 |
+| Compliance | LGPD — Dados sensíveis processados localmente | CPF/RG processados exclusivamente por LLM self-hosted. | 🟢 |
 | Resiliência | Checkpointing do LangGraph via Redis | Estado do orquestrador persistido a cada transição de nó. Em crash, estado recuperado pelo `call_id`. | 🟢 |
 | Resiliência | Multi-instância FastAPI (2x) + BunkerWeb WAF | Sharding por `hash(call_id)`. Um crash afeta 50% das chamadas, não 100%. | 🟢 |
 | Observabilidade | OpenTelemetry + Prometheus + Grafana | Tracing distribuído, métricas de latência, alertas de degradação. | 🟢 |
@@ -131,12 +130,6 @@ Cenário: Consenso Negado para Abertura
   Então o Agente Auditor recusa a ação baseada na análise de sentimento/estresse
   E o Hub transfere a ligação imediatamente para um Operador Humano Sênior
 
-Cenário: Coleta de Senha via DTMF
-  Dado que o morador precisa informar uma senha de segurança
-  Quando o sistema solicita a digitação
-  Então a senha é coletada via DTMF (teclas do telefone)
-  E a senha NÃO é processada pelo pipeline de IA
-  E a senha NÃO é persistida em nenhum log
 ```
 
 ## 8. Prioridade MoSCoW
@@ -178,7 +171,7 @@ Cenário: Coleta de Senha via DTMF
 - **Event Bus:** Redis Streams unificado (sem RabbitMQ). Consumer Groups com ACK para pós-chamada.
 - **Worker Pós-Chamada:** Arq (asyncio-nativo, integra com Redis Streams).
 - **Resiliência:** LangGraph com RedisSaver (checkpointing a cada nó). 2 instâncias FastAPI com BunkerWeb WAF.
-- **LGPD:** LLM local (Mistral 7B via Ollama) obrigatório para dados sensíveis. Senhas via DTMF.
+- **LGPD:** LLM local (Mistral 7B via Ollama) obrigatório para dados sensíveis.
 - **STT Fallback:** Whisper.cpp local ativado automaticamente se Deepgram falhar.
 - **Speaker Diarization:** Deepgram `diarize:true` + rotulação por canal no ingestor.
 - **Observabilidade:** OpenTelemetry + Prometheus + Grafana.

@@ -1,8 +1,10 @@
 # Glossário e Regras de Domínio — zenith-voip
 
 > Gerado pelo Detective — 2026-06-19
+> **Re-extração incremental — 2026-07-27** (base `48da5b1` → `0658157`)
 > Escala: 🟢 CONFIRMADO | 🟡 INFERIDO | 🔴 LACUNA
-> Arqueologia Git: não disponível (projeto sem repositório Git local)
+> Arqueologia Git: ✅ **agora disponível** — 37 commits desde a extração anterior
+> (a lacuna "projeto sem repositório Git local" de 2026-06-19 está resolvida)
 
 ## Glossário
 
@@ -100,10 +102,10 @@
 
 | ID | Regra | Origem | Confiança |
 |----|-------|--------|-----------|
-| R28 | Retenção de áudio: 90 dias | `audio_cleanup.py:32` | 🟢 |
-| R29 | Cleanup roda diariamente às 03:00 | `audio_cleanup.py:101` | 🟢 |
-| R30 | Delete S3 em lotes de até 1000 objetos | `audio_cleanup.py:51-54` | 🟢 |
-| R31 | Bucket S3 nomeado como {prefix}-{tenant_id} | `audio_uploader.py:33` | 🟢 |
+| ~~R28~~ | ~~Retenção de áudio: 90 dias~~ → substituída por R36 | — | ⚠️ obsoleta |
+| ~~R29~~ | ~~Cleanup roda diariamente às 03:00~~ → substituída por R37 | — | ⚠️ obsoleta |
+| ~~R30~~ | ~~Delete S3 em lotes de até 1000 objetos~~ → S3 removido | — | ⚠️ obsoleta |
+| ~~R31~~ | ~~Bucket S3 nomeado como {prefix}-{tenant_id}~~ → S3 removido | — | ⚠️ obsoleta |
 | R32 | Instância FastAPI identificada por INSTANCE_ID | `config.py:5` | 🟢 |
 
 ### API e Segurança
@@ -114,10 +116,68 @@
 | R34 | JWT expira em 60 minutos | `config.py:23` | 🟢 |
 | R35 | Admin role = "tenant_admin" | `auth.py:36` | 🟢 |
 
+---
+
+## Regras novas — re-extração 2026-07-27
+
+### Gravação e retenção
+
+| ID | Regra | Origem | Confiança |
+|----|-------|--------|-----------|
+| R36 | Retenção de gravação em produção: **~1 hora** (`AUDIO_RETENTION_DAYS=0.0417`) | `docker-compose.app.yml` | 🟢 |
+| R37 | Cleanup roda **a cada 15 minutos** (`minute={0,15,30,45}`) | `audio_cleanup.py:59-62` | 🟢 |
+| R38 | Gravação vive em **tmpfs de 512 MB** (RAM), nunca em disco nem em nuvem | `docker-compose.app.yml` | 🟢 |
+| R39 | Cada canal vira um **MP3 mono 8 kHz** separado (`tx.mp3`, `rx.mp3`) — nunca misturado | `audio_uploader.py:11,25-33` | 🟢 |
+| R40 | Falha de conversão preserva o `.raw` (`uploaded_raw_only`) — degrada, não perde | `audio_uploader.py:52-55` | 🟢 |
+| R41 | Layout de gravação: `RECORDINGS_PATH/<tenant_id>/<call_id>/<channel>.mp3` | `audio_uploader.py:44-46` | 🟢 |
+
+### Captura de áudio
+
+| ID | Regra | Origem | Confiança |
+|----|-------|--------|-----------|
+| R42 | Captura é disparada pela **aplicação via ESL** no CHANNEL_ANSWER, não pelo dialplan | `esl_client.py:224-238` | 🟢 |
+| R43 | Frame estéreo é dividido por índice: pares = `tx` (agente), ímpares = `rx` (cliente) | `ingestor.py:86-94` | 🟢 |
+| R44 | WebSocket de áudio exige `call_id` registrado via ESL, senão fecha com **4401** | `ingestor.py:27-36` | 🟢 |
+| R45 | Frame de texto do `mod_audio_stream` é ignorado, não bufferizado como áudio | `ingestor.py:44-48` | 🟢 |
+
+### Ciclo de vida da chamada
+
+| ID | Regra | Origem | Confiança |
+|----|-------|--------|-----------|
+| R46 | Linha `Call` só é criada se `tenant_id` vier populado no evento — senão a chamada não é registrada | `esl_client.py:219` | 🟢 |
+| R47 | Chamada nasce `in_progress`/`inbound`; `ringing` e `failed` nunca são atribuídos | `services/calls.py:16-17` | 🟢 |
+| R48 | `duration_seconds` é calculado no hangup, não medido durante a chamada | `services/calls.py:32` | 🟢 |
+| R49 | Hangup de chamada sem registro prévio é ignorado em silêncio | `services/calls.py:26-28` | 🟢 |
+| R50 | Escrita em schema de tenant exige commit explícito na Connection | `database.py:24-29` | 🟢 |
+| R51 | Schema do tenant segue o padrão `tenant_<tenant_id>` | `services/calls.py:7-8` | 🟢 |
+
+### Operação e infraestrutura
+
+| ID | Regra | Origem | Confiança |
+|----|-------|--------|-----------|
+| R52 | Apenas `INSTANCE_ID == 1` consome o event stream do ESL (evita duplicidade) | `main.py:26,34` | 🟢 |
+| R53 | Comandos ESL usam socket próprio, nunca o do event stream | `esl_client.py:58-82` | 🟢 |
+| R54 | FreeSWITCH só é considerado saudável se `mod_audio_stream` estiver carregado | `docker-compose.app.yml` | 🟢 |
+| R55 | Todo recurso Docker do projeto usa prefixo `zenith-` / `zenith_`; recursos fora dele são intocáveis | `CLAUDE.md` | 🟢 |
+| R56 | Portas da API publicadas apenas em `127.0.0.1` no host | `docker-compose.app.yml` | 🟢 |
+| R57 | Estado do consenso é in-process e volátil (`MemorySaver`) | `consensus_graph.py:28-34` | 🟢 |
+
+### Sidecar de IP externo
+
+| ID | Regra | Origem | Confiança |
+|----|-------|--------|-----------|
+| R58 | No boot o watcher sempre aplica o IP, mesmo sem mudança detectada | `sidecar/watcher.py:139-144` | 🟢 |
+| R59 | A comparação é contra o `Ext-SIP-IP` anunciado pelo FreeSWITCH, não contra o último IP visto | `sidecar/watcher.py:145` | 🟢 |
+| R60 | Escrita de `vars-external-ip.xml` é atômica (`.tmp` + `os.replace`) | `sidecar/watcher.py:45-48` | 🟢 |
+| R61 | Descoberta de IP tem fallback por rota de saída (`getsockname`) quando o HTTP falha | `sidecar/watcher.py:26-34` | 🟢 |
+
 ## TODOs e FIXMEs
 
 | Local | Conteúdo | Implicação |
 |-------|----------|------------|
-| `src/audio/ingestor.py:70-71` | `_detect_channel()` retorna "tx" hardcoded | 🔴 Canal RX nunca é identificado corretamente — detector de canal não implementado |
-| `src/workers/post_call.py:7-12` | `analyze_sentiment()` e `audit_procedure()` retornam stubs | 🔴 Análise de sentimento e auditoria pós-chamada não implementadas |
+| ~~`src/audio/ingestor.py:70-71`~~ | ~~`_detect_channel()` retorna "tx" hardcoded~~ | ✅ **RESOLVIDO** em 2026-07 — `_split_stereo_frame()` faz o de-interleaving real |
+| `src/workers/post_call.py:7-12` | `analyze_sentiment()` e `audit_procedure()` retornam stubs | 🔴 Análise de sentimento e auditoria pós-chamada continuam não implementadas |
+| `src/audio/ingestor.py:59` | `AudioChunk.timestamp` sempre `0.0` | 🔴 Eixo temporal do áudio não é reconstruível a partir do buffer |
+| `src/services/tts_service.py:19-20` | `voice` e `speaker_id` na assinatura mas ignorados | 🔴 Voz é fixa em `PIPER_VOICE_PATH` |
+| `freeswitch/conf/vars.xml` | `tenant_id`/`pbx_id` fixos como variáveis globais | 🔴 Bloqueia multi-tenant real — hoje só o tenant Akom funciona |
 | `alembic/versions/001_initial.py` | tenant_id na tabela calls (removido na v003) | 🟡 Mudança de abordagem: de coluna tenant_id para schema separado |

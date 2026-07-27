@@ -238,7 +238,9 @@ não pode derrubar o atendimento. Detalhe completo em
 |----|------------|-----------|
 | GAP-ESL-01 | 🟡 | ESL Client não tem heartbeat explícito — reconexão só detectada após falha de comando |
 | GAP-ESL-02 | 🔴 | FreeSWITCH em `network_mode: host` — sem isolamento de rede Docker |
-| GAP-ESL-03 | 🟡 | CHANNEL_HANGUP não tem handler explícito no código (apenas evento escutado) |
+| GAP-ESL-03 | ✅ | ~~CHANNEL_HANGUP não tem handler explícito~~ — resolvido (2026-07-12, feature `010`): `_handle_channel_hangup` finaliza a linha `Call` (`finalize_call_record`), agrupa os `AudioChunk` do buffer por canal e enfileira `upload_recording_batch`. Confirmado na re-extração de 2026-07-27 |
+| GAP-RE-03 | 🔴 | Chamada sem `tenant_id` populado não gera linha `Call` nenhuma (guard `if tenant_id:`), sem métrica nem log de contagem do descarte — perda silenciosa |
+| GAP-RE-01 | 🔴 | Só `INSTANCE_ID == 1` consome o event stream; se `fastapi-1` cair, nenhuma chamada é gravada e `fastapi-2` segue "saudável" |
 | GAP-PROV-01 | 🔴 | `mod_xml_curl` não implementado ainda — provisionamento dinâmico pendente (ciclo futuro: `SIPExtension` + FastAPI) |
 | GAP-PROV-02 | ✅ | Estratégia de importação em lote definida (2026-06-26): `scripts/import_extensions.py` lê CSV exportado do VitalPBX, gera `directory/extensions.xml` + `sip_profiles/upstream/*.xml`. Dedup: pjsip > sip. Credenciais nunca commitadas (gitignored). |
 | GAP-17 | ✅ | `sip_profiles/internal.xml` corrigido (2026-06-26): TLS desativado (sem certs), `sip-port` duplicado removido (porta 5060 apenas). |

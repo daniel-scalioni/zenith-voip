@@ -17,7 +17,7 @@
 | STT | stt_requests_total, stt_latency_ms, stt_fallback_total, stt_errors_total |
 | LLM | llm_requests_total, llm_latency_ms, llm_tokens_total |
 | Chamadas | calls_total, calls_duration_seconds, calls_status_total |
-| S3 | s3_upload_total, s3_download_total, s3_errors_total |
+| ~~S3~~ | ⚠️ `s3_upload_total`, `s3_download_total`, `s3_errors_total` — **medem subsistema inexistente** desde 2026-07-10 (ADR-009). Dashboards que dependem delas mostram zero permanente. Ver GAP-RE-08 |
 | Redis | redis_operations_total, redis_latency_ms |
 | DB | db_queries_total, db_latency_ms |
 

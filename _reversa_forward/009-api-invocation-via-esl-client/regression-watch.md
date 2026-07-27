@@ -22,6 +22,16 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | `grep 'uuid_audio_stream\|application="api"' freeswitch/conf/dialplan/default.xml` → vazio |
+| W002 | 🟢 verde | `grep 'sofia/external'` → vazio; o bridge usa `sofia/gateway/upstream-${sip_from_user}/...` |
+| W003 | 🟢 verde | `_start_audio_capture` definido (`esl_client.py:228`) e chamado por `_handle_channel_answer`; dispara via `send_bgapi` |
+| W004 | 🟢 verde | `AUDIO_STREAM_CALLBACK_HOST` presente em `src/config.py:16` |
+
+
 _Nenhuma re-extração (`/reversa`) executada desde a geração deste arquivo._
 
 ## Arquivadas

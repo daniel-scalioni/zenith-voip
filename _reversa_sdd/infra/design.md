@@ -38,7 +38,7 @@ FreeSWITCH (network_mode: host, fora do Docker bridge)
 | postgres | postgres:16-alpine | 5433:5432 | zenith-postgres |
 | redis | redis:7-alpine | - : 6379 | zenith-redis |
 | ollama | ollama/ollama:0.5.7 | 11434:11434 | zenith-ollama |
-| piper-tts | - | - | - |
+| ~~piper-tts~~ | ❌ removido em 2026-07-09 — TTS roda in-process na FastAPI | - | - |
 | freeswitch | safarov/freeswitch:1.10.12 | SIP/ESL (host network) | zenith-freeswitch |
 | prometheus | prom/prometheus:v2.55.1 | 9091:9090 | zenith-prometheus |
 | grafana | grafana/grafana:11.3.0 | 3002:3000 | zenith-grafana |
@@ -61,6 +61,6 @@ FreeSWITCH (network_mode: host, fora do Docker bridge)
 
 - 🔴 JWT_SECRET = "change-me-in-production" — senha default no config
 - 🔴 ESL password = "ClueCon" — default do FreeSWITCH
-- 🔴 S3 credentials expostas via env no compose
+- ~~🔴 S3 credentials expostas via env no compose~~ → S3 removido (ADR-009). Hoje o único segredo em arquivo é `freeswitch/signalwire_token.txt` (gitignored, via Docker secret)
 - 🟡 Sem secrets management (Vault, etc.)
 - 🟡 FreeSWITCH em network_mode host — sem isolamento de rede

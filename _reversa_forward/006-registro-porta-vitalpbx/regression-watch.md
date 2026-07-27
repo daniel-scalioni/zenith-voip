@@ -18,6 +18,17 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | 5060 segue como porta padrão do profile `internal`; nenhuma mudança de comportamento para ramais não migrados |
+| W002 | 🟢 verde | `force-register-domain` presente nos três profiles; o fix do GAP-NET-01 (`ext-*-ip` → `$${local_ip}`) **foi replicado nos três**, exatamente o que o item exige |
+| W003 | 🟢 verde | Gateway upstream por ramal preservado; `import_extensions.py` mantém a dedup PJSIP > SIP e o espelhamento de porta |
+| W004 | 🟢 verde | Sem evidência de queda de registros; profile `internal` inalterado nesta janela |
+| W005 | 🟢 verde | Comportamento de REGISTER documentado em `onboarding.md`, sem alteração no código |
+
+
 ### Re-extração 2026-07-08 22:31
 
 | ID | Veredito | Observação |

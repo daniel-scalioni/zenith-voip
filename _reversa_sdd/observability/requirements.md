@@ -9,7 +9,7 @@ Telemetria, métricas e tracing do sistema via OpenTelemetry + Prometheus.
 ## Responsabilidades
 
 - Instrumentar FastAPI com OpenTelemetry
-- Exportar 16 métricas Prometheus (STT, LLM, chamadas, S3, Redis, DB)
+- Exportar 16 métricas Prometheus (STT, LLM, chamadas, ~~S3~~, Redis, DB) — as de S3 ficaram órfãs (GAP-RE-08)
 - Expor endpoint `/metrics`
 
 ## Requisitos Funcionais
@@ -20,7 +20,7 @@ Telemetria, métricas e tracing do sistema via OpenTelemetry + Prometheus.
 | RF-02 | Exportar métricas de STT (latência, taxa de fallback) | Must |
 | RF-03 | Exportar métricas de chamadas (total, duração, status) | Must |
 | RF-04 | Exportar métricas de LLM (latência, tokens) | Should |
-| RF-05 | Exportar métricas de S3 (upload, download) | Should |
+| ~~RF-05~~ | ~~Exportar métricas de S3 (upload, download)~~ — ⚠️ obsoleto: S3 removido (ADR-009). Substituir por métricas de gravação local (arquivos gravados, bytes em tmpfs, falhas de ffmpeg) | Should |
 | RF-06 | Exportar métricas de Redis e DB | Should |
 | RF-07 | Expor endpoint `/metrics` para Prometheus | Must |
 

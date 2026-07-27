@@ -26,3 +26,6 @@ audio/voices/
 # Arquivos locais não versionáveis
 .claude/settings.local.json
 .claude/deploy-access.local.md
+
+# Arquivos temporários de trabalho (rascunhos, blocos pendentes)
+tmp/

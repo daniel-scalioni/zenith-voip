@@ -1,5 +1,8 @@
 # Dependências — zenith-voip
 
+> **Re-extração incremental — 2026-07-27**: 5 dependências removidas (marcadas com ❌).
+> Total: 31 → 26 pacotes Python.
+
 > Gerado pelo Reversa Scout em 2026-06-19
 
 ## Gerenciador de Pacotes
@@ -28,7 +31,7 @@
 | Dependência | Versão | Categoria |
 |-------------|--------|-----------|
 | langgraph | 0.2.60 | State graph |
-| langgraph-checkpoint-redis | 0.1.0 | Checkpoint Redis |
+| ~~langgraph-checkpoint-redis~~ | ❌ **removida** 2026-07-09 | Conflito `redis>=6.2` vs `arq` (`redis<6`) — ver ADR-008 |
 | langchain-ollama | 0.2.2 | Ollama integration |
 | langchain-community | 0.3.14 | LangChain community |
 
@@ -42,13 +45,13 @@
 
 | Dependência | Versão | Categoria |
 |-------------|--------|-----------|
-| piper-tts | 1.2.0 | Piper TTS local |
+| piper-tts | 1.4.2 | Piper TTS **in-process** (API Python, não HTTP) |
 
 ## Telefonia
 
 | Dependência | Versão | Categoria |
 |-------------|--------|-----------|
-| greenswitch | 1.1.0 | FreeSWITCH ESL |
+| ~~greenswitch~~ | ❌ **removida** | Nunca foi usada: o ESL é falado em socket TCP bruto com asyncio |
 
 ## Database
 
@@ -64,14 +67,14 @@
 | Dependência | Versão | Categoria |
 |-------------|--------|-----------|
 | redis[hiredis] | 5.2.1 | Redis client |
-| redis-streams | 0.6.0 | Redis Streams |
+| ~~redis-streams~~ | ❌ **removida** | Streams usados direto pelo cliente `redis` oficial |
 
 ## NLP / Extração
 
 | Dependência | Versão | Categoria |
 |-------------|--------|-----------|
 | spacy | 3.8.3 | NLP |
-| python-brasilcpf | 2.0.0 | CPF validation |
+| ~~python-brasilcpf~~ | ❌ **removida** | ⚠️ validar se a extração de CPF perdeu validação de dígito verificador |
 
 ## Observabilidade
 
@@ -87,7 +90,7 @@
 
 | Dependência | Versão | Categoria |
 |-------------|--------|-----------|
-| boto3 | 1.35.0 | AWS SDK |
+| ~~boto3~~ | ❌ **removida** 2026-07-10 | S3 saiu do projeto — gravação em tmpfs local (ADR-009) |
 
 ## Utilitários
 
@@ -110,7 +113,7 @@
 | Loki | grafana/loki | 3.2.1 |
 | FreeSWITCH | safarov/freeswitch | 1.10.12 |
 | Ollama | ollama/ollama | 0.5.7 |
-| Piper TTS | rhasspy/piper-tts | 2023.11.14 |
+| ~~Piper TTS~~ | ❌ container removido — TTS roda dentro da FastAPI | — |
 | BunkerWeb | bunkerity/bunkerweb | 1.5.12 |
 
 ## Desktop Widget

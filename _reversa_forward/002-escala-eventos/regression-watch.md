@@ -19,6 +19,21 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | `search_path` preservado; `database/legacy-mapping.md` acrescenta o `conn.commit()` explícito que faltava para a escrita persistir |
+| W002 | 🟢 verde | `TenantBase` preservado em `database/legacy-mapping.md` |
+| W003 | 🟢 verde | SOFIA_REGISTER com TTL 3600s preservado em `telephony/legacy-mapping.md` |
+| W004 | 🟢 verde | `*88` preservado (`esl_client.py:200`) |
+| W005 | 🟢 verde | Handshake e auto-link preservados em `api/legacy-mapping.md` |
+| W006 | 🟢 verde | JWT com `tenant_id`/`role` preservado em `permissions.md` |
+| W007 | 🟢 verde | Sobe de 🟡: `telephony/legacy-mapping.md` agora documenta as variáveis `zenith_*` do dialplan, inclusive a correção `${...}` → `$${...}` que era a causa de elas chegarem vazias |
+| W008 | 🟢 verde | `create_tenant_schema()` preservado |
+| W009 | 🟢 verde | Metadados (`tenant_id`, `pbx_id`, `agent_extension`) preservados no payload de `audio_chunk` |
+
+
 | Data | Re-extração | Veredito | Observações |
 |------|-------------|----------|-------------|
 | 2026-06-19 | Revisor (revisão completa) | 🟢 8/9 • 🟡 1/9 • 🔴 0/9 | W007 (dialplan vars) não documentado diretamente nas specs, mas presente em flowcharts |

@@ -32,9 +32,9 @@ Todo projeto DEVE definir um **prefixo único** para seus recursos Docker (conta
 
 | Recurso | Prefixo | Exemplo |
 |---|---|---|
-| Containers | `akombot-` | `akombot-dify-api`, `akombot-postgres` |
-| Volumes / Networks (compose) | `akombot_` | `akombot_postgres_data` |
-| Imagens locais | `akombot-` | `akombot-dify-api:latest` |
+| Containers | `zenith-` | `zenith-api-1`, `zenith-arq-uploader`, `zenith-postgres` |
+| Volumes / Networks (compose) | `zenith_` | `zenith_recordings_tmpfs`, `zenith_ollama_data` |
+| Imagens locais | `zenith-` | `zenith-voip-freeswitch:latest` |
 
 Qualquer ajuste, criação ou remoção de recurso Docker deste projeto usa **sempre** este prefixo. Se um novo projeto for iniciado, a primeira tarefa de infra é definir o prefixo dele nesta mesma seção do CLAUDE.md correspondente.
 
@@ -42,7 +42,7 @@ Qualquer ajuste, criação ou remoção de recurso Docker deste projeto usa **se
 
 1. **Containers são exclusivos do projeto** — nunca reutilize containers, volumes ou serviços de outros projetos (Redis, PostgreSQL, etc.), a menos que o usuário diga explicitamente para reutilizar
 2. **Nunca toque em recursos fora do prefixo do projeto** — proibido parar, remover, reiniciar ou modificar containers de terceiros, mesmo para resolver conflito de porta. Servidores de deploy são compartilhados com outros stacks (ex.: 10.10.10.11 roda `zenith-*`, `sre_*`, `hermes*`, `freeswitch`, `portainer`)
-3. **Comandos em massa são proibidos** — nunca use `docker rm -f`, `docker stop`, `docker prune` ou loops sobre TODOS os containers. Sempre filtre pelo prefixo: `docker ps --filter "name=akombot-"`
+3. **Comandos em massa são proibidos** — nunca use `docker rm -f`, `docker stop`, `docker prune` ou loops sobre TODOS os containers. Sempre filtre pelo prefixo: `docker ps --filter "name=zenith-"`
 4. **Conflito de porta:** se uma porta estiver ocupada por container de terceiro, **mude a porta do NOSSO serviço** no docker-compose.yml — nunca derrube o container alheio
 
 ## 🏛️ Padrões do Projeto

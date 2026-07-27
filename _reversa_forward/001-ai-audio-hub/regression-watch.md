@@ -10,13 +10,28 @@
 
 ## Observações
 
-As regras de negócio RN-01 a RN-10 foram implementadas como código novo e devem ser validadas por testes de aceitação (Gherkin no requirements.md, seção 7).
+As regras de negócio listadas em `requirements.md` foram implementadas como código novo e devem ser validadas por testes de aceitação (Gherkin no requirements.md, seção 7).
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | B2BUA agora nomeado explicitamente em `code-analysis.md` (Arquitetura Geral), `c4-containers.md` e ADR-006 — sobe de 🟡 |
+| W002 | 🟢 verde | Eventos no Redis Streams preservados; `audio/legacy-mapping.md` documenta um evento por canal |
+| W003 | 🟢 verde | STT→WebSocket preservado em `api/legacy-mapping.md` e `services/` |
+| W004 | 🟡 amarelo | Consenso documentado (ADR-004, ADR-008) mas segue sem menção explícita de exclusividade para "ações físicas" — inalterado desde 2026-06-19 |
+| W005 | 🟢 verde | Contexto de tenant em `domain.md` R51 e `database/legacy-mapping.md` |
+| W006 | 🟢 verde | Whisper mode preservado em `telephony/legacy-mapping.md` |
+| W007 | 🟢 verde | Filler audio preservado em `telephony/legacy-mapping.md` |
+| W008 | 🟢 verde | LLM local preservado (ADR-003); ADR-009 reforça a política ao manter áudio fora de nuvem |
+| W010 | 🟡 amarelo | Separação de **canal** (tx/rx) resolvida por `_split_stereo_frame()`; identificação de **speaker** (morador vs atendente) continua não implementada — o canal não é o mesmo que o locutor |
+
+
 | Data | Re-extração | Veredito | Observações |
 |------|-------------|----------|-------------|
-| 2026-06-19 | Revisor (revisão completa) | 🟢 7/10 • 🟡 2/10 • 🔴 1/10 | W009 (DTMF) não documentado em specs; W001 (B2BUA) e W004 (consenso físico) parcialmente cobertos |
+| 2026-06-19 | Revisor (revisão completa) | 🟢 7/9 • 🟡 2/9 | W001 (B2BUA) e W004 (consenso físico) parcialmente cobertos |
 
 ## Resultado: re-extração 2026-06-19
 
@@ -30,7 +45,6 @@ As regras de negócio RN-01 a RN-10 foram implementadas como código novo e deve
 | W006 | 🟢 | Whisper mode documentado em `telephony/whisper-mode/requirements.md` |
 | W007 | 🟢 | Filler audio documentado em `telephony/filler-audio/requirements.md` |
 | W008 | 🟢 | LLM self-hosted documentado em `domain.md` R23 e `extraction/llm_layer.py` |
-| W009 | 🔴 | Senhas via DTMF não mencionadas em nenhuma spec — lacuna confirmada |
 | W010 | 🟡 | Channel detection documentado como 🔴 stub em `audio/requirements.md` — speaker tagging não implementado |
 
 ## Arquivadas
@@ -47,5 +61,4 @@ As regras de negócio RN-01 a RN-10 foram implementadas como código novo e deve
 | W006 | requirements.md RN-06 | Whisper mode injeta áudio apenas no canal do atendente | presença | Morador ouve o whisper (vazamento de áudio) |
 | W007 | requirements.md RN-07 | FreeSWITCH injeta áudio de "processando" durante latência | presença | Morador ouve silêncio durante validação |
 | W008 | requirements.md RN-08 | Dados pessoais processados exclusivamente por LLM self-hosted | ausência | CPF/RG enviados para API externa |
-| W009 | requirements.md RN-09 | Senhas via DTMF sem passar pelo pipeline de IA | ausência | Senha aparece em log de extração |
 | W010 | requirements.md RN-10 | Transcrição identifica speaker (morador vs atendente) | presença | Transcrição sem tag de speaker |

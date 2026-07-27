@@ -74,10 +74,10 @@
 ## US-07: Limpeza automática de áudio antigo
 
 **Como** administrador
-**Quero** que áudios com mais de 90 dias sejam deletados automaticamente
-**Para** economizar espaço em disco e custos de S3
+**Quero** que gravações com mais de ~1 hora sejam removidas automaticamente
+**Para** que áudio sensível não persista além da janela de auditoria imediata (ADR-009)
 
 **Critérios de Aceitação:**
-- Cleanup roda diariamente às 03:00
-- Objetos com > 90 dias deletados em lotes de 1000
+- Cleanup roda a cada 15 minutos (minutos 0, 15, 30, 45)
+- Arquivos com `mtime` além de `AUDIO_RETENTION_DAYS` (~1h em produção) são removidos do tmpfs
 - Bucket por tenant respeitado

@@ -18,6 +18,16 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | `synthesize(text, voice="pt_BR", speaker_id=0) -> bytes` preservado. ⚠️ Nota: `voice` e `speaker_id` são aceitos mas **ignorados** (GAP-RE-10) — a assinatura sobreviveu, a semântica não |
+| W002 | 🟢 verde | `grep` em `requirements.txt` não encontra `piper-phonemize`, `greenswitch`, `redis-streams` nem `langgraph-checkpoint-redis` |
+| W003 | 🟢 verde | Nenhum serviço `piper-tts` no compose — só um comentário registrando a remoção |
+| W004 | 🟡 amarelo | `audio/voices/` está no `.gitignore` e o diretório não existe neste checkout — o modelo é vendorizado fora do git. Não verificável por análise estática; requer checagem no ambiente de deploy |
+
+
 _Vazio — será preenchido na próxima execução de `/reversa` (extração reversa)._
 
 ## Arquivadas

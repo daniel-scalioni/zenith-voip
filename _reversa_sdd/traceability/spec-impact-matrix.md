@@ -1,6 +1,7 @@
 # Spec Impact Matrix — zenith-voip
 
 > Gerado pelo Architect — 2026-06-19
+> **Re-extração incremental — 2026-07-27** — ver seção "Deltas 2026-07" ao final
 > Escala: 🟢 CONFIRMADO | 🟡 INFERIDO | 🔴 LACUNA
 
 ## Propósito
@@ -134,3 +135,48 @@ infra    │  ✅   ✅   ✅     ✅        ✅         ✅           ✅      
 - A matriz considera impacto **direto** entre módulos. Impacto indireto (ex: mudança no database que afeta widget através da API) não é marcado.
 - Módulos com alta centralidade (`api`, `database`) merecem atenção redobrada em mudanças.
 - Para estimar impacto de uma mudança, percorra a linha do módulo modificado na matriz.
+
+
+---
+
+## Deltas 2026-07 (re-extração incremental)
+
+### Módulo novo: `sidecar`
+
+| Relação | Direção | Natureza |
+|---|---|---|
+| `sidecar` → `infra` | impacta | Reescreve `vars-external-ip.xml` no volume de config do FreeSWITCH |
+| `sidecar` → `telephony` | impacta | `sofia profile upstream restart` derruba e re-registra os gateways |
+| `infra` → `sidecar` | impactado por | Depende de `network_mode: host` e do volume `./freeswitch/conf` |
+
+`sidecar` **não importa nada de `src/`** — não há acoplamento de código com nenhum módulo,
+apenas acoplamento operacional (arquivo de config compartilhado + ESL).
+
+### Arestas que mudaram de natureza
+
+| Aresta | Antes | Agora |
+|---|---|---|
+| `telephony` → `audio` | Registrava metadados no ingestor | Registra metadados **e dispara a captura** via `bgapi`; o registro virou o mecanismo de autorização do WebSocket |
+| `telephony` → `services` | inexistente | 🆕 `esl_client` chama `create_call_record`/`finalize_call_record` |
+| `telephony` → `workers` | inexistente | 🆕 `esl_client` chama `enqueue_recording_upload` no hangup |
+| `telephony` → `database` | indireta | Agora escreve no schema do tenant a cada chamada |
+| `workers` → `infra` | S3 externo | Filesystem local em tmpfs — passou a depender do volume e do `ffmpeg` na imagem |
+| `services` → `infra` | Microserviço `piper-tts` | TTS in-process: o modelo ONNX virou dependência do processo FastAPI |
+| `ai` → `events` | Checkpoint durável no Redis | 🔻 aresta **removida**: `MemorySaver` não toca o Redis (ADR-008) |
+
+### Artefatos com maior superfície de impacto nesta re-extração
+
+| Artefato | Deltas que o tocam |
+|---|---|
+| `_reversa_sdd/telephony/legacy-mapping.md` | D-01, D-12, D-14, D-15 |
+| `_reversa_sdd/infra/legacy-mapping.md` | D-08, D-12, D-13, D-14 |
+| `_reversa_sdd/workers/legacy-mapping.md` | D-03, D-04 |
+| `_reversa_sdd/code-analysis.md` | todos |
+
+### Risco de acoplamento introduzido
+
+`telephony` passou a depender diretamente de `services`, `workers`, `database` **e** `audio`
+dentro de um único handler de evento (`_handle_channel_answer` / `_handle_channel_hangup`).
+🟡 O `ESLClient` acumulou responsabilidade de orquestração do ciclo de vida da chamada, o que
+o aproxima de uma God Class — anti-padrão listado no `CLAUDE.md`. Candidato natural a
+extração de um `CallLifecycleService` se o handler continuar crescendo.

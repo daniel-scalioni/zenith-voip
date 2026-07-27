@@ -25,7 +25,14 @@
 - `run(call_id, transcript, sentiment, sentiment_score)` → executa o grafo
 - Até 3 iterações (se decider rejeitar e iteration < 3)
 - Publica decisão final em Redis Stream
-- Usa RedisSaver como checkpointer
+- 🔄 **Usa `MemorySaver` como checkpointer** (era `RedisSaver.from_conn_info(host="redis")`).
+  A troca foi forçada por conflito de dependências: `arq` exige `redis<6` e
+  `langgraph-checkpoint-redis` exige `redis>=6.2.0` — sem interseção possível no mesmo
+  `requirements.txt`. O pacote `langgraph-checkpoint-redis` foi removido.
+  **Consequência:** o estado do consenso deixa de ser durável e deixa de ser compartilhado
+  entre `fastapi-1`/`fastapi-2`. Aceitável porque o consenso é resolvido dentro de uma única
+  chamada síncrona a `graph.ainvoke()` (até 3 iterações, ADR-004), mas um restart de processo
+  no meio da execução perde o estado. Ver ADR-008.
 
 ### pops_cache.py
 - `POPsCache` armazena/recupera POPs por tenant_id no Redis
@@ -69,3 +76,4 @@
 | Máximo 3 iterações no grafo de consenso | `consensus_graph.py:71` | 🟢 |
 | Dados sensíveis passam por sanitização via LLM | `consensus_graph.py:58-59` | 🟢 |
 | POPs em cache por 1 hora | `pops_cache.py:9` | 🟢 |
+| 🆕 Estado do consenso é in-process e volátil (`MemorySaver`) | `consensus_graph.py:28-34` | 🟢 |

@@ -1,5 +1,5 @@
 {
-  "version": "1.2.50",
+  "version": "1.2.56",
   "project": "zenith-voip",
   "user_name": "MASTER",
   "chat_language": "pt-br",
@@ -126,6 +126,19 @@
       "entities_documented": 6,
       "dependencies_identified": 10,
       "tech_debt_items": 10
+    },
+    "reextraction_2026_07_27": {
+      "completed_at": "2026-07-27T00:00:00Z",
+      "files": [
+        ".reversa/context/delta-2026-07-27.json",
+        "_reversa_sdd/sidecar/legacy-mapping.md",
+        "_reversa_sdd/sidecar/requirements.md",
+        "_reversa_sdd/sidecar/design.md",
+        "_reversa_sdd/sidecar/tasks.md",
+        "_reversa_sdd/adrs/008-consenso-checkpointer-em-memoria.md",
+        "_reversa_sdd/adrs/009-gravacao-local-tmpfs-substitui-s3.md",
+        "_reversa_sdd/adrs/010-captura-de-audio-via-esl-e-mod-audio-stream.md"
+      ]
     }
   },
   "engines": [
@@ -267,5 +280,50 @@
     ".agents/skills/reversa-highcharts-visualizer",
     ".agents/skills/reversa-especialista-d3",
     ".agents/skills/reversa-image-prompt-json"
-  ]
+  ],
+  "reextraction": {
+    "mode": "incremental-diff",
+    "started_at": "2026-07-27",
+    "completed_at": "2026-07-27",
+    "base_commit": "48da5b1",
+    "head_commit": "0658157",
+    "delta_map": ".reversa/context/delta-2026-07-27.json",
+    "steps_completed": [
+      "delta-map",
+      "archaeologist",
+      "detective",
+      "architect",
+      "writer",
+      "regression-check"
+    ],
+    "steps_pending": [],
+    "new_module": "sidecar",
+    "adrs_added": [
+      "008-consenso-checkpointer-em-memoria",
+      "009-gravacao-local-tmpfs-substitui-s3",
+      "010-captura-de-audio-via-esl-e-mod-audio-stream"
+    ],
+    "gaps_added": 10,
+    "gaps_closed": [
+      "GAP-01 (channel detection)",
+      "git_archaeology"
+    ],
+    "regression_check": {
+      "features_verified": 9,
+      "features_blocked_for_write": [],
+      "watch_items": 54,
+      "green": 44,
+      "yellow": 9,
+      "red": 1,
+      "revisions": [
+        "005/W004 revisado 🟡→🟢 após verificação dos profiles",
+        "010/W002 critério de violação corrigido (autorizado pelo usuário)"
+      ],
+      "features_written": 9,
+      "note_004": "aplicado em 2026-07-27 via sudo (pasta root:root), autorizado pelo usuário"
+    },
+    "decisions": {
+      "ip-watcher": "roda no deploy atual (usuário, 2026-07-27)"
+    }
+  }
 }

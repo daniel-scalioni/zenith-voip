@@ -83,6 +83,6 @@ Enviado quando ocorre fallback ou recuperação do STT.
 |--------|-----------|
 | `activate_whisper` | Ativa o Copiloto Áudio (Whisper Mode) para a chamada ativa. |
 | `deactivate_whisper` | Desativa o Copiloto Áudio. |
-| `pause_ai` | Pausa temporariamente a IA (ex: morador ditando dados sensíveis via DTMF). |
+| `pause_ai` | Pausa temporariamente a IA para a chamada ativa. |
 | `resume_ai` | Retoma a IA após pausa. |
 | `request_consensus` | Solicita debate multi-agente para ação crítica. |

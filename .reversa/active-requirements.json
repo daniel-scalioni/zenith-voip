@@ -1,10 +1,27 @@
 {
   "schema-version": 1,
-  "feature-dir": "_reversa_forward/010-record-real-call-audio-e2e",
-  "feature-id": "010",
-  "short-name": "record-real-call-audio-e2e",
-  "started-at": "2026-07-14T15:12:08Z",
-  "current-stage": "requirements",
+  "feature-dir": null,
+  "feature-id": null,
+  "short-name": null,
+  "started-at": null,
+  "current-stage": null,
   "stages-completed": [],
-  "paused-features": []
+  "paused-features": [
+    {
+      "feature-id": "010",
+      "short-name": "record-real-call-audio-e2e",
+      "feature-dir": "_reversa_forward/010-record-real-call-audio-e2e",
+      "stage-at-pause": "done",
+      "paused-at": "2026-07-26T23:59:00Z",
+      "paused-from-stage": "done"
+    },
+    {
+      "feature-id": "011",
+      "short-name": "smb-audio-backup",
+      "feature-dir": "_reversa_forward/011-smb-audio-backup",
+      "stage-at-pause": "plan",
+      "paused-at": "2026-07-27T00:30:00Z",
+      "paused-from-stage": "plan"
+    }
+  ]
 }

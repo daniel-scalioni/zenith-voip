@@ -35,7 +35,7 @@ C4Context
 
   System_Ext(freeswitch, "FreeSWITCH", "Central telefônica SIP/ESL")
   System_Ext(deepgram, "Deepgram API", "STT cloud (primário)")
-  System_Ext(s3, "S3-compatible", "Armazenamento de áudio")
+  ContainerDb(tmpfs, "Recordings tmpfs", "tmpfs 512MB (RAM) — MP3 por canal, TTL ~1h")
   System_Ext(grafana, "Grafana + Loki", "Dashboards e logs")
 
   Rel(agent, widget, "Usa", "WebSocket")
@@ -43,7 +43,7 @@ C4Context
   Rel(freeswitch, api, "Eventos ESL + áudio", "ESL + WebSocket")
   Rel(api, workers, "Publica eventos", "Redis Streams")
   Rel(workers, deepgram, "Transcrição", "HTTPS/gRPC")
-  Rel(workers, s3, "Upload/download áudio", "HTTPS/S3 API")
+  Rel(workers, tmpfs, "Grava .raw, converte MP3, limpa por mtime", "filesystem")
   Rel(api, grafana, "Métricas e logs", "OTLP/Prometheus")
 ```
 
@@ -59,7 +59,7 @@ C4Context
 | Workers | ARQ | 0.26.1 |
 | STT primário | Deepgram SDK | 3.7.0 |
 | STT fallback | Whisper.cpp | - |
-| TTS | Piper TTS | 1.2.0 |
+| TTS | Piper TTS (in-process, sem microserviço) | 1.4.2 |
 | LLM local | Ollama (Mistral 7B) | 0.5.7 |
 | Orquestração IA | LangGraph | 0.2.60 |
 | Desktop | Tauri (Rust) | - |
@@ -85,7 +85,7 @@ Cliente → FreeSWITCH → ESL Events → FastAPI → Redis Streams → Workers
 7. **ConsensusGraph** (LangGraph) valida entidades em até 3 ciclos
 8. Resultados enviados via WebSocket para o Widget Tauri do operador
 9. Pós-chamada: webhooks disparados (stubs atualmente)
-10. Cleanup diário (03:00): deleta áudio S3 com mais de 90 dias
+10. Cleanup a cada 15 min: remove gravações do tmpfs com mais de ~1 hora (ADR-009)
 
 ## Dívidas Técnicas
 
@@ -100,7 +100,7 @@ Cliente → FreeSWITCH → ESL Events → FastAPI → Redis Streams → Workers
 | TD07 | Duplicação | `python-jose` e `pyjwt` ambos instalados para JWT | `requirements.txt` | 🟡 Média |
 | TD08 | Cobertura de testes | ~30% de cobertura estimada, sem testes unitários | `tests/` | 🟡 Média |
 | TD09 | Observabilidade | Logs do ESL Client sem estruturação adequada | `src/telephony/esl_client.py` | 🟡 Média |
-| TD10 | Configuração | S3 credentials expostas via env, sem secrets management | `docker-compose.app.yml` | 🔴 Alta |
+| TD10 | Configuração | ~~S3 credentials expostas via env~~ — S3 removido (ADR-009). Pendente: `signalwire_token` via secret é o único uso de secrets management | `docker-compose.app.yml` | 🟡 Média |
 
 ## Papel do FreeSWITCH: B2BUA com Registration Forwarding
 

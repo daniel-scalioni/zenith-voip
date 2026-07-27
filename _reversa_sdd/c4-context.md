@@ -31,8 +31,7 @@ C4Context
   System_Ext(freeswitch, "FreeSWITCH", "PBX SIP, eventos ESL, forked audio")
   System_Ext(deepgram, "Deepgram API", "STT cloud (primário)")
   System_Ext(ollama, "Ollama (Mistral 7B)", "LLM local — extração + correção contextual")
-  System_Ext(piper, "Piper TTS", "TTS local — síntese de voz")
-  System_Ext(s3, "S3-compatible Storage", "Armazenamento de áudio (bucket por tenant)")
+  System_Ext(tmpfs, "Recordings tmpfs", "Gravações MP3 em RAM, TTL ~1h (sem storage externo)")
   System_Ext(prometheus, "Prometheus + Grafana + Loki", "Métricas, dashboards e logs")
   System_Ext(bunkerweb, "BunkerWeb", "Proxy reverso com sticky session (X-Call-ID)")
 
@@ -49,8 +48,7 @@ C4Context
   Rel(workers_arq, postgres, "Persiste", "asyncpg")
   Rel(workers_arq, deepgram, "Transcreve áudio", "HTTPS/gRPC")
   Rel(workers_arq, ollama, "Corrige extrações", "HTTP")
-  Rel(workers_arq, piper, "Sintetiza voz", "HTTP")
-  Rel(workers_arq, s3, "Upload/download", "HTTPS/S3 API")
+  Rel(workers_arq, tmpfs, "Grava e limpa gravações", "filesystem")
   Rel(api_fastapi, prometheus, "Exporta métricas", "OTLP + /metrics")
   Rel(bunkerweb, api_fastapi, "Proxy", "HTTP reverso")
 ```
@@ -73,7 +71,7 @@ C4Context
 | **FreeSWITCH** | Central telefônica, gera eventos ESL e envia áudio | ESL + WebSocket | 🟢 |
 | **Deepgram API** | STT cloud com modelo nova-2 em português | HTTPS/gRPC | 🟢 |
 | **Ollama (Mistral 7B)** | LLM local para correção contextual de dados extraídos | HTTP | 🟢 |
-| **Piper TTS** | Síntese de voz local | HTTP | 🟢 |
-| **S3-compatible** | Storage para arquivos de áudio | HTTPS/S3 API | 🟢 |
+| ~~**Piper TTS**~~ | ❌ Deixou de ser sistema externo — roda in-process na FastAPI (`PiperVoice.load`) | — | 🟢 |
+| ~~**S3-compatible**~~ | ❌ Removido do projeto (ADR-009) — gravação em tmpfs local | — | 🟢 |
 | **Prometheus + Grafana + Loki** | Stack de observabilidade | OTLP/HTTP | 🟢 |
 | **BunkerWeb** | Proxy reverso com stickiness por X-Call-ID | HTTP | 🟢 |

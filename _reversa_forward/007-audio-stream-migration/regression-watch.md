@@ -19,6 +19,16 @@
 
 ## Histórico de re-extrações
 
+### Re-extração 2026-07-27 (incremental, base 48da5b1 → 0658157)
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟡 amarelo | Sem verificação ao vivo de `sofia status` nesta re-extração; sem evidência de regressão na configuração |
+| W002 | 🟢 verde | `freeswitch/Dockerfile` instala de `vendor/debs/*.deb`, com `--allow-downgrades` para o `libcurl4` — não depende do repositório SignalWire estar no ar |
+| W003 | 🟡 amarelo | **Superado pela feature 009.** `zenith_api_host` não existe mais em `freeswitch/conf/` e o dialplan não invoca `uuid_audio_stream`: a captura migrou para o `ESLClient`, e o host do callback vive em `settings.AUDIO_STREAM_CALLBACK_HOST` (`src/config.py`). Mudança deliberada (ADR-010), não regressão — o item precisa ser reescrito ou arquivado |
+| W004 | 🟢 verde | `/audio-stream/{call_id}` registrado em `src/main.py:56`; `_split_stereo_frame()` presente e validado em chamada real (2026-07-23) |
+
+
 _Vazio — será preenchido na próxima execução de `/reversa` (extração reversa)._
 
 ## Arquivadas

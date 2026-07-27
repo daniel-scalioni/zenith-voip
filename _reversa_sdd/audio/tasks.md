@@ -13,7 +13,7 @@
   - Origem: `src/audio/ingestor.py::AudioIngestor._split_stereo_frame`
   - Critério: cada frame estéreo gera dois `AudioChunk` (tx/rx) corretamente de-interleados
   - Testes: `tests/test_audio_ingestor.py` (verde)
-  - Confiança: 🟡 — implementação correta para o protocolo documentado do `mod_audio_fork`; convenção de qual canal é tx vs rx ainda não validada contra FreeSWITCH real (ver GAP-01/GAP-11 em `gaps.md`)
+  - Confiança: 🟢 — de-interleaving validado contra `mod_audio_stream` em chamada real (2026-07-23); GAP-01 fechado na re-extração de 2026-07-27
 
 - [ ] T-03, Implementar registro de metadados do stream
   - Origem: `src/audio/ingestor.py:63-68`

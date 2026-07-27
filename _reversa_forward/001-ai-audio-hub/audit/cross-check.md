@@ -51,7 +51,6 @@
 - [x] **RN-06** (Isolamento Whisper) → T024, T035
 - [x] **RN-07** (Gestão de Latência) → T025
 - [x] **RN-08** (LGPD) → T018 (Mistral via Ollama)
-- [x] **RN-09** (Senhas via DTMF) → Excluídas do pipeline (não há tarefa de extração de senhas ✅)
 - [x] **RN-10** (Speaker Diarization) → T012 (canais separados), T013 (diarize:true)
 
 ### Eixo 3: Cobertura de Cenários Gherkin
@@ -61,7 +60,6 @@
 - [x] Fallback de STT → T014, T015
 - [x] Whisper Mode sob tensão → T024, T035
 - [x] Consenso Negado → T021
-- [x] Coleta de Senha via DTMF → Excluída do pipeline ✅
 
 ### Eixo 4: Consistência Terminológica
 
