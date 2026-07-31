@@ -1,10 +1,10 @@
 {
   "schema-version": 1,
-  "feature-dir": null,
-  "feature-id": null,
-  "short-name": null,
-  "started-at": null,
-  "current-stage": null,
+  "feature-dir": "_reversa_forward/011-smb-audio-backup",
+  "feature-id": "011",
+  "short-name": "smb-audio-backup",
+  "started-at": "2026-07-27T14:10:50Z",
+  "current-stage": "coding-em-progresso",
   "stages-completed": [],
   "paused-features": [
     {
@@ -14,14 +14,6 @@
       "stage-at-pause": "done",
       "paused-at": "2026-07-26T23:59:00Z",
       "paused-from-stage": "done"
-    },
-    {
-      "feature-id": "011",
-      "short-name": "smb-audio-backup",
-      "feature-dir": "_reversa_forward/011-smb-audio-backup",
-      "stage-at-pause": "plan",
-      "paused-at": "2026-07-27T00:30:00Z",
-      "paused-from-stage": "plan"
     }
   ]
 }

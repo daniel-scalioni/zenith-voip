@@ -1,0 +1,51 @@
+name: zenith-quality
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: zenith-postgres-test
+    environment:
+      POSTGRES_USER: zenith_test
+      POSTGRES_PASSWORD: ${ZENITH_TEST_POSTGRES_PASSWORD:?defina ZENITH_TEST_POSTGRES_PASSWORD}
+      POSTGRES_DB: zenith_test
+    volumes:
+      - zenith-postgres-test-data:/var/lib/postgresql/data
+    networks:
+      - zenith-quality-test-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zenith_test -d zenith_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  quality-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zenith-quality-runner
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zenith_test:${ZENITH_TEST_POSTGRES_PASSWORD:?defina ZENITH_TEST_POSTGRES_PASSWORD}@postgres-test:5432/zenith_test
+      ZENITH_TEST_DATABASE_HOST: postgres-test
+      ZENITH_TEST_DATABASE_NAME: zenith_test
+    volumes:
+      - ./alembic:/app/alembic:ro
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+    networks:
+      - zenith-quality-test-net
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    command: ["sleep", "infinity"]
+    restart: "no"
+
+volumes:
+  zenith-postgres-test-data:
+    name: zenith-postgres-test-data
+
+networks:
+  zenith-quality-test-net:
+    name: zenith-quality-test-net
+    driver: bridge

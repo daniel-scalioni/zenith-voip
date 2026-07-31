@@ -3,127 +3,144 @@
 > Identificador: `011-smb-audio-backup`
 > Data: `2026-07-27`
 
-## Mudanças no modelo de dados
+## PostgreSQL
 
-### No PostgreSQL
+Nenhuma migração. O modelo `Call` já contém:
 
-**Nenhuma mudança.** O multi-tenancy já existe em `specs/erd-complete.md#Call table`. Cada tenant tem schema próprio, e os áudios já são organizados por `call_id` (UUID FK para `public.calls`).
+| Campo | Uso novo |
+|-------|----------|
+| `started_at` | timestamp do nome/diretório remoto |
+| `caller_number` | origem no nome remoto |
+| `callee_number` | destino no nome remoto |
 
-### No FileSystem (novo)
+`create_call_record` passa a preencher os dois últimos campos a partir do evento ESL, mantendo fallback `desconhecido`.
 
-**Arquivo local de rastreamento:** `/data/smb_transfer_log.json`
+## Filesystem local
+
+### Estado existente preservado
+
+```text
+/data/recordings/{tenant}/{call_id}/
+├── tx.mp3
+└── rx.mp3
+```
+
+### Delta
+
+```text
+/data/recordings/{tenant}/{call_id}/
+├── tx.mp3             # publicado por tx.tmp.mp3 → os.replace
+├── rx.mp3             # publicado por rx.tmp.mp3 → os.replace
+├── stereo.mp3         # transitório: left=tx, right=rx; publicação atômica
+└── .smb-processing    # lease JSON UTC: expira em 120 s, renovado a cada 30 s
+```
+
+Arquivos `.raw` permanecem somente quando a conversão falha. O worker retenta a conversão antes de gerar o estéreo.
+
+## Log persistente
+
+Local: `/data/smb_logs/smb_transfer_log.json`, no volume `zenith_smb_logs`.
 
 ```json
 [
   {
-    "call_id": "abc123def456",
+    "source_key": "akom/call-uuid",
     "tenant_id": "akom",
-    "origem": "1001",
-    "destino": "20991",
-    "rx_path": "/data/recordings/akom/abc123def456/rx.mp3",
-    "tx_path": "/data/recordings/akom/abc123def456/tx.mp3",
-    "status": "done",
-    "timestamp_created": "2026-07-27T14:35:42Z",
-    "timestamp_transferred": "2026-07-27T14:35:52Z",
-    "bytes_transferred": 245120,
-    "sha256_rx": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "sha256_tx": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "call_id": "call-uuid",
+    "caller_number": "1001",
+    "callee_number": "20991",
+    "tx_path": "/data/recordings/akom/call-uuid/tx.mp3",
+    "rx_path": "/data/recordings/akom/call-uuid/rx.mp3",
+    "stereo_path": "/data/recordings/akom/call-uuid/stereo.mp3",
+    "remote_dir": "akom/2026-07-27",
+    "remote_name": "2026-07-27-14-35-42-call-u-1001-20991.mp3",
+    "status": "pending",
     "attempts": 1,
+    "sha256": null,
+    "created_at": "2026-07-27T14:35:42Z",
+    "transferred_at": null,
     "last_error": null
   }
 ]
 ```
 
-**Estrutura:** Array de objetos, cada um representa uma tentativa de transferência.
+### Estados
 
-**Políticas:**
-- Escrita: Após cópia bem-sucedida + checksum validado, marcar `status=done`
-- Leitura: Ao iniciar worker, ler log, pular itens com `status=done`
-- Limpeza: Ao finalizar worker, remover entradas com `status=done` + `timestamp_transferred < (agora - 7 dias)`
-- Arquivo deletado antes de copiar: Remover entrada do log (cleanup cron já deletou)
+```text
+pending → done
+   │
+   ├──→ pending  (falha recuperável)
+   └──→ failed   (origem expirou ou configuração inválida)
+```
 
-### No Docker Volume (novo)
+- `done`: checksum validado; podar após 7 dias.
+- `pending`: retentar no próximo ciclo.
+- `failed`: manter 7 dias para auditoria e alerta.
+- Escrita do JSON: arquivo temporário no mesmo diretório + `os.replace`.
+- JSON vazio ou inválido: mover para nome diagnóstico timestampado, emitir log/métrica e iniciar estado vazio.
+- Caminho canônico: `/data/smb_logs/smb_transfer_log.json`.
 
-**Named volume `zenith-smb-logs`** para persistir `/data/smb_transfer_log.json` entre restarts do worker.
+### Lease local
 
-Configuração em `docker-compose.yml`:
+- Campos mínimos: `call_id`, `updated_at` UTC e `expires_at` UTC.
+- Validade: 120 s; renovação pelo worker a cada 30 s.
+- Lease ausente ou expirado não bloqueia cleanup.
+- Lease inválido/corrompido é preservado para diagnóstico, tratado como expirado e gera alerta.
+
+## Storage remoto
+
+```text
+\\{host}\{share}\{base_path}\
+└── {tenant}\
+    └── {YYYY-MM-DD}\
+        └── {YYYY-MM-DD}-{HH}-{MM}-{SS}-{call_id[0:6]}-{origem}-{destino}.mp3
+```
+
+Cada arquivo tem dois canais: left=`tx`, right=`rx`.
+
+## Volume Docker
+
+Nome único: `zenith_smb_logs`.
+
 ```yaml
 volumes:
-  zenith-smb-logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data/smb_logs
+  zenith_smb_logs:
 ```
 
-### No Storage Remoto (SMB)
+Montagem: `/data/smb_logs`. O volume `zenith_recordings_tmpfs` é reutilizado pelo worker em leitura/escrita porque o worker produz `stereo.mp3` e pode retentar conversão.
 
-**Estrutura de pastas criada pelo worker:**
+## Constraints e idempotência
 
-```
-\\192.168.50.240\backup$\Audios_Atendimento\
-├── akom\                                      # tenant
-│   ├── 2026-07-27\                            # YYYY-MM-DD
-│   │   ├── 2026-07-27-14-35-42-abc123-1001-20991-rx.mp3
-│   │   ├── 2026-07-27-14-35-42-abc123-1001-20991-tx.mp3
-│   │   └── ...
-│   ├── 2026-07-26\
-│   └── ...
-└── outro-tenant\
-    ├── 2026-07-27\
-    └── ...
-```
+- Chave lógica: `tenant_id + call_id`.
+- Destino existente com mesmo SHA256: sucesso idempotente.
+- Destino existente com SHA256 divergente: colisão/erro; não sobrescrever silenciosamente.
+- Na primeira colisão divergente, tentar uma vez o nome com sufixo `-{call_id[6:10]}`; se também divergir, falhar.
+- `call_id[0:6]` não é chave primária; o log mantém UUID completo.
+- Não há índice ou migration.
 
-**Nomeação padrão:** `{YYYY-MM-DD}-{HH}-{MM}-{SS}-{call_id}-{origem}-{destino}-{tx|rx}.mp3`
+## Retenção
 
-Exemplo: `2026-07-27-14-35-42-abc123-1001-20991-rx.mp3`
-- Data: 2026-07-27
-- Hora: 14:35:42
-- call_id: abc123 (primeiros 6 caracteres para brevidade, completo em log local)
-- Origem: 1001
-- Destino: 20991
-- Canal: rx (receive) ou tx (transmit)
+- Gravações mono: aproximadamente 2 h (`0.0833` dia).
+- Estéreo local: somente até o checksum remoto ser confirmado; em falha, permanece para retry até o cleanup.
+- Log `done`/`failed`: 7 dias.
+- SMB remoto: política do operador, fora do Zenith.
 
-### Índices / Constraints
+## Delta planejado para recuperação dos gates
 
-Nenhum índice novo necessário. O log local é JSON plano (não há queryable structure).
+O banco atual não será alterado durante a preparação. O candidato será construído em volume novo:
 
-## Migrações
+| Objeto | Estado atual | Estado candidato |
+|--------|--------------|------------------|
+| `public.alembic_version` | ausente | revisão baseline pública |
+| `public.tenants` | 1 linha | mesma linha e mesmo UUID |
+| `public.pbxs` | 1 linha | mesma linha e mesmo UUID |
+| `tenant_akom.calls` | 9 linhas | mesmas linhas e UUIDs |
+| demais tabelas do tenant | vazias | criadas com tipos/constraints atuais |
+| `tenant_test_schema` | schema vazio criado por teste | não migrado; testes passam a usar banco dedicado |
 
-**Nenhuma migração de banco de dados é necessária.** O worker cria a pasta `/data/smb_logs/` e o arquivo `smb_transfer_log.json` no primeiro ciclo.
+O dump validado é a fonte de restauração. O CSV privado continua sendo a fonte dos ramais
+FreeSWITCH e não será incluído em specs, logs ou commits.
 
-### Inicialização do volume
+## LGPD
 
-1. Docker Compose cria named volume `zenith-smb-logs`
-2. Container `zenith-smb-sync` monta em `/data/smb_logs`
-3. Worker inicializa em `on_startup()`: 
-   - Se `/data/smb_transfer_log.json` não existe, criar array `[]` (vazio)
-   - Se existe, carregar e usar para resumir transferências pendentes
-
-### Tamanho esperado
-
-- 100 chamadas/dia × 2 arquivos (rx + tx) = 200 entradas
-- Cada entrada: ~400 bytes JSON
-- 200 entradas × 400 bytes = 80KB/dia
-- Retenção: 7 dias → máximo 560KB
-- Margem de segurança: 10MB volume suficiente
-
-## Considerações de performance
-
-- **Read on startup:** O(n) onde n = número de entradas pending. Típicamente < 100 (fila máxima > 100 = alerta).
-- **Write on success:** O(1) append + rewrite (ou stream append se JSON streaming usado).
-- **Cleanup:** O(n) scan, remove matched entries, rewrite.
-- **Recomendação:** Implementar limpeza em thread separada ou cron job, não blocar worker principal.
-
-## Backup e retenção
-
-- **Volume local:** Persistido em Docker named volume. Backup via `docker volume inspect` ou incluído em snapshots host.
-- **Storage remoto:** Já backupado pelo operador da máquina 192.168.50.240 (fora do escopo Zenith).
-- **Retenção local:** 7 dias automático (cleanup).
-- **Retenção remoto (SMB):** Indefinida (operador decide).
-
-## Conformidade
-
-- **LGPD:** Dados de voz são pessoais. Armazenamento remoto (SMB) deve estar em contrato de processamento com o cliente. Não é responsabilidade do Zenith verificar (contratos com clientes).
-- **Auditoria:** Log local permite rastreabilidade completa (quando, quem, sucesso/falha). Registra tentativas de erro para investigação.
+Voz e metadados pessoais permanecem na LAN, mas passam a existir em um segundo sistema. A ACL e a retenção remota precisam fazer parte do acordo operacional do cliente.

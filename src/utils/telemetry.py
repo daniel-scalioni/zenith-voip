@@ -90,6 +90,32 @@ audio_cleanup_errors = Counter(
     ["tenant_id"],
 )
 
+smb_backup_success_total = Counter(
+    "smb_backup_success_total",
+    "Total successful SMB audio backups",
+)
+
+smb_backup_failed_total = Counter(
+    "smb_backup_failed_total",
+    "Total failed SMB audio backup attempts",
+)
+
+smb_backup_latency_seconds = Histogram(
+    "smb_backup_latency_seconds",
+    "SMB audio backup latency",
+    buckets=[0.1, 0.5, 1, 2, 5, 10, 20, 30],
+)
+
+smb_backup_queue_size = Gauge(
+    "smb_backup_queue_size",
+    "Number of calls pending SMB backup",
+)
+
+smb_conversion_pending = Gauge(
+    "smb_conversion_pending",
+    "Number of calls waiting for audio conversion",
+)
+
 
 def record_cleanup_deleted(tenant_id: str, count: int, bytes_freed: int):
     audio_cleanup_files_deleted.labels(tenant_id=tenant_id).inc(count)
@@ -102,6 +128,26 @@ def record_cleanup_error(tenant_id: str):
 
 def observe_cleanup_duration(seconds: float):
     audio_cleanup_duration.observe(seconds)
+
+
+def record_smb_success():
+    smb_backup_success_total.inc()
+
+
+def record_smb_failure():
+    smb_backup_failed_total.inc()
+
+
+def observe_smb_latency(seconds: float):
+    smb_backup_latency_seconds.observe(seconds)
+
+
+def set_smb_queue_size(count: int):
+    smb_backup_queue_size.set(count)
+
+
+def set_smb_conversion_pending(count: int):
+    smb_conversion_pending.set(count)
 
 
 async def metrics_endpoint():

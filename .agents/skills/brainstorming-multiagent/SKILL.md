@@ -1,11 +1,11 @@
 ---
 name: brainstorming-multiagent
 description: >
-  Protocolo socrático + validação cruzada com múltiplas LLMs reais via OpenCode
-  CLI. Use para decisões técnicas não-óbvias (causa raiz incerta, escolha de
-  arquitetura/módulo, trade-off relevante) antes de agir, ou para requisitos
-  vagos antes de implementar. Quem chama a skill é quem escolhe os modelos,
-  escreve as perguntas e julga as respostas — não há lista fixa de LLMs.
+  Protocolo socrático, delegação e validação cruzada com múltiplas LLMs reais
+  via OpenCode CLI e Claude CLI. Use para decisões técnicas não-óbvias,
+  diagnóstico incerto, requisitos vagos ou para delegar código/testes a um
+  modelo independente e reduzir viés do agente principal. Quem chama escolhe
+  modelos, permissões e lentes, e julga as respostas e alterações.
 allowed-tools: Read, Bash, Grep, Write
 ---
 
@@ -24,27 +24,59 @@ allowed-tools: Read, Bash, Grep, Write
 
 **Você é responsável por gerenciar e moderar a conversa entre as LLMs — a skill não faz isso sozinha.** Isso significa, na prática:
 
-- **Você escolhe os modelos**, a cada consulta, com base no que está de fato disponível no ambiente (rode `opencode models` antes de assumir um nome — nomes e sufixos como `:free` variam por ambiente e mudam com o tempo). Não existe uma lista fixa de "4 LLMs obrigatórias": escolha 2-4 modelos com lentes diferentes, apropriadas à pergunta.
+- **Você escolhe os modelos**, a cada consulta, com base no que está de fato disponível no ambiente
+  (rode `opencode models` e, quando usar Anthropic diretamente, `claude --version`/`claude
+  --help`). Não assuma nomes, aliases ou opções de memória. Não existe uma lista fixa de modelos
+  obrigatórios: escolha 2-4 modelos com lentes diferentes, apropriadas à pergunta.
 - **Você escreve as perguntas**, uma por modelo, específicas ao que essa lente deveria avaliar (não a mesma pergunta genérica para todos).
 - **Você julga cada resposta antes de aceitar.** Se um modelo devolver algo quebrado, fora de tópico, ou claramente ruim (aconteceu com Llama numa consulta real — ver exemplo abaixo), descarte e troque por outro modelo. Não insista no mesmo modelo por ele estar "na lista"; não invente uma resposta melhor no lugar dela.
 - **Você faz o veredito final**, baseado em análise das divergências reais, não em votação nem em média.
 
 ## Protocolo (passo a passo validado em uso real)
 
-1. **Confirme os modelos disponíveis:** `opencode models`. Não assuma nomes de memória.
+1. **Confirme as CLIs e modelos disponíveis:** `opencode models`; para Anthropic direto, confirme
+   `claude --version` e a sintaxe vigente em `claude --help`. Não assuma nomes ou flags de memória.
 2. **Escolha 2-4 modelos com lentes distintas**, adequadas à pergunta em questão. Exemplos de lente (troque livremente, não é fixo):
    - Pragmatismo/velocidade — "qual o fix mais rápido e seguro?"
    - Qualidade/arquitetura — "essa é a escolha certa a longo prazo? há alternativa melhor?"
    - Profundidade técnica — "que risco técnico específico estou ignorando?"
-3. **Escreva um prompt autocontido por modelo.** Cada chamada `opencode run` é um processo novo, sem acesso à sua conversa — inclua todo o contexto necessário (o que já foi investigado, evidência já coletada, a pergunta exata). Para prompts longos/multilinha, escreva em um arquivo no scratchpad e rode com `"$(cat arquivo.txt)"` — evita problemas de quoting.
-4. **Rode de verdade, via Bash:**
-   ```bash
-   opencode run --model <provider/model> "$(cat prompt.txt)"
-   ```
+3. **Escolha o modo de cada chamada:**
+   - **Consulta:** modelo responde/revisa sem editar arquivos.
+   - **Delegação:** um modelo recebe autorização explícita e escopo exato para editar. Use quando a
+     independência de autoria for parte do objetivo, como testes anti-viés.
+4. **Escreva um prompt autocontido por modelo.** Cada processo começa sem acesso à conversa —
+   inclua contexto, artefatos que deve ler, pergunta/tarefa exata, limites e formato de saída.
+   Para prompts longos, use arquivo temporário no scratchpad e passe seu conteúdo à CLI.
+5. **Rode de verdade via uma CLI confirmada:**
+   - OpenCode:
+     ```bash
+     opencode run --model <provider/model> "$(cat prompt.txt)"
+     ```
+   - Claude Code, consulta read-only:
+     ```bash
+     claude --print --model <alias-ou-modelo> --tools "Read,Grep,Glob" \
+       --permission-mode dontAsk "$(cat prompt.txt)"
+     ```
+   - Claude Code, delegação com escrita limitada ao workspace:
+     ```bash
+     claude --print --model <alias-ou-modelo> --tools "Read,Grep,Glob,Edit,Write,Bash" \
+       --permission-mode acceptEdits "$(cat prompt.txt)"
+     ```
+   Confirme as flags contra o `--help` instalado. Defina diretório de trabalho no projeto e nunca
+   forneça segredos no prompt.
+6. **Em delegação, serialize escritores.** Somente um modelo pode editar determinado conjunto de
+   arquivos por vez. Depois da escrita, capture o diff e entregue esse diff — não a resposta
+   desejada — a outro modelo em modo read-only para revisão independente.
+7. **Preserve autoria e anti-viés.** O orquestrador não deve reescrever silenciosamente os testes
+   delegados. Ele valida contrato, qualidade e execução; se houver falha substantiva, devolve ao
+   autor externo ou solicita uma correção independente, registrando a rodada.
    Timeout inicial de ~150s costuma bastar. Modelos que exploram o repositório (leem arquivos antes de responder) podem precisar de 250-300s — se der timeout no meio de uma exploração legítima, rode de novo com mais tempo antes de descartar o modelo.
-5. **Julgue a resposta.** Resposta quebrada/genérica/fora de tópico → descarte e troque de modelo, registre a troca (não esconda que um modelo falhou).
-6. **Analise convergência E divergência.** Onde os modelos concordam é sinal de robustez. Onde divergem, **investigue o motivo** — normalmente um viu algo que o outro não viu. Credite o ponto certo a quem estiver certo, com base em evidência, não em "3 contra 1".
-7. **Reporte ao usuário em linguagem natural, curto**: uma tabela leve com as posições + o veredito com a razão técnica. Não invente métricas de confiança numérica (ex.: "99% de confiança") sem lastro real — isso é ruído, não informação.
+8. **Julgue a resposta ou diff.** Resultado quebrado, genérico, fora de tópico ou fora do escopo →
+   descarte/reverta somente as alterações daquele agente e troque de modelo; registre a troca.
+9. **Analise convergência E divergência.** Onde os modelos concordam é sinal de robustez. Onde
+   divergem, investigue o motivo e decida por evidência, não por votação.
+10. **Reporte ao usuário em linguagem natural, curto:** modelos/CLIs usados, autoria dos arquivos,
+    divergências, correções solicitadas e veredito. Não invente confiança numérica.
 
 ## Exemplo real (consulta que originou este protocolo)
 
@@ -69,6 +101,9 @@ O Llama devolveu uma resposta sem sentido (invocou uma skill errada, retornou um
 | Tratar divergência como empate/média | É onde está a informação real — investigue |
 | Inventar score/confiança numérica sem lastro | Reporte incerteza real, não teatro de precisão |
 | Fazer a mesma pergunta genérica para todos os modelos | Cada lente deve testar algo diferente |
+| Permitir dois modelos editarem os mesmos arquivos em paralelo | Mistura autoria, cria conflitos e invalida a revisão independente |
+| O orquestrador “melhorar” silenciosamente testes delegados | Reintroduz o viés que a delegação deveria reduzir |
+| Usar `--permission-mode bypassPermissions` por conveniência | Amplia autoridade sem necessidade; prefira ferramentas e permissões mínimas |
 
 ## Protocolo Socrático (pedidos vagos)
 
@@ -79,6 +114,8 @@ Antes de implementar algo vago ("crie um X", feature nova sem detalhe, mudança 
 | Problema | Solução |
 |---|---|
 | `opencode: command not found` | Confirme instalação: `which opencode && opencode --version` |
+| `claude: command not found` | Confirme instalação: `which claude && claude --version` |
+| Claude não autenticado/modelo indisponível | Use outro alias confirmado ou volte ao OpenCode; registre a troca |
 | Timeout | Não é necessariamente modelo ruim — se estava explorando o repo, rode de novo com mais tempo (250-300s) |
 | Modelo pede créditos/erro de billing | Troque por outro da lista de `opencode models` sem esse requisito |
 | Resposta quebrada/sem relação com a pergunta | Descarte o modelo para essa consulta, troque, siga em frente — não é bloqueante |

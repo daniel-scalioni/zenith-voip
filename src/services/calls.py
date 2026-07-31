@@ -8,7 +8,14 @@ def _tenant_schema(tenant_id: str) -> str:
     return f"tenant_{tenant_id}"
 
 
-async def create_call_record(tenant_id: str, call_id: str, pbx_id: str, agent_extension: str) -> None:
+async def create_call_record(
+    tenant_id: str,
+    call_id: str,
+    pbx_id: str,
+    agent_extension: str,
+    caller_number: str | None = None,
+    callee_number: str | None = None,
+) -> None:
     schema = _tenant_schema(tenant_id)
     async for session in get_tenant_db(schema):
         repo = Repository(session, Call)
@@ -16,6 +23,8 @@ async def create_call_record(tenant_id: str, call_id: str, pbx_id: str, agent_ex
             call_id=call_id,
             pbx_id=pbx_id or None,
             agent_sip_extension=agent_extension or None,
+            caller_number=caller_number or None,
+            callee_number=callee_number or None,
             direction=CallDirection.inbound,
             status=CallStatus.in_progress,
         )

@@ -3,9 +3,9 @@ spec:
   component: workers
   layer: workers
   status: active
-  version: 2.0.0
+  version: 2.1.0
   language: python
-  updated_at: 2026-07-27
+  updated_at: 2026-07-29
 ---
 
 # Workers, Design Técnico
@@ -15,19 +15,40 @@ spec:
 
 ## Interface
 
-| Worker | Função | Gatilho | Container |
-|--------|--------|---------|-----------|
-| audio_uploader | `upload_recording_batch(tenant_id, call_id, recordings)` | Job arq enfileirado no `CHANNEL_HANGUP` | `zenith-arq-uploader` |
-| audio_cleanup | `run_cleanup()` | Cron ARQ a cada 15 min | `zenith-arq-cleanup` |
-| post_call | `run_post_call(call_id)` | Evento `CHANNEL_HANGUP` | — |
-| transcript_persist | `persist_transcripts()` | Batch a cada 5s | — |
+| Worker | Função | Gatilho | Fila exclusiva | Container |
+|--------|--------|---------|----------------|-----------|
+| audio_uploader | `upload_recording_batch(tenant_id, call_id, recordings)` | Job arq enfileirado no `CHANNEL_HANGUP` | `zenith:audio-upload` | `zenith-arq-uploader` |
+| audio_cleanup | `run_cleanup()` | Cron ARQ a cada 15 min | `zenith:audio-cleanup` | `zenith-arq-cleanup` |
+| smb_sync | `run_smb_sync()` | Cron ARQ a cada 5 min | `zenith:smb-sync` | `zenith-smb-sync` |
+| post_call | `run_post_call(call_id)` | Evento `CHANNEL_HANGUP` | fora desta decisão | — |
+| transcript_persist | `persist_transcripts()` | Batch a cada 5s | fora desta decisão | — |
+
+## Isolamento de filas ARQ
+
+Contrato aprovado após o E2E de 2026-07-29:
+
+1. Cada `WorkerSettings` operacional define `queue_name` igual à sua fila exclusiva.
+2. `enqueue_recording_upload()` publica `upload_recording_batch` explicitamente em
+   `zenith:audio-upload`, usando `default_queue_name` no pool ou `_queue_name` no enqueue.
+3. Os crons de cleanup e SMB são materializados somente nas filas dos próprios workers.
+4. A fila default `arq:queue` não é usada por uploader, cleanup ou SMB sync.
+5. Nomes de função permanecem distintos; não registrar todas as funções em todos os workers.
+6. Jobs falhos anteriores à correção não são reenfileirados: o E2E deve usar uma nova chamada.
+
+### Motivo
+
+ARQ usa uma fila Redis compartilhada por padrão. Ter containers separados não isola consumo:
+qualquer worker pode retirar qualquer job da fila. Em chamada real, `upload_recording_batch` foi
+retirado por um worker que não registra essa função, produzindo `JobExecutionFailed: function
+'upload_recording_batch' not found`. Também foram observadas colisões equivalentes com
+`cron:run_cleanup` e `cron:run_smb_sync`.
 
 ## Fluxo Principal (Gravação)
 
 1. `ESLClient._handle_channel_hangup()` agrupa os `AudioChunk` do buffer por canal e chama
    `enqueue_recording_upload(tenant_id, call_id, recordings)`.
-2. `enqueue_recording_upload` obtém um pool arq lazy (`_get_pool()`, singleton de módulo) e
-   enfileira `upload_recording_batch`.
+2. `enqueue_recording_upload` obtém um pool arq lazy (`_get_pool()`, singleton de módulo) associado
+   à fila `zenith:audio-upload` e enfileira `upload_recording_batch` nessa fila.
 3. `zenith-arq-uploader` consome o job e itera os canais chamando `upload_audio_chunk`.
 4. Para cada canal:
    - `os.makedirs(RECORDINGS_PATH/<tenant>/<call_id>)`
@@ -54,6 +75,8 @@ inviabilizaria isso. Ver ADR-009.
    - `os.walk` no diretório; remove todo arquivo com `st_mtime < cutoff`
    - `await asyncio.sleep(0)` a cada 1000 remoções, cedendo o event loop
 4. Registra `deleted_count`, `bytes_freed`, `duration`
+
+O cron e as funções de cleanup são consumidos exclusivamente de `zenith:audio-cleanup`.
 
 ### Por que 15 minutos
 
@@ -93,3 +116,4 @@ Antes disso o `arq-cleanup` ficava em crash loop e nunca executou uma limpeza.
 - 🔴 Retenção é global, não por tenant
 - 🟡 Sem monitoramento de workers (dead letters, retry)
 - 🟡 `ffmpeg` é dependência de runtime da imagem, sem verificação no boot do container
+- 🟡 GAP-ARQ-01: isolamento de filas especificado após falha E2E; código e redeploy pendentes

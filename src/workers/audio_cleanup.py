@@ -6,6 +6,9 @@ from arq import cron
 from arq.connections import RedisSettings
 from src.config import settings
 from src.utils.telemetry import record_cleanup_deleted, record_cleanup_error, observe_cleanup_duration
+from src.workers.smb_sync import has_valid_lease
+
+CLEANUP_QUEUE_NAME = "zenith:audio-cleanup"
 
 
 async def cleanup_tenant_bucket(ctx, tenant_id: str) -> dict:
@@ -20,8 +23,13 @@ async def cleanup_tenant_bucket(ctx, tenant_id: str) -> dict:
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=settings.AUDIO_RETENTION_DAYS)).timestamp()
 
-        for root, _dirs, files in os.walk(tenant_dir):
+        for root, dirs, files in os.walk(tenant_dir):
+            if has_valid_lease(root):
+                dirs.clear()
+                continue
             for name in files:
+                if name == ".smb-processing":
+                    continue
                 path = os.path.join(root, name)
                 stat = os.stat(path)
                 if stat.st_mtime < cutoff:
@@ -68,6 +76,7 @@ async def run_cleanup(ctx):
 
 
 class WorkerSettings:
+    queue_name = CLEANUP_QUEUE_NAME
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     cron_jobs = [
         # A cada 15 min: com retenção de ~1h (AUDIO_RETENTION_DAYS), rodar só

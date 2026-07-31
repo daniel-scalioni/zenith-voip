@@ -205,6 +205,8 @@ class ESLClient:
         tenant_id = event.get("variable_zenith_tenant_id", "") or ""
         pbx_id = event.get("variable_zenith_pbx_id", "") or ""
         agent_ext = event.get("variable_zenith_agent_extension", "") or ""
+        caller_number = event.get("Caller-Caller-ID-Number", "") or None
+        callee_number = event.get("Caller-Destination-Number", "") or None
         logger.info(
             "CHANNEL_ANSWER call_id=%s tenant_id=%r pbx_id=%r agent_ext=%r dest=%r",
             call_id, tenant_id, pbx_id, agent_ext, event.get("Caller-Destination-Number", ""),
@@ -219,7 +221,17 @@ class ESLClient:
         if tenant_id:
             logger.info("create_call_record starting for call_id=%s", call_id)
             try:
-                await create_call_record(tenant_id, call_id, pbx_id, agent_ext)
+                if caller_number or callee_number:
+                    await create_call_record(
+                        tenant_id,
+                        call_id,
+                        pbx_id,
+                        agent_ext,
+                        caller_number,
+                        callee_number,
+                    )
+                else:
+                    await create_call_record(tenant_id, call_id, pbx_id, agent_ext)
                 logger.info("create_call_record finished for call_id=%s", call_id)
             except Exception:
                 logger.exception("create_call_record raised for call_id=%s", call_id)

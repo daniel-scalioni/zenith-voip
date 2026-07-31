@@ -1,0 +1,71 @@
+{"ts":"2026-07-28T13:49:02Z","action":"T001","status":"done","files":["_reversa_sdd/workers/smb-backup/design.md"]}
+{"ts":"2026-07-28T13:49:02Z","action":"T002","status":"done","files":["requirements.txt"]}
+{"ts":"2026-07-28T13:49:02Z","action":"T004","status":"done","files":[".env.example"]}
+{"ts":"2026-07-28T13:49:02Z","action":"T005","status":"done","files":["docker-compose.app.yml"]}
+{"ts":"2026-07-28T13:51:00Z","action":"T042","status":"done","files":["_reversa_forward/011-smb-audio-backup/storage-write-spike.md"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T007","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T008","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T009","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T027","status":"done","files":["src/workers/test_audio_uploader.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T028","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T029","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T030","status":"done","files":["src/test_config.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T031","status":"done","files":["src/utils/test_telemetry.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T038","status":"done","files":["src/services/test_calls.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T039","status":"done","files":["src/telephony/test_esl_client.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T040","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T043","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T045","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T047","status":"done","files":["src/workers/test_audio_cleanup.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T049","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:05:00Z","action":"T051","status":"done","files":["src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T003","status":"done","files":["src/config.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T006","status":"done","files":["src/utils/telemetry.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T032","status":"done","files":["src/workers/audio_uploader.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T010","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T011","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T012","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T013","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T014","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T033","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T034","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T015","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T016","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T044","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T046","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T048","status":"done","files":["src/workers/audio_cleanup.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T050","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:20:00Z","action":"T017","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:25:00Z","action":"T018","status":"done","files":["src/services/calls.py"]}
+{"ts":"2026-07-28T14:25:00Z","action":"T019","status":"done","files":["src/telephony/esl_client.py"]}
+{"ts":"2026-07-28T14:25:00Z","action":"T020","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:25:00Z","action":"T021","status":"done","files":["docker-compose.app.yml"]}
+{"ts":"2026-07-28T14:25:00Z","action":"T022","status":"done","files":["src/workers/smb_sync.py","src/utils/telemetry.py"]}
+{"ts":"2026-07-28T14:25:00Z","action":"T041","status":"done","files":["_reversa_forward/011-smb-audio-backup/storage-write-spike.md"]}
+{"ts":"2026-07-28T14:40:00Z","action":"T023","status":"done","files":["src/workers/smb_sync.py"]}
+{"ts":"2026-07-28T14:40:00Z","action":"T036","status":"done","files":["_reversa_forward/011-smb-audio-backup/test-bias-verdict.md","src/workers/smb_sync.py","src/workers/test_smb_sync.py"]}
+{"ts":"2026-07-28T14:55:00Z","action":"T037","status":"failed","files":["tests/","docker-compose.app.yml"],"reason":"ambiente sem Docker/PostgreSQL/Redis/Ollama; suíte legada 58% e integrações indisponíveis"}
+{"ts":"2026-07-29T11:09:00Z","action":"deploy","status":"done","files":["docker-compose.app.yml","requirements.txt","src/config.py","src/services/calls.py","src/telephony/esl_client.py","src/utils/telemetry.py","src/workers/audio_cleanup.py","src/workers/audio_uploader.py","src/workers/smb_sync.py"],"evidence":"APIs HTTP 200; workers ativos; somente containers zenith afetados recriados"}
+{"ts":"2026-07-29T11:12:00Z","action":"T024","status":"blocked","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"reason":"host 10.10.10.11 e container zenith-smb-sync sem alcance a 192.168.50.240:445; timeout antes da autenticação"}
+{"ts":"2026-07-29T11:20:00Z","action":"T024","status":"blocked","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"reason":"reteste após regra: gateway acessível, mas três conexões TCP/445 do host ainda expiraram"}
+{"ts":"2026-07-29T11:25:00Z","action":"T024","status":"in_progress","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"evidence":"TCP/445 host/container e autenticação/listagem SMB read-only passaram; ligação E2E liberada"}
+{"ts":"2026-07-29T15:20:00Z","action":"T024","status":"blocked","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"reason":"primeira ligação enfileirou upload_recording_batch, mas worker incorreto consumiu a fila default e retornou function not found"}
+{"ts":"2026-07-29T15:30:00Z","action":"T052","status":"done","files":["_reversa_sdd/workers/requirements.md","_reversa_sdd/workers/design.md","_reversa_sdd/workers/tasks.md","_reversa_sdd/workers/smb-backup/design.md","_reversa_forward/011-smb-audio-backup/requirements.md","_reversa_forward/011-smb-audio-backup/roadmap.md","_reversa_forward/011-smb-audio-backup/actions.md"],"evidence":"decisões 1A/2B/3A propagadas antes do código"}
+{"ts":"2026-07-30T13:20:00Z","action":"T053","status":"done","files":["src/workers/test_audio_uploader.py","src/workers/test_audio_cleanup.py","src/workers/test_smb_sync.py"],"evidence":"testes escritos por modelos externos; revisão independente e validação do orquestrador: 27 passed, 5 failed pelo contrato Red de filas"}
+{"ts":"2026-07-30T13:35:00Z","action":"T054","status":"done","files":["src/workers/audio_uploader.py","src/workers/audio_cleanup.py","src/workers/smb_sync.py"],"evidence":"43 testes focados passaram; cobertura agregada dos workers 83,86%; filas exclusivas e produtor roteado"}
+{"ts":"2026-07-30T14:05:00Z","action":"T055","status":"in_progress","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"evidence":"três workers redeployados; Redis MONITOR confirmou filas exclusivas; nova ligação pendente"}
+{"ts":"2026-07-30T22:25:00Z","action":"T055","status":"done","files":["_reversa_sdd/workers/smb-backup/design.md","_reversa_forward/011-smb-audio-backup/actions.md","_reversa_forward/011-smb-audio-backup/onboarding.md"],"evidence":"rolling restart das APIs carregou o produtor; job da segunda ligação consumido na fila exclusiva sem function-not-found; SMB done em uma tentativa; checksum remoto confirmado; MP3 stereo 8 kHz e canais tx/rx separados por correlação"}
+{"ts":"2026-07-30T22:28:00Z","action":"T037","status":"blocked","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"evidence":"Compose passou; feature 43 passed e workers 83,86%; suite global 18 passed/14 failed/2 skipped e 65,07%; Alembic bloqueado por tabelas existentes sem alembic_version, sem mutação parcial"}
+{"ts":"2026-07-31T03:05:36Z","action":"T056","status":"done","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"evidence":"inspeção somente leitura registrou labels, volume exclusivo observado, rede, porta 5433 publicada e clientes ativos; PostgreSQL atual formalmente protegido"}
+{"ts":"2026-07-31T03:05:36Z","action":"T057","status":"done","files":["_reversa_forward/011-smb-audio-backup/investigation.md"],"evidence":"único ambiente implantado conhecido não possui public.alembic_version; exemplos staging/production não representam hosts independentes; guard de suspensão mantido"}
+{"ts":"2026-07-31T03:05:36Z","action":"T058","status":"done","files":["_reversa_sdd/adrs/011-baseline-publica-e-provisionamento-tenant.md"],"evidence":"ADR-011 aceitou baseline somente public e provisionamento explícito por tenant com guard para histórico futuro descoberto"}
+{"ts":"2026-07-31T03:05:36Z","action":"T059","status":"done","files":["_reversa_forward/011-smb-audio-backup/onboarding.md"],"evidence":"manifesto pré-migração registra somente contagens e hashes de UUIDs/ramais, sem valores pessoais ou credenciais"}
+{"ts":"2026-07-31T03:05:36Z","action":"T060","status":"done","files":["_reversa_sdd/database/migrations/design.md"],"evidence":"dump privado, checksum, restore, descarte autorizado, rollback e go/no-go especificados"}
+{"ts":"2026-07-31T03:05:36Z","action":"T061","status":"done","files":["_reversa_sdd/database/migrations/design.md"],"evidence":"zenith-postgres-test especificado com volume/rede próprios e nenhuma porta publicada"}
+{"ts":"2026-07-31T03:05:36Z","action":"T062","status":"done","files":["_reversa_sdd/database/migrations/design.md"],"evidence":"zenith-postgres-rehearsal especificado separado do teste/candidato e sem porta publicada"}
+{"ts":"2026-07-31T03:05:36Z","action":"T063","status":"done","files":["_reversa_sdd/database/migrations/design.md"],"evidence":"zenith-postgres-candidate especificado sem porta e sem volume external ou referência ao volume operacional"}
+{"ts":"2026-07-31T03:05:36Z","action":"T064","status":"done","files":["_reversa_sdd/database/migrations/requirements.md","_reversa_sdd/database/migrations/design.md","_reversa_sdd/database/migrations/tasks.md"],"evidence":"três specs promovidas de draft para active após ADR e fechamento da topologia"}
+{"ts":"2026-07-31T03:05:36Z","action":"T065","status":"done","files":["docker-compose.quality.yml"],"evidence":"Compose isolado validado pelo parser Docker remoto via stdin; nenhum container criado, nenhuma porta publicada"}
+{"ts":"2026-07-31T03:51:34Z","action":"T069","status":"done","files":["tests/test_audio_ingestor.py"],"evidence":"autoria externa Claude Sonnet; 5 coletados e 5 passed; receive ASGI, controle/binário, disconnect e isolamento cobertos; T086 candidato a N/A"}
+{"ts":"2026-07-31T03:51:34Z","action":"T070","status":"done","files":["tests/test_bunker_sticky.py"],"evidence":"autoria externa Claude Sonnet; 3 unitários passed sem rede e 3 integrações skipped por BUNKERWEB_URL ausente; erros HTTP/conexão explícitos"}
+{"ts":"2026-07-31T03:52:28Z","action":"T076","status":"done","files":["src/events/test_redis_streams.py"],"evidence":"autoria externa Mimo V2.5 e validação independente; 12 passed cobrindo publish, consume vazio/parcial, ack e falhas Redis sem Red artificial"}

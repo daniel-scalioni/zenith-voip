@@ -11,10 +11,11 @@ async def test_upload_audio_chunk_writes_to_local_path(tmp_path):
             None, tenant_id="tenant-1", call_id="call-001", channel="tx", audio_data=b"\x00\x01"
         )
 
-    expected_path = tmp_path / "tenant-1" / "call-001" / "tx.raw"
+    expected_path = tmp_path / "tenant-1" / "call-001" / "tx.mp3"
     assert result["status"] == "uploaded"
     assert result["path"] == str(expected_path)
-    assert expected_path.read_bytes() == b"\x00\x01"
+    assert expected_path.exists()
+    assert not (expected_path.parent / "tx.raw").exists()
 
 
 @pytest.mark.asyncio
@@ -33,5 +34,7 @@ async def test_upload_recording_batch_dispatches_both_channels(tmp_path):
     assert len(results) == 2
     assert all(r["status"] == "uploaded" for r in results)
     call_dir = tmp_path / "tenant-1" / "call-001"
-    assert (call_dir / "tx.raw").read_bytes() == b"\x01\x02"
-    assert (call_dir / "rx.raw").read_bytes() == b"\x03\x04"
+    assert (call_dir / "tx.mp3").exists()
+    assert (call_dir / "rx.mp3").exists()
+    assert not (call_dir / "tx.raw").exists()
+    assert not (call_dir / "rx.raw").exists()

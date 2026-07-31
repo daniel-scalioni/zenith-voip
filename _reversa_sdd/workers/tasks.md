@@ -3,8 +3,8 @@ spec:
   component: workers
   layer: workers
   status: active
-  version: 2.0.0
-  updated_at: 2026-07-27
+  version: 2.1.0
+  updated_at: 2026-07-29
 ---
 
 # Workers, Tarefas de Implementação
@@ -67,6 +67,12 @@ spec:
 - [ ] T-11, Monitoramento de workers (dead letters, retry)
   - Confiança: 🟡
 
+- [ ] T-12, Isolar filas ARQ de uploader, cleanup e SMB sync
+  - Origem: falha E2E real em 2026-07-29 (`function 'upload_recording_batch' not found`)
+  - Critério: filas `zenith:audio-upload`, `zenith:audio-cleanup` e `zenith:smb-sync`; nenhuma
+    delas usa `arq:queue`; produtor de gravação publica explicitamente na fila do uploader
+  - Confiança: 🟢 — causa raiz confirmada em resultados ARQ reais
+
 ## Tarefas de Teste
 
 - [x] TT-01, Testar gravação e conversão MP3 (`tests/test_audio_uploader.py`)
@@ -74,3 +80,5 @@ spec:
 - [ ] TT-03, Testar comportamento com tmpfs cheio
 - [x] TT-04, Testar batch persist de transcrições
 - [ ] TT-05, Testar worker pós-chamada (bloqueado por T-06)
+- [ ] TT-06, Testar que cada `WorkerSettings.queue_name` é exclusivo e que
+  `enqueue_recording_upload()` publica somente em `zenith:audio-upload`

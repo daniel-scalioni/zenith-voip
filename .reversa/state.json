@@ -6,7 +6,7 @@
   "doc_language": "Português",
   "answer_mode": "chat",
   "doc_level": "completo",
-  "output_folder": "specs",
+  "output_folder": "_reversa_sdd",
   "forward_folder": "_reversa_forward",
   "phase": "completo",
   "archaeologist_phase": "completed",

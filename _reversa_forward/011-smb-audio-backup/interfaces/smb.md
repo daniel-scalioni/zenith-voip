@@ -1,196 +1,115 @@
 # Interface: SMB/CIFS Audio Backup
 
 > Identificador: `011-smb-audio-backup`
-> Tipo: Arquivo (Rede)
-> Protocolo: SMB/CIFS (Windows File Sharing)
+> Tipo: Arquivo de rede
+> Biblioteca cliente: `pysmb==1.2.14`
 > Data: `2026-07-27`
 
-## Contrato de acesso
+## Endpoint lógico
 
-### Endpoint SMB
-
-```
-\\192.168.50.240\backup$\Audios_Atendimento
-├── {tenant}/
-│   └── {YYYY-MM-DD}/
-│       └── {YYYY-MM-DD}-{HH}-{MM}-{SS}-{call_id}-{origem}-{destino}-{tx|rx}.mp3
+```text
+\\{SMB_HOST}\{SMB_SHARE}\{SMB_PATH}\
+└── {tenant}\
+    └── {YYYY-MM-DD}\
+        └── {YYYY-MM-DD}-{HH}-{MM}-{SS}-{call_id[0:6]}-{origem}-{destino}.mp3
 ```
 
-### Credenciais
+O destino contém um MP3 estéreo: canal esquerdo=`tx` (agente), canal direito=`rx` (cliente).
 
-| Campo | Valor | Localização |
-|-------|-------|------------|
-| Host | 192.168.50.240 | `.env` SMB_HOST |
-| Share | backup$ | `.env` SMB_SHARE |
-| Username | zenith_backup | `.env` SMB_USERNAME |
-| Password | (segredo) | `.env` SMB_PASSWORD |
+## Configuração
 
-### Operações suportadas
+| Campo | Default | Obrigatoriedade |
+|-------|---------|-----------------|
+| `SMB_ENABLED` | `false` | sempre |
+| `SMB_HOST` | vazio | quando habilitado |
+| `SMB_PORT` | `445` | sempre |
+| `SMB_IS_DIRECT_TCP` | `true` | sempre; `false` para porta 139 |
+| `SMB_CLIENT_NAME` | `ZENITH` | NetBIOS local válido, até 15 caracteres |
+| `SMB_SERVER_NAME` | vazio | obrigatório quando habilitado |
+| `SMB_DOMAIN` | vazio | opcional |
+| `SMB_USE_NTLM_V2` | `true` | sempre |
+| `SMB_SIGN_OPTIONS` | `2` (`SIGN_WHEN_REQUIRED`) | sempre |
+| `SMB_SHARE` | vazio | quando habilitado |
+| `SMB_PATH` | vazio | permitido para raiz do share |
+| `SMB_USERNAME` | vazio | quando habilitado |
+| `SMB_PASSWORD` | vazio | quando habilitado; nunca logar |
+| `SMB_BANDWIDTH_LIMIT_MBS` | `5` | valor positivo |
+| `SMB_TRANSFER_LOG_PATH` | `/data/smb_logs/smb_transfer_log.json` | sempre |
+| `SMB_SYNC_INTERVAL_MINUTES` | `5` | inteiro positivo |
 
-| Operação | Ator | Descrição | Permissão |
-|----------|------|-----------|-----------|
-| Escrita de arquivo | Worker Zenith | Copiar rx.mp3 + tx.mp3 para `{tenant}/{YYYY-MM-DD}/` | WRITE |
-| Leitura de arquivo | Auditoria | Abrir, baixar, reproduzir arquivos `.mp3` | READ |
-| Renomeação | Nenhum | Bloqueado por ACL | DENY |
-| Deleção | Nenhum | Bloqueado por ACL | DENY |
-| Mkdir | Worker Zenith | Criar pasta `{tenant}/{YYYY-MM-DD}/` se não existir | WRITE |
+## Operações
 
-## Formato de arquivo
+| Operação | Conta worker | Conta auditor |
+|----------|---------------|---------------|
+| connect/auth | permitido | permitido |
+| mkdir | permitido | negado |
+| store `.tmp` | permitido | negado |
+| rename `.tmp` → final | permitido | negado |
+| retrieve para checksum/leitura | permitido | permitido |
+| delete temporário/corrompido | permitido | negado |
 
-### Entrada (origem → SMB)
+## Publicação
 
-**Arquivo 1:** `rx.mp3` do diretório `/data/recordings/{tenant}/{call_id}/`
-- Codec: MP3 (validado por mediainfo/ffprobe)
-- Tamanho: 2-5 MB (típico: 3MB para 30s conversa)
-- Taxa de bits: 128 kbps (configurado em feature 010)
-- Duração: Corresponde à duração real da chamada
+1. Produzir `stereo.mp3` local por rename atômico.
+2. Calcular SHA256 local.
+3. Criar diretórios remotos recursivamente.
+4. Escrever `{remote_name}.tmp` em chunks com `storeFileFromOffset`: primeiro chunk com `offset=0, truncate=True`; seguintes com offset crescente e `truncate=False`.
+5. Renomear para `{remote_name}`.
+6. Ler remoto e calcular SHA256.
+7. Se igual: marcar `done`.
+8. Se divergente: remover remoto, manter `pending` e retentar.
 
-**Arquivo 2:** `tx.mp3` do mesmo diretório
-- Mesmas specs que rx.mp3 (sinal transmitido)
+Destino final existente:
 
-### Nomeação de destino
+- mesmo SHA256: sucesso idempotente;
+- SHA256 diferente: tentar uma única vez o nome com sufixo `-{call_id[6:10]}`; se também colidir, não sobrescrever e registrar falha.
 
-```
-{YYYY-MM-DD}-{HH}-{MM}-{SS}-{call_id}-{origem}-{destino}-{tx|rx}.mp3
+## Transporte e autenticação
 
-Exemplo: 2026-07-27-14-35-42-abc123def456-1001-20991-rx.mp3
-         └─ Data    └─Hora  └─call_id └─orig └─dest  └─chan
-```
+`SMBConnection` recebe `my_name=SMB_CLIENT_NAME`, `remote_name=SMB_SERVER_NAME`, `use_ntlm_v2=SMB_USE_NTLM_V2`, `sign_options=SMB_SIGN_OPTIONS` e `is_direct_tcp=SMB_IS_DIRECT_TCP`. `connect` usa `SMB_HOST`, `SMB_PORT` e timeout.
 
-**Mapeamento de campos:**
-- `YYYY-MM-DD`: Data da chamada (de `Call.start_time`)
-- `HH-MM-SS`: Hora da chamada (de `Call.start_time`)
-- `call_id`: UUID da chamada (primeiros 12 caracteres para brevidade, full 36 em log local)
-- `origem`: Ramal que originou a chamada (de `Call.extension_origin`)
-- `destino`: Ramal/número destino (de `Call.extension_destination`)
-- `tx|rx`: Canal de áudio (transmit ou receive)
+- Direct TCP `true` → porta padrão 445.
+- Direct TCP `false` → porta padrão 139.
+- SMB2 é negociado automaticamente quando suportado.
+- Compatibilidade real e política de autenticação são gates E2E.
 
-## Tratamento de erro
+## Timeouts e retry
 
-### Casos de falha esperados
+| Operação | Timeout |
+|----------|--------:|
+| conexão/autenticação | 10 s |
+| operação individual | 30 s |
+| geração estéreo + arquivo completo | 30 s globais |
 
-| Caso | HTTP-like status | Ação do worker |
-|------|-----------------|---------|
-| SMB offline (rede indisponível) | 0 (sem conexão) | Retry com exponential backoff (1s, 2s, 4s), enfileirar como pending |
-| Autenticação falha (credenciais erradas) | 403 Forbidden | Falhar imediatamente, alertar, NÃO retentar |
-| Permissão negada (pasta read-only) | 403 Forbidden | Falhar, investigar ACL no servidor SMB |
-| Espaço em disco cheio (servidor SMB) | 507 Insufficient Storage | Retry após 5min (circuit breaker), alertar oncall |
-| Arquivo já existe (duplicata) | 409 Conflict | Validar checksum, se match = OK (idempotente), se diff = erro |
-| Conexão timeout | 408 Request Timeout | Aumentar timeout, retentar |
-| Arquivo incompleto em trânsito | 0 (escrita abortada) | Deletar `.tmp` no SMB, retentar |
+Falhas transitórias: até três tentativas com espera 1s, 2s e 4s. Após cinco falhas consecutivas do processo, circuit breaker suspende novas cópias por 5 min.
 
-### Recuperação
+Erros de configuração/autenticação não entram em retry rápido; geram falha observável até correção.
 
-1. **Arquivo incompleto:** Escrita atômica (temp → rename) garante aparência instantânea
-2. **Checksum mismatch:** Deletar arquivo SMB, retentar cópia
-3. **Retry automático:** Circuit Breaker ativa após 5 falhas consecutivas, aguarda 5min
-4. **Log persistente:** Todos os erros registrados em `/data/smb_transfer_log.json`
+## Throttle
 
-## Idempotência e duplicação
+Um único processo `zenith-smb-sync` executa uma operação por vez. O limiter de módulo compartilha bytes/tempo entre todos os chunks desse processo. Não há promessa de coordenação entre réplicas; escalar horizontalmente exige nova decisão arquitetural.
 
-**Idempotência:** SIM, implementada via checksum
+Cada execução adquire um lock de ciclo com identificador estável. Se o lock estiver ativo, a execução
+seguinte retorna `already_running`. Durante geração e transferência, o worker cria um lease local com
+timestamp UTC, validade de 120 s e renovação a cada 30 s. O cleanup ignora lease válido; lease
+expirado, inválido ou corrompido é tratado como expirado e gera alerta.
 
-- Se mesmo arquivo for copiado 2x (retry duplicado), segundo resultado será: comparar SHA256 local vs. SMB
-  - Se match: Ignorar (idempotente)
-  - Se diff: Erro, investigar (corrupção)
+O orçamento de 30 s começa antes da geração do `stereo.mp3` e termina após o checksum remoto. Ao
+expirar, a operação é interrompida de forma observável, permanece `pending` e nenhum arquivo final
+sem checksum aprovado é aceito como concluído.
 
-**Prevenção de duplicata:**
-- Worker marca arquivo no log com `status=done` APÓS checksum validado
-- Ciclo seguinte pula itens com `status=done`
-- Log é persistido em named volume, sobrevive restarts
+## Observabilidade e segurança
 
-## Contrato de timeout
+- Logs: `call_id`, `tenant_id`, status, bytes, latência, tentativa e classe sanitizada do erro.
+- Nunca registrar username, password ou representação integral da conexão.
+- Métricas: sucesso, falha, latência, fila e falha de conversão.
+- Sem labels de `call_id` em Prometheus.
+- Áudio trafega em LAN privada conforme decisão do requirements.
 
-| Operação | Timeout | Razão |
-|----------|---------|-------|
-| Conexão inicial (SMB) | 10s | Handshake TCP/445 |
-| Autenticação | 5s | Negotiation |
-| Mkdir (criar pasta) | 5s | File operation |
-| Escrita de chunk (512KB) | 30s | Dependendo de largura de banda |
-| Validação de checksum | 10s | Hash computation |
-| Total por arquivo | 60s | Abort se timeout (circuit breaker) |
+## Critérios do contrato
 
-## Integridade de dados
-
-### Checksum validação
-
-1. **Antes de copiar:** Calcular SHA256 do arquivo original em `/data/recordings/{tenant}/{call_id}/{rx|tx}.mp3`
-2. **Após copiar:** Ler arquivo do SMB, recalcular SHA256
-3. **Comparação:** Se match, marcar `status=done` no log; se diff, deletar arquivo SMB e retentar
-
-### Hash algorithm
-
-- **Algoritmo:** SHA256 (160 bits)
-- **Representação:** Hexadecimal (64 caracteres)
-- **Armazenamento:** Campo `sha256_rx` e `sha256_tx` em `/data/smb_transfer_log.json`
-
-## Rate limiting e throttling
-
-### Banda global
-
-- **Limite padrão:** 5 MB/s (configurável via `SMB_BANDWIDTH_LIMIT_MBS`)
-- **Escopo:** Todas as cópias SMB em paralelo (não por arquivo)
-- **Implementação:** `time.sleep()` calculado após ler chunk de 512KB
-  - Tempo ideal = (bytes_lidos / 1024 / 1024) / limite_mbs
-  - Dormir = tempo_ideal - tempo_real_passado
-
-### Limite de concurrent connections
-
-- **Max simultâneos:** 1 conexão SMB por worker (thread separada via `asyncio.to_thread()`)
-- **Recomendação:** 1 worker `zenith-smb-sync`, não múltiplos (throttling global assume 1 worker)
-
-## Observabilidade
-
-### Logs estruturados
-
-Cada operação registra em `/data/smb_transfer_log.json`:
-```json
-{
-  "call_id": "abc...",
-  "tenant_id": "akom",
-  "status": "done|pending|error",
-  "timestamp_created": "ISO 8601",
-  "timestamp_transferred": "ISO 8601",
-  "bytes_transferred": 245120,
-  "sha256_rx": "hex",
-  "sha256_tx": "hex",
-  "attempts": 3,
-  "last_error": "Connection timeout: ..."
-}
-```
-
-### Métricas Prometheus
-
-- `smb_backup_success_total` (counter, label: tenant)
-- `smb_backup_failed_total` (counter, label: tenant)
-- `smb_backup_latency_seconds` (histogram, label: tenant)
-- `smb_backup_queue_size` (gauge, label: tenant)
-
-## Segurança
-
-### Credenciais
-
-- Nunca hardcoded (apenas `.env` gitignored)
-- Nunca em logs (filtro regex no logger)
-- Nunca em metrics (anônimizadas)
-
-### Acesso remoto
-
-- ACL no servidor SMB: Grupo `auditores` com READ-ONLY
-- Auditorores não podem deletar (compliance de prova)
-
-### Confidencialidade de dados
-
-- Dados sensíveis (voz) transitam em LAN privada (192.168.x.x)
-- Sem criptografia (overhead em LAN, não necessário)
-- Responsabilidade do cliente garantir segurança física da rede e do servidor SMB
-
-## Monitoramento recomendado
-
-```yaml
-Alertas:
-  - fila > 100 arquivos (possível SMB offline/lento)
-  - latência > 10s (degradação de rede)
-  - falha consecutiva > 5 (circuit breaker ativado)
-  - erro de autenticação (verificar credenciais .env)
-```
+- Um arquivo remoto por chamada.
+- Dois canais separáveis e com mapeamento fixo.
+- Nome com seis caracteres do `call_id`; UUID completo permanece no log.
+- Arquivo final nunca aparece parcial.
+- Conta de auditoria não pode alterar prova.

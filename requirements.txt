@@ -46,3 +46,4 @@ python-jose[cryptography]==3.3.0
 pyjwt==2.10.1
 tenacity==9.0.0
 orjson==3.10.12
+pysmb==1.2.14

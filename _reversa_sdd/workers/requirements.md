@@ -3,7 +3,7 @@ spec:
   component: workers
   layer: workers
   status: active
-  version: 2.0.0
+  version: 2.1.0
   language: python
   patterns: [singleton]
   inputs:
@@ -16,7 +16,7 @@ spec:
     - {component: config, layer: root}
     - {component: database, layer: database}
   events_produced: [call:post]
-  updated_at: 2026-07-27
+  updated_at: 2026-07-29
 ---
 
 # Workers — Background Jobs
@@ -31,6 +31,10 @@ spec:
 Workers ARQ para processamento assíncrono: **gravação local de áudio com conversão para MP3**,
 limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote.
 
+Os workers operacionais de áudio usam filas Redis exclusivas. Um worker nunca pode retirar da
+fila um job cuja função não registra. Este isolamento é parte do contrato de confiabilidade, não
+uma otimização de deploy.
+
 ## Responsabilidades
 
 - Consumir o job `upload_recording_batch` enfileirado no `CHANNEL_HANGUP`
@@ -39,6 +43,7 @@ limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote
 - Remover gravações cujo `mtime` ultrapassou `AUDIO_RETENTION_DAYS`
 - Executar workflow pós-chamada (sentimento, auditoria) — 🔴 continuam stubs
 - Persistir transcrições em lote no PostgreSQL
+- Rotear upload, cleanup e sincronização SMB para filas ARQ distintas
 
 ## Regras de Negócio
 
@@ -50,6 +55,9 @@ limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote
 | Cada canal vira um MP3 mono 8 kHz separado — nunca misturado nem estéreo | 🟢 |
 | Falha de conversão preserva o `.raw` (`uploaded_raw_only`) | 🟢 |
 | Cleanup cede o event loop a cada 1000 arquivos removidos | 🟢 |
+| Uploader consome exclusivamente `zenith:audio-upload` | 🟢 decisão SDD 2026-07-29 |
+| Cleanup consome exclusivamente `zenith:audio-cleanup` | 🟢 decisão SDD 2026-07-29 |
+| SMB sync consome exclusivamente `zenith:smb-sync` | 🟢 decisão SDD 2026-07-29 |
 
 ## Requisitos Funcionais
 
@@ -64,6 +72,7 @@ limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote
 | RF-07 | Executar análise de sentimento pós-chamada | Should | 🔴 stub |
 | RF-08 | Executar auditoria pós-chamada | Should | 🔴 stub |
 | RF-09 | Persistir transcrições em lote no PostgreSQL | Must | ✅ |
+| RF-10 | Isolar uploader, cleanup e SMB sync em filas ARQ exclusivas; produtores devem publicar explicitamente na fila do consumidor | Must | 🟡 especificado, implementação pendente |
 
 ## Requisitos Não-Funcionais
 
@@ -74,6 +83,7 @@ limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote
 | RNF-03 | Falha de gravação de uma chamada não afeta as demais | ✅ tratamento por chunk |
 | RNF-04 | Backpressure quando o tmpfs encher | 🔴 **não atendido** (GAP-RE-04) |
 | RNF-05 | Retenção configurável por tenant | 🔴 não atendido — TTL é global |
+| RNF-06 | Um worker não pode consumir job de função desconhecida pertencente a outro worker | 🟡 especificado, implementação pendente |
 
 ## Requisitos removidos (versão 1.0.0)
 
@@ -90,6 +100,7 @@ limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote
 | `src/workers/audio_uploader.py` | `upload_audio_chunk()`, `_convert_to_mp3()` | 🟢 `tests/test_audio_uploader.py` |
 | `src/workers/audio_uploader.py` | `enqueue_recording_upload()` | 🟢 |
 | `src/workers/audio_cleanup.py` | `run_cleanup()`, `cleanup_tenant_bucket()` | 🟢 |
+| `src/workers/smb_sync.py` | `run_smb_sync()` | 🟢 testes focados; isolamento de fila pendente |
 | `src/workers/post_call.py` | `analyze_sentiment()`, `audit_procedure()` | 🔴 stubs |
 | `src/workers/transcript_persist.py` | batch persist | 🟢 |
 
@@ -100,3 +111,4 @@ limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote
 | GAP-02 | `analyze_sentiment()` e `audit_procedure()` continuam stubs |
 | GAP-RE-04 | tmpfs de 512 MB sem backpressure nem política de descarte |
 | GAP-RE-08 | Métricas Prometheus de S3 medem subsistema inexistente |
+| GAP-ARQ-01 | Uploader, cleanup e SMB compartilham `arq:queue`; em chamada real, outro worker consumiu `upload_recording_batch` e retornou `function not found`. Filas exclusivas especificadas, implementação pendente |

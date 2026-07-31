@@ -7,6 +7,7 @@ networks:
 
 volumes:
   zenith_ollama_data:
+  zenith_smb_logs:
   # Gravação de chamadas em RAM (tmpfs), não no HD do sistema — combina com
   # a retenção curta (1h, ver arq-cleanup). Ver backlog Fase 1C.
   zenith_recordings_tmpfs:
@@ -159,13 +160,38 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
-      # ~1 hora (Fase 1 do MVP: gravação é temporária, para auditoria imediata).
-      - AUDIO_RETENTION_DAYS=${AUDIO_RETENTION_DAYS:-0.0417}
+      # ~2 horas para cobrir retries do backup SMB.
+      - AUDIO_RETENTION_DAYS=${AUDIO_RETENTION_DAYS:-0.0833}
       - RECORDINGS_PATH=/data/recordings
     volumes:
       - ./src:/app/src
       - zenith_recordings_tmpfs:/data/recordings
     command: ["arq", "src.workers.audio_cleanup.WorkerSettings"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  smb-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zenith-smb-sync
+    networks:
+      - ai-hub-net
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - RECORDINGS_PATH=/data/recordings
+      - SMB_TRANSFER_LOG_PATH=/data/smb_logs/smb_transfer_log.json
+    volumes:
+      - ./src:/app/src
+      - zenith_recordings_tmpfs:/data/recordings
+      - zenith_smb_logs:/data/smb_logs
+    command: ["arq", "src.workers.smb_sync.WorkerSettings"]
     depends_on:
       redis:
         condition: service_healthy

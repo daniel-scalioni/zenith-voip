@@ -1,3 +1,4 @@
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -34,7 +35,42 @@ class Settings(BaseSettings):
     AUDIO_RETENTION_DAYS: float = 90
     RECORDINGS_PATH: str = "/data/recordings"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    SMB_ENABLED: bool = False
+    SMB_HOST: str = ""
+    SMB_PORT: int = Field(default=445, ge=1, le=65535)
+    SMB_IS_DIRECT_TCP: bool = True
+    SMB_CLIENT_NAME: str = Field(default="ZENITH", min_length=1, max_length=15)
+    SMB_SERVER_NAME: str = Field(default="", max_length=15)
+    SMB_DOMAIN: str = ""
+    SMB_USE_NTLM_V2: bool = True
+    SMB_SIGN_OPTIONS: int = Field(default=2, ge=0, le=2)
+    SMB_SHARE: str = ""
+    SMB_PATH: str = ""
+    SMB_USERNAME: str = ""
+    SMB_PASSWORD: str = ""
+    SMB_BANDWIDTH_LIMIT_MBS: float = Field(default=5, gt=0)
+    SMB_TRANSFER_LOG_PATH: str = "/data/smb_logs/smb_transfer_log.json"
+    SMB_SYNC_INTERVAL_MINUTES: int = Field(default=5, ge=1, le=59)
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def validate_smb_configuration(self):
+        if not self.SMB_ENABLED:
+            return self
+        required = {
+            "SMB_HOST": self.SMB_HOST,
+            "SMB_SERVER_NAME": self.SMB_SERVER_NAME,
+            "SMB_SHARE": self.SMB_SHARE,
+            "SMB_USERNAME": self.SMB_USERNAME,
+            "SMB_PASSWORD": self.SMB_PASSWORD,
+        }
+        missing = [name for name, value in required.items() if not value]
+        if missing:
+            raise ValueError(f"SMB habilitado sem campos obrigatórios: {', '.join(missing)}")
+        if self.SMB_IS_DIRECT_TCP and self.SMB_PORT == 139:
+            raise ValueError("Direct TCP não pode usar a porta NetBIOS 139")
+        return self
 
 
 settings = Settings()

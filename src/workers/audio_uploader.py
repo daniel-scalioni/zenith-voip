@@ -8,17 +8,22 @@ from src.config import settings
 # "uuid_audio_stream ... stereo 8k"). Conversão para mp3 mantém tx/rx separados
 # (decisão do usuário: mono por canal, não misturado nem estéreo).
 _FFMPEG_INPUT_ARGS = ["-f", "s16le", "-ar", "8000", "-ac", "1"]
+UPLOAD_QUEUE_NAME = "zenith:audio-upload"
 
 
 async def _convert_to_mp3(raw_path: str) -> str:
     mp3_path = raw_path[: -len(".raw")] + ".mp3"
+    tmp_path = raw_path[: -len(".raw")] + ".tmp.mp3"
     proc = await asyncio.create_subprocess_exec(
-        "ffmpeg", "-y", *_FFMPEG_INPUT_ARGS, "-i", raw_path, "-codec:a", "libmp3lame", mp3_path,
+        "ffmpeg", "-y", *_FFMPEG_INPUT_ARGS, "-i", raw_path, "-codec:a", "libmp3lame", tmp_path,
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
     )
     _, stderr = await proc.communicate()
     if proc.returncode != 0:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
         raise RuntimeError(f"ffmpeg falhou (exit {proc.returncode}): {stderr.decode(errors='replace')[-500:]}")
+    os.replace(tmp_path, mp3_path)
     return mp3_path
 
 
@@ -57,6 +62,7 @@ async def upload_recording_batch(ctx, tenant_id: str, call_id: str, recordings: 
 
 
 class WorkerSettings:
+    queue_name = UPLOAD_QUEUE_NAME
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     functions = [upload_audio_chunk, upload_recording_batch]
 
@@ -67,7 +73,10 @@ _pool = None
 async def _get_pool():
     global _pool
     if _pool is None:
-        _pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+        _pool = await create_pool(
+            RedisSettings.from_dsn(settings.REDIS_URL),
+            default_queue_name=UPLOAD_QUEUE_NAME,
+        )
     return _pool
 
 
