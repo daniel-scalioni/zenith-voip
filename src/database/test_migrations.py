@@ -1,153 +1,80 @@
-"""
-T066 — Testes Red para migrations Alembic (baseline pública).
+"""Aceitação da baseline Alembic em banco descartável (ADR-011)."""
 
-Contratos testados (ADR-011 / MIG-RF-01, MIG-RF-03):
-  - upgrade até head em banco vazio cria somente estruturas públicas
-  - segunda execução é idempotente / no-op
-  - nenhuma tabela de chamada/tenant (calls, transcripts, call_insights,
-    stt_metrics) existe no schema public
-
-Estes testes são coletáveis antes da implementação Green. Funções de
-contrato Ausentes podem causar falha de importação durante collection —
-uso de importlib minimiza isso.
-"""
-import importlib
-import uuid
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
-def _load_contract(name: str):
-    """Importa contrato Green de forma tolerante a ImportError."""
+TENANT_TABLES = {"calls", "transcripts", "call_insights", "stt_metrics"}
+EXPECTED_PUBLIC_TABLES = {"alembic_version", "tenants", "pbxs"}
+
+
+def _upgrade(database_url: str) -> None:
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=Path(__file__).parents[2], env=env, capture_output=True, text=True,
+        timeout=60, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+async def _snapshot(database_url: str) -> tuple[set[str], str, set[tuple[str, str]]]:
+    engine = create_async_engine(database_url)
     try:
-        mod = importlib.import_module("src.database.migrations_contract")
-        return getattr(mod, name, None)
-    except ImportError:
-        return None
+        async with engine.connect() as connection:
+            tables = set((await connection.execute(text(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema='public'"
+            ))).scalars())
+            revision = (await connection.execute(text(
+                "SELECT version_num FROM public.alembic_version"
+            ))).scalar_one()
+            constraints = set((await connection.execute(text(
+                "SELECT table_name, constraint_type FROM information_schema.table_constraints "
+                "WHERE table_schema='public' AND table_name IN ('tenants','pbxs')"
+            ))).tuples())
+            return tables, revision, constraints
+    finally:
+        await engine.dispose()
 
 
-# ---------------------------------------------------------------------------
-# T066 — upgrade até head em banco vazio
-# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_upgrade_empty_database_reaches_head_with_public_topology(isolated_test_database):
+    # Arrange
+    database_url = isolated_test_database.database_url
 
-class TestUpgradeHeadOnEmptyDatabase:
-    """MIG-RF-01 / MIG-RF-03: upgrade head cria baseline pública e é idempotente."""
+    # Act
+    _upgrade(database_url)
+    tables, revision, constraints = await _snapshot(database_url)
 
-    @pytest.mark.asyncio
-    async def test_upgrade_head_creates_public_tables(self):
-        """Após upgrade, public deve conter tenants, pbxs e alembic_version."""
-        # Arrange
-        run_upgrade = _load_contract("run_alembic_upgrade_head")
-        get_public_tables = _load_contract("get_public_tables")
-        assert run_upgrade is not None, "Contrato run_alembic_upgrade_head não encontrado"
-        assert get_public_tables is not None, "Contrato get_public_tables não encontrado"
-
-        # Act
-        await run_upgrade()
-
-        # Assert
-        tables = await get_public_tables()
-        assert "tenants" in tables
-        assert "pbxs" in tables
-        assert "alembic_version" in tables
-
-    @pytest.mark.asyncio
-    async def test_upgrade_head_no_error_on_empty(self):
-        """Primeira execução em banco vazio não deve levantar exceção."""
-        # Arrange
-        run_upgrade = _load_contract("run_alembic_upgrade_head")
-        assert run_upgrade is not None
-
-        # Act — não deve levantar
-        await run_upgrade()
-
-        # Assert (implícito: sem exceção)
-
-    @pytest.mark.asyncio
-    async def test_second_run_is_idempotent(self):
-        """MIG-RF-03: segunda execução de upgrade head não altera estado."""
-        # Arrange
-        run_upgrade = _load_contract("run_alembic_upgrade_head")
-        get_public_tables = _load_contract("get_public_tables")
-        get_alembic_revision = _load_contract("get_alembic_revision")
-        assert run_upgrade is not None
-        assert get_public_tables is not None
-        assert get_alembic_revision is not None
-
-        # Act
-        await run_upgrade()
-        revision_before = await get_alembic_revision()
-        tables_before = await get_public_tables()
-
-        await run_upgrade()
-        revision_after = await get_alembic_revision()
-        tables_after = await get_public_tables()
-
-        # Assert
-        assert revision_before == revision_after
-        assert tables_before == tables_after
+    # Assert
+    assert revision == isolated_test_database.alembic_head
+    assert tables == EXPECTED_PUBLIC_TABLES
+    assert tables.isdisjoint(TENANT_TABLES)
+    assert ("tenants", "PRIMARY KEY") in constraints
+    assert ("tenants", "UNIQUE") in constraints
+    assert ("pbxs", "PRIMARY KEY") in constraints
+    assert ("pbxs", "FOREIGN KEY") in constraints
 
 
-# ---------------------------------------------------------------------------
-# T066 — nenhuma tabela de chamada em public
-# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_second_upgrade_is_noop_at_same_head(isolated_test_database):
+    # Arrange
+    database_url = isolated_test_database.database_url
+    _upgrade(database_url)
+    before = await _snapshot(database_url)
 
-class TestNoBusinessTablesInPublic:
-    """ADR-011: calls, transcripts, call_insights, stt_metrics NÃO existem em public."""
+    # Act
+    _upgrade(database_url)
+    after = await _snapshot(database_url)
 
-    TENANT_ONLY_TABLES = {"calls", "transcripts", "call_insights", "stt_metrics"}
-
-    @pytest.mark.asyncio
-    async def test_no_tenant_tables_in_public(self):
-        """MIG-RF-01: nenhuma tabela de negócio no schema public."""
-        # Arrange
-        run_upgrade = _load_contract("run_alembic_upgrade_head")
-        get_public_tables = _load_contract("get_public_tables")
-        assert run_upgrade is not None
-        assert get_public_tables is not None
-
-        # Act
-        await run_upgrade()
-        tables = await get_public_tables()
-
-        # Assert
-        found = self.TENANT_ONLY_TABLES & tables
-        assert not found, (
-            f"Tabelas de tenant indevidamente em public: {found}"
-        )
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("table_name", ["calls", "transcripts", "call_insights", "stt_metrics"])
-    async def test_specific_table_absent_in_public(self, table_name: str):
-        """Cada tabela de tenant individualmente não deve existir em public."""
-        # Arrange
-        get_public_tables = _load_contract("get_public_tables")
-        assert get_public_tables is not None
-
-        # Act
-        tables = await get_public_tables()
-
-        # Assert
-        assert table_name not in tables, (
-            f"Tabela '{table_name}' não deveria existir em public"
-        )
-
-    @pytest.mark.asyncio
-    async def test_only_global_structures_in_public(self):
-        """Public contém apenas alembic_version, tenants e pbxs."""
-        # Arrange
-        run_upgrade = _load_contract("run_alembic_upgrade_head")
-        get_public_tables = _load_contract("get_public_tables")
-        assert run_upgrade is not None
-        assert get_public_tables is not None
-
-        # Act
-        await run_upgrade()
-        tables = await get_public_tables()
-
-        # Assert
-        allowed = {"alembic_version", "tenants", "pbxs"}
-        unexpected = tables - allowed
-        assert not unexpected, (
-            f" Estruturas inesperadas em public: {unexpected}"
-        )
+    # Assert
+    assert before == after
+    assert after[1] == isolated_test_database.alembic_head

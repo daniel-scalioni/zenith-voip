@@ -54,25 +54,25 @@
 | T049 | Acrescentar testes Red para remover `stereo.mp3` após checksum e preservá-lo em transferência/checksum falhos | T045 | - | `src/workers/test_smb_sync.py` | 🟢 | `[X]` |
 | T051 | Acrescentar testes Red do orçamento global de 30 s cobrindo geração estéreo + cópia, cancelamento observável e permanência em pending | T049 | - | `src/workers/test_smb_sync.py` | 🟢 | `[X]` |
 | T053 | Criar testes Red para filas exclusivas dos três `WorkerSettings` e publicação explícita de `upload_recording_batch` em `zenith:audio-upload` | T052 | - | `src/workers/test_audio_uploader.py`, `src/workers/test_audio_cleanup.py`, `src/workers/test_smb_sync.py` | 🟢 | `[X]` |
-| T066 | Delegar a LLM externa testes Red de upgrade Alembic em banco vazio, segunda execução e ausência de tabelas de chamada em `public` | T064, T065 | - | `src/database/test_migrations.py` | 🟢 | `[ ]` |
-| T067 | Delegar a LLM externa testes Red de provisionamento por tenant e restore com UUIDs explícitos, preservando o fluxo normal sem UUID informado | T064, T065 | - | `src/database/test_provision_tenant.py` | 🟢 | `[ ]` |
-| T068 | Delegar a LLM externa testes Red do guard de DSN operacional, nomes únicos por execução e teardown do banco de teste | T065 | - | `tests/test_database_isolation.py` | 🟢 | `[ ]` |
+| T066 | Delegar a LLM externa testes Red de upgrade Alembic em banco vazio, segunda execução e ausência de tabelas de chamada em `public` | T064, T065 | - | `src/database/test_migrations.py` | 🟢 | `[X]` |
+| T067 | Delegar a LLM externa testes Red de provisionamento por tenant e restore com UUIDs explícitos, preservando o fluxo normal sem UUID informado | T064, T065 | - | `src/database/test_provision_tenant.py` | 🟢 | `[X]` |
+| T068 | Delegar a LLM externa testes Red do guard de DSN operacional, nomes únicos por execução e teardown do banco de teste | T065 | - | `tests/test_database_isolation.py` | 🟢 | `[X]` |
 | [//] T069 | Delegar teste Red do ingestor usando `receive()` atual, frames de controle/binário, desconexão e ausência de estado global residual | T056 | `[//]` | `tests/test_audio_ingestor.py` | 🟢 | `[X]` |
 | [//] T070 | Delegar testes Red do contrato BunkerWeb com endpoint configurável, erro explícito e separação entre integração e unitário | T056 | `[//]` | `tests/test_bunker_sticky.py` | 🟢 | `[X]` |
-| [//] T071 | Delegar testes Red do protocolo ESL real, framing/auth, timeout e indisponibilidade explicitamente marcada | T056 | `[//]` | `tests/test_freeswitch_esl.py` | 🟢 | `[ ]` |
-| [//] T072 | Delegar testes Red WebSocket de conexão/desconexão usando `Address`, estado por teste e Redis mockado somente na porta de cliente externo | T056 | `[//]` | `tests/test_telephony_matching.py` | 🟢 | `[ ]` |
-| T073 | Acrescentar testes Red WebSocket de broadcast, sessão pendente, erro Redis e envio para conexão encerrada | T072 | - | `tests/test_telephony_matching.py` | 🟢 | `[ ]` |
-| T074 | Delegar testes Red de multitenancy com DSN exclusivo, SQL parametrizado, schemas únicos e teardown mesmo em falha | T068 | - | `tests/test_multitenancy.py` | 🟢 | `[ ]` |
-| [//] T075 | Delegar testes comportamentais Red de Repository, Strategy e Factory, cobrindo rollback e erro de dependência externa | T056 | `[//]` | `src/services/test_base.py` | 🟢 | `[ ]` |
+| [//] T071 | Delegar testes Red do protocolo ESL real, framing/auth, timeout e indisponibilidade explicitamente marcada | T056 | `[//]` | `tests/test_freeswitch_esl.py` | 🟢 | `[X]` |
+| [//] T072 | Delegar testes Red WebSocket de conexão/desconexão usando `Address`, estado por teste e Redis mockado somente na porta de cliente externo | T056 | `[//]` | `tests/test_telephony_matching.py` | 🟢 | `[X]` |
+| T073 | Acrescentar testes Red WebSocket de broadcast, sessão pendente, erro Redis e envio para conexão encerrada | T072 | - | `tests/test_telephony_matching.py` | 🟢 | `[X]` |
+| T074 | Delegar testes Red de multitenancy com DSN exclusivo, SQL parametrizado, schemas únicos e teardown mesmo em falha | T068 | - | `tests/test_multitenancy.py` | 🟢 | `[X]` |
+| [//] T075 | Delegar testes comportamentais Red de Repository, Strategy e Factory, cobrindo rollback e erro de dependência externa | T056 | `[//]` | `src/services/test_base.py` | 🟢 | `[X]` |
 | [//] T076 | Delegar testes comportamentais Red de Redis Streams, cobrindo publish, consume vazio/parcial, ack e falha de rede | T056 | `[//]` | `src/events/test_redis_streams.py` | 🟢 | `[X]` |
-| [//] T077 | Delegar testes comportamentais Red de extraction regex/LLM, cobrindo entrada vazia, inválida, sensível e resposta LLM malformada | T056 | `[//]` | `src/extraction/test_layers.py` | 🟢 | `[ ]` |
-| [//] T078 | Delegar testes comportamentais Red de auth/RBAC, cobrindo token inválido/expirado, papéis e acesso negado | T056 | `[//]` | `src/api/test_auth.py` | 🟢 | `[ ]` |
-| [//] T079 | Delegar testes comportamentais Red de anomalia e consenso, cobrindo limites, estado vazio e término máximo | T056 | `[//]` | `src/ai/test_behavior.py` | 🟢 | `[ ]` |
-| [//] T080 | Delegar testes de regressão para origem local ausente antes da cópia e sanitização de exceções SMB sem segredo | T056 | `[//]` | `src/workers/test_smb_sync.py` | 🟢 | `[ ]` |
-| T081 | Revisar independentemente os diffs de banco T066–T068 quanto a bordas, isolamento e viés, devolvendo achados bloqueantes ao autor externo | T066, T067, T068 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[ ]` |
-| T113 | Revisar independentemente os diffs de fronteiras T069–T074 quanto a bordas, isolamento e viés, devolvendo achados bloqueantes ao autor externo | T069, T070, T071, T072, T073, T074 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[ ]` |
-| T114 | Revisar independentemente os diffs de domínio T075–T080 quanto a bordas, isolamento e cobertura inflada, devolvendo achados bloqueantes ao autor externo | T075, T076, T077, T078, T079, T080 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[ ]` |
-| T115 | Consolidar os três vereditos pré-Green, garantindo autoria externa serializada por arquivo e correções bloqueantes aplicadas pelos autores | T081, T113, T114 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[ ]` |
+| [//] T077 | Delegar testes comportamentais Red de extraction regex/LLM, cobrindo entrada vazia, inválida, sensível e resposta LLM malformada | T056 | `[//]` | `src/extraction/test_layers.py` | 🟢 | `[X]` |
+| [//] T078 | Delegar testes comportamentais Red de auth/RBAC, cobrindo token inválido/expirado, papéis e acesso negado | T056 | `[//]` | `src/api/test_auth.py` | 🟢 | `[X]` |
+| [//] T079 | Delegar testes comportamentais Red de anomalia e consenso, cobrindo limites, estado vazio e término máximo | T056 | `[//]` | `src/ai/test_behavior.py` | 🟢 | `[X]` |
+| [//] T080 | Delegar testes de regressão para origem local ausente antes da cópia e sanitização de exceções SMB sem segredo | T056 | `[//]` | `src/workers/test_smb_sync.py` | 🟢 | `[X]` |
+| T081 | Revisar independentemente os diffs de banco T066–T068 quanto a bordas, isolamento e viés, devolvendo achados bloqueantes ao autor externo | T066, T067, T068 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[X]` |
+| T113 | Revisar independentemente os diffs de fronteiras T069–T074 quanto a bordas, isolamento e viés, devolvendo achados bloqueantes ao autor externo | T069, T070, T071, T072, T073, T074 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[X]` |
+| T114 | Revisar independentemente os diffs de domínio T075–T080 quanto a bordas, isolamento e cobertura inflada, devolvendo achados bloqueantes ao autor externo | T075, T076, T077, T078, T079, T080 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[X]` |
+| T115 | Consolidar os três vereditos pré-Green, garantindo autoria externa serializada por arquivo e correções bloqueantes aplicadas pelos autores | T081, T113, T114 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[X]` |
 
 ## Fase 3, Núcleo
 

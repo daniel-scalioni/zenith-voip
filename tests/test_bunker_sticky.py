@@ -1,118 +1,116 @@
+"""Contrato do BunkerWeb real e integração opt-in de afinidade."""
+
 import os
+from pathlib import Path
+from urllib.parse import urlsplit
+from uuid import uuid4
 
 import httpx
 import pytest
 
 
-def _bunkerweb_url() -> str:
-    return os.environ.get("BUNKERWEB_URL", "http://bunkerweb:80")
+COMPOSE_PATH = Path(__file__).parents[1] / "docker-compose.app.yml"
 
 
-@pytest.fixture
-def bunkerweb_url() -> str:
-    return _bunkerweb_url()
+def _bunkerweb_environment() -> dict[str, str]:
+    lines = COMPOSE_PATH.read_text(encoding="utf-8").splitlines()
+    in_service = False
+    in_environment = False
+    environment = {}
+    for line in lines:
+        if line == "  bunkerweb:":
+            in_service = True
+            continue
+        if in_service and line.startswith("  ") and not line.startswith("    "):
+            break
+        if not in_service:
+            continue
+        if line == "    environment:":
+            in_environment = True
+            continue
+        if in_environment and line.startswith("    ") and not line.startswith("      "):
+            in_environment = False
+        if in_environment and line.startswith("      - "):
+            key, value = line.removeprefix("      - ").split("=", 1)
+            environment[key] = value
+    return environment
 
 
-@pytest.fixture
-def require_bunkerweb_url() -> str:
-    url = os.environ.get("BUNKERWEB_URL")
-
-    if not url:
-        pytest.skip("BUNKERWEB_URL não definida: teste de integração requer BunkerWeb real acessível")
-
+def _integration_url() -> str:
+    url = os.getenv("BUNKERWEB_URL", "")
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        pytest.skip("integração exige BUNKERWEB_URL HTTP(S) explícita")
     return url
 
 
-class TestUnitStickyForwarding:
-    """Testes unitários sem rede, usando httpx.MockTransport para provar o contrato de encaminhamento."""
+def test_t070_compose_configures_real_reverse_proxy_and_sticky_key():
+    # Arrange
+    environment = _bunkerweb_environment()
 
-    @pytest.mark.asyncio
-    async def test_forwards_x_call_id_header(self, bunkerweb_url):
-        # Arrange
-        received_headers = {}
+    # Act
+    proxy_enabled = environment.get("USE_REVERSE_PROXY")
+    upstream = environment.get("REVERSE_PROXY_HOST", "")
+    sticky_enabled = environment.get("STICKY_SESSION")
+    sticky_name = environment.get("STICKY_SESSION_NAME")
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            received_headers.update(request.headers)
-            return httpx.Response(200, json={"status": "ok"})
-
-        transport = httpx.MockTransport(handler)
-
-        # Act
-        async with httpx.AsyncClient(transport=transport, base_url=bunkerweb_url) as client:
-            resp = await client.get("/health", headers={"X-Call-ID": "test-call-001"})
-
-        # Assert
-        assert resp.status_code == 200
-        assert received_headers.get("x-call-id") == "test-call-001"
-
-    @pytest.mark.asyncio
-    async def test_raises_explicit_error_on_http_failure(self, bunkerweb_url):
-        # Arrange
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(502, json={"error": "bad gateway"})
-
-        transport = httpx.MockTransport(handler)
-
-        # Act
-        async with httpx.AsyncClient(transport=transport, base_url=bunkerweb_url) as client:
-            resp = await client.get("/health", headers={"X-Call-ID": "test-call-002"})
-
-        # Assert
-        assert resp.status_code == 502
-        with pytest.raises(httpx.HTTPStatusError):
-            resp.raise_for_status()
-
-    @pytest.mark.asyncio
-    async def test_raises_explicit_error_on_connection_failure(self, bunkerweb_url):
-        # Arrange
-        def handler(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectError("connection refused", request=request)
-
-        transport = httpx.MockTransport(handler)
-
-        # Act / Assert
-        async with httpx.AsyncClient(transport=transport, base_url=bunkerweb_url) as client:
-            with pytest.raises(httpx.ConnectError):
-                await client.get("/health", headers={"X-Call-ID": "test-call-003"})
+    # Assert
+    assert proxy_enabled == "yes"
+    assert upstream.startswith("http://fastapi-") and upstream.endswith(":8000")
+    assert sticky_enabled == "yes"
+    assert sticky_name == "X-Call-ID"
 
 
 @pytest.mark.integration
-class TestIntegrationBunkerWeb:
-    """Testes reais opt-in: exigem BUNKERWEB_URL apontando para uma instância BunkerWeb acessível."""
+@pytest.mark.asyncio
+async def test_t070_real_response_preserves_cookie_and_backend_affinity():
+    # Arrange
+    endpoint = _integration_url()
+    path = os.getenv("BUNKERWEB_AFFINITY_PATH", "/health")
+    backend_header = os.getenv("BUNKERWEB_UPSTREAM_HEADER", "X-Upstream-ID")
+    call_id = f"t070-{uuid4().hex}"
 
-    @pytest.mark.asyncio
-    async def test_bunkerweb_health(self, require_bunkerweb_url):
-        # Arrange
-        client = httpx.AsyncClient(base_url=require_bunkerweb_url)
+    # Act
+    async with httpx.AsyncClient(base_url=endpoint, follow_redirects=True) as client:
+        first = await client.get(path, headers={"X-Call-ID": call_id}, timeout=10)
+        first.raise_for_status()
+        first_backend = first.headers.get(backend_header)
+        first_cookies = dict(client.cookies)
+        second = await client.get(path, headers={"X-Call-ID": call_id}, timeout=10)
+        second.raise_for_status()
+        second_backend = second.headers.get(backend_header)
+        second_cookies = dict(client.cookies)
+    observed_backends = set()
+    for _index in range(12):
+        distinct_call_id = f"t070-{uuid4().hex}"
+        async with httpx.AsyncClient(base_url=endpoint, follow_redirects=True) as client:
+            response = await client.get(
+                path, headers={"X-Call-ID": distinct_call_id}, timeout=10
+            )
+            response.raise_for_status()
+            observed_backends.add(response.headers.get(backend_header))
 
-        # Act
-        async with client:
-            resp = await client.get("/health", timeout=10.0)
+    # Assert
+    assert first_backend, f"resposta não expôs {backend_header}"
+    assert second_backend == first_backend
+    assert first_cookies, "BunkerWeb não emitiu cookie de afinidade"
+    assert second_cookies == first_cookies
+    assert None not in observed_backends
+    assert len(observed_backends) >= 2
 
-        # Assert
-        assert resp.status_code in (200, 302)
 
-    @pytest.mark.asyncio
-    async def test_sticky_session_header(self, require_bunkerweb_url):
-        # Arrange
-        client = httpx.AsyncClient(base_url=require_bunkerweb_url)
-        headers = {"X-Call-ID": "test-call-001"}
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_t070_real_proxy_error_is_never_reported_as_success():
+    # Arrange
+    endpoint = _integration_url()
+    missing_path = f"/__t070_missing__/{uuid4().hex}"
 
-        # Act
-        async with client:
-            resp = await client.get("/health", headers=headers, timeout=10.0)
+    # Act
+    async with httpx.AsyncClient(base_url=endpoint, follow_redirects=False) as client:
+        response = await client.get(missing_path, timeout=10)
 
-        # Assert
-        assert resp.status_code in (200, 302)
-
-    @pytest.mark.asyncio
-    async def test_bunker_reverse_proxy(self, require_bunkerweb_url):
-        # Arrange
-        client = httpx.AsyncClient(base_url=require_bunkerweb_url)
-
-        # Act
-        async with client:
-            resp = await client.get("/health", headers={"Host": "zenith.local"}, timeout=10.0)
-
-        # Assert
-        assert resp.status_code == 200
+    # Assert
+    assert response.status_code >= 400
+    with pytest.raises(httpx.HTTPStatusError):
+        response.raise_for_status()

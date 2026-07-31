@@ -562,113 +562,63 @@ def test_worker_settings_declares_exclusive_smb_queue():
 
 
 @pytest.mark.asyncio
-async def test_t080_handle_missing_mono_pair_and_status_pending(tmp_path, monkeypatch):
+async def test_t080_missing_local_source_remains_pending_without_smb_copy(tmp_path):
     # Arrange
-    call_dir = tmp_path / "tenant_id" / "call_id"
+    call_dir = tmp_path / "tenant" / "call"
     call_dir.mkdir(parents=True)
-    # Simulate only rx.mp3 exists, tx.mp3 is missing
-    (call_dir / "rx.mp3").write_bytes(b"rx_audio")
-
-    monkeypatch.setattr(smb_sync, "write_lease", AsyncMock())
-    
-    # Mock the task returned by asyncio.create_task to have a cancel method
-    mock_task = AsyncMock()
-    mock_task.cancel = AsyncMock()
-    monkeypatch.setattr(smb_sync.asyncio, "create_task", AsyncMock(return_value=mock_task))
-    monkeypatch.setattr(smb_sync.asyncio, "gather", AsyncMock())
-    monkeypatch.setattr(smb_sync.Path, "unlink", AsyncMock())
+    (call_dir / "rx.mp3").write_bytes(b"rx-audio")
+    smb_port = AsyncMock()
 
     # Act
     result = await smb_sync.process_call(
-        AsyncMock(),
-        tenant_id="tenant_id",
-        call_id="call_id",
+        smb_port,
+        tenant_id="tenant",
+        call_id="call",
         call_dir=call_dir,
         metadata={},
     )
 
     # Assert
-    assert result["status"] == "pending"
-    assert result["reason"] == "mono_pair_incomplete"
-    smb_sync.write_lease.assert_called_once()
-    smb_sync.set_smb_conversion_pending.assert_called_once_with(1)
-
-@pytest.mark.asyncio
-async def test_t080_handle_stereo_generation_failure_and_status_pending(tmp_path, monkeypatch):
-    # Arrange
-    call_dir = tmp_path / "tenant_id" / "call_id"
-    call_dir.mkdir(parents=True)
-    # Simulate both mono files exist, but stereo generation fails
-    (call_dir / "tx.mp3").write_bytes(b"tx_audio")
-    (call_dir / "rx.mp3").write_bytes(b"rx_audio")
-
-    monkeypatch.setattr(smb_sync, "write_lease", AsyncMock())
-
-    # Mock the task returned by asyncio.create_task to have a cancel method
-    mock_task = AsyncMock()
-    mock_task.cancel = AsyncMock()
-    monkeypatch.setattr(smb_sync.asyncio, "create_task", AsyncMock(return_value=mock_task))
-    monkeypatch.setattr(smb_sync.asyncio, "gather", AsyncMock())
-    monkeypatch.setattr(smb_sync.Path, "unlink", AsyncMock())
-    monkeypatch.setattr(smb_sync, "generate_stereo", AsyncMock(side_effect=RuntimeError("ffmpeg failed")))
-    monkeypatch.setattr(smb_sync, "ensure_mono_pair", AsyncMock(return_value=(call_dir / "tx.mp3", call_dir / "rx.mp3")))
-
-    # Act
-    with pytest.raises(RuntimeError, match="ffmpeg failed"):
-        await smb_sync.process_call(
-            AsyncMock(),
-            tenant_id="tenant_id",
-            call_id="call_id",
-            call_dir=call_dir,
-            metadata={},
-        )
-
-    # Assert
-    # The RuntimeError is propagated, which _run_cycle is expected to catch and handle.
-    # The direct assertion here is that it raises the RuntimeError.
-    smb_sync.write_lease.assert_called_once()
-    smb_sync.generate_stereo.assert_called_once()
+    assert result == {"status": "pending", "reason": "mono_pair_incomplete"}
+    smb_port.publish.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_t080_sanitize_smb_exception_in_run_cycle(tmp_path, monkeypatch, caplog):
+async def test_t080_smb_operation_failure_is_sanitized_in_log_and_state(
+    tmp_path, monkeypatch, caplog
+):
     # Arrange
-    call_dir = tmp_path / "tenant_id" / "call_id"
+    import wave
+
+    call_dir = tmp_path / "tenant" / "call"
     call_dir.mkdir(parents=True)
+    for channel in ("tx", "rx"):
+        with wave.open(str(call_dir / f"{channel}.mp3"), "wb") as source:
+            source.setnchannels(1)
+            source.setsampwidth(2)
+            source.setframerate(8000)
+            source.writeframes(b"\x00\x00" * 800)
     log_path = tmp_path / "logs" / "smb_transfer_log.json"
-
-    # Mock the settings for _run_cycle
+    smb_port = AsyncMock()
+    smb_port.publish.side_effect = smb_sync.OperationFailure(
+        "SMB host=connection-sentinel user=credential-sentinel",
+        [],
+    )
     monkeypatch.setattr(smb_sync.settings, "SMB_ENABLED", True)
     monkeypatch.setattr(smb_sync.settings, "RECORDINGS_PATH", str(tmp_path))
     monkeypatch.setattr(smb_sync.settings, "SMB_TRANSFER_LOG_PATH", str(log_path))
-
-    # Mock call_metadata to ensure _run_cycle proceeds
+    monkeypatch.setattr(smb_sync, "SMBBackupStrategy", lambda: smb_port)
     monkeypatch.setattr(
         smb_sync,
         "resolve_call_metadata",
         AsyncMock(
             return_value={
-                "started_at": datetime.now(timezone.utc),
+                "started_at": datetime(2026, 7, 31, tzinfo=timezone.utc),
                 "caller_number": "1001",
                 "callee_number": "2099",
             }
         ),
     )
-
-    # Mock process_call to raise OperationFailure
-    class MockOperationFailure(smb_sync.OperationFailure):
-        def __init__(self, message, *args, **kwargs):
-            # smb_messages is a required positional argument for OperationFailure
-            super().__init__(message, [], *args, **kwargs) 
-            self.message = message
-    
-    monkeypatch.setattr(smb_sync, "OperationFailure", MockOperationFailure)
-    monkeypatch.setattr(
-        smb_sync,
-        "process_call",
-        AsyncMock(side_effect=smb_sync.OperationFailure("Access denied from SMB share with credentials: secret_user/secret_pass"))
-    )
-
     smb_sync._circuit_breaker.reset()
     caplog.set_level(smb_sync.logging.WARNING)
 
@@ -677,9 +627,12 @@ async def test_t080_sanitize_smb_exception_in_run_cycle(tmp_path, monkeypatch, c
 
     # Assert
     assert result["failed"] == 1
-    assert "SMB backup pending tenant=tenant_id call_id=call_id error=MockOperationFailure" in caplog.text
     state = json.loads(log_path.read_text(encoding="utf-8"))
-    assert state["tenant_id/call_id"]["status"] == "pending"
-    assert state["tenant_id/call_id"]["last_error"] == "MockOperationFailure"
-    assert "secret_user" not in caplog.text
-    assert "secret_pass" not in caplog.text
+    assert state["tenant/call"]["status"] == "pending"
+    assert state["tenant/call"]["last_error"] == "OperationFailure"
+    smb_port.publish.assert_awaited_once()
+    serialized_state = json.dumps(state)
+    assert "connection-sentinel" not in caplog.text
+    assert "credential-sentinel" not in caplog.text
+    assert "connection-sentinel" not in serialized_state
+    assert "credential-sentinel" not in serialized_state

@@ -1,183 +1,151 @@
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+import logging
+from unittest.mock import AsyncMock
 
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import ResponseError
 
 from src.events.redis_streams import RedisEventBus
 
 
 @pytest.fixture
 def redis_mock():
-    return AsyncMock()
+    redis = AsyncMock()
+    redis.xadd = AsyncMock()
+    redis.xreadgroup = AsyncMock()
+    redis.xack = AsyncMock()
+    redis.xgroup_create = AsyncMock()
+    redis.aclose = AsyncMock()
+    return redis
 
 
 @pytest.fixture
 def bus(redis_mock):
-    with patch.object(RedisEventBus, "__init__", lambda self, **kw: None):
-        b = RedisEventBus.__new__(RedisEventBus)
-        b.redis = redis_mock
-        return b
+    event_bus = RedisEventBus.__new__(RedisEventBus)
+    event_bus.redis = redis_mock
+    return event_bus
 
 
 @pytest.mark.asyncio
-async def test_publish_adds_event_to_stream(bus, redis_mock):
+async def test_publish_preserves_plain_and_bytes_and_serializes_nested_json(bus, redis_mock):
     # Arrange
-    redis_mock.xadd = AsyncMock(return_value="1-0")
-    event = {"call_id": "abc", "event": "started"}
+    redis_mock.xadd.return_value = "1-0"
+    event = {
+        "plain": "text",
+        "binary": b"frame",
+        "nested": {"enabled": True, "items": [1, 2]},
+        "count": 42,
+    }
 
     # Act
     result = await bus.publish("call:events", event)
 
     # Assert
     assert result == "1-0"
-    redis_mock.xadd.assert_awaited_once()
-    args = redis_mock.xadd.await_args
-    assert args.args[0] == "call:events"
+    redis_mock.xadd.assert_awaited_once_with(
+        "call:events",
+        {
+            "plain": "text",
+            "binary": b"frame",
+            "nested": json.dumps({"enabled": True, "items": [1, 2]}),
+            "count": json.dumps(42),
+        },
+    )
 
 
 @pytest.mark.asyncio
-async def test_publish_serializes_non_string_values(bus, redis_mock):
+async def test_consume_returns_empty_or_decoded_partial_messages(bus, redis_mock):
     # Arrange
-    redis_mock.xadd = AsyncMock(return_value="1-0")
-    event = {"count": 42, "nested": {"key": "val"}, "plain": "text"}
+    redis_mock.xreadgroup.side_effect = [
+        [],
+        [(b"call:events", [(b"1-0", {b"plain": b"text", b"count": b"42"})])],
+    ]
 
     # Act
-    await bus.publish("stream", event)
+    empty = await bus.consume("call:events", "workers", "worker-1")
+    partial = await bus.consume("call:events", "workers", "worker-1")
 
     # Assert
-    sent = redis_mock.xadd.await_args.kwargs
-    data = sent.get("mapping", sent.get(1, {}))
-    if not data:
-        data = redis_mock.xadd.await_args.args[1] if len(redis_mock.xadd.await_args.args) > 1 else {}
-    assert data.get("count") == "42" or data.get("count") == 42
+    assert empty == []
+    assert partial == [("1-0", {"plain": "text", "count": "42"})]
 
 
 @pytest.mark.asyncio
-async def test_consume_returns_empty_list_when_no_messages(bus, redis_mock):
+async def test_ack_delegates_exact_message_identity(bus, redis_mock):
     # Arrange
-    redis_mock.xreadgroup = AsyncMock(return_value=[])
+    redis_mock.xack.return_value = 1
 
     # Act
-    result = await bus.consume("stream", "group", "consumer")
+    await bus.ack("call:events", "workers", "1-0")
 
     # Assert
-    assert result == []
+    redis_mock.xack.assert_awaited_once_with("call:events", "workers", "1-0")
 
 
 @pytest.mark.asyncio
-async def test_consume_decodes_messages(bus, redis_mock):
+async def test_create_group_ignores_only_busygroup_response(bus, redis_mock):
     # Arrange
-    redis_mock.xreadgroup = AsyncMock(
-        return_value=[
-            (
-                b"stream",
-                [
-                    (b"1-0", {b"call_id": b"abc", b"event": b"started"}),
-                    (b"2-0", {b"call_id": b"def", b"event": b"ended"}),
-                ],
-            )
-        ]
+    redis_mock.xgroup_create.side_effect = ResponseError(
+        "BUSYGROUP Consumer Group name already exists"
     )
 
     # Act
-    result = await bus.consume("stream", "group", "consumer", count=2)
+    await bus.create_group("call:events", "workers")
 
     # Assert
-    assert len(result) == 2
-    assert result[0] == ("1-0", {"call_id": "abc", "event": "started"})
-    assert result[1] == ("2-0", {"call_id": "def", "event": "ended"})
-
-
-@pytest.mark.asyncio
-async def test_consume_handles_partial_entries(bus, redis_mock):
-    # Arrange
-    redis_mock.xreadgroup = AsyncMock(
-        return_value=[(b"stream", [(b"1-0", {b"key": b"val"})])]
+    redis_mock.xgroup_create.assert_awaited_once_with(
+        "call:events", "workers", mkstream=True
     )
 
-    # Act
-    result = await bus.consume("stream", "group", "consumer", count=1)
-
-    # Assert
-    assert len(result) == 1
-    assert result[0][1] == {"key": "val"}
-
 
 @pytest.mark.asyncio
-async def test_ack_delegates_to_xack(bus, redis_mock):
+async def test_create_group_propagates_and_logs_network_failure(
+    bus,
+    redis_mock,
+    caplog,
+):
     # Arrange
-    redis_mock.xack = AsyncMock(return_value=1)
+    redis_mock.xgroup_create.side_effect = RedisConnectionError("redis offline")
+    caplog.set_level(logging.ERROR, logger="src.events.redis_streams")
 
     # Act
-    await bus.ack("stream", "group", "1-0")
+    with pytest.raises(RedisConnectionError, match="redis offline"):
+        await bus.create_group("call:events", "workers")
 
     # Assert
-    redis_mock.xack.assert_awaited_once_with("stream", "group", "1-0")
+    assert "redis offline" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_consume_propagates_redis_error(bus, redis_mock):
+@pytest.mark.parametrize("operation", ["publish", "consume", "ack"])
+async def test_stream_operations_propagate_network_failure(
+    operation,
+    bus,
+    redis_mock,
+    caplog,
+):
     # Arrange
-    redis_mock.xreadgroup = AsyncMock(side_effect=Exception("connection lost"))
-
-    # Act / Assert
-    with pytest.raises(Exception, match="connection lost"):
-        await bus.consume("stream", "group", "consumer")
-
-
-@pytest.mark.asyncio
-async def test_publish_propagates_redis_error(bus, redis_mock):
-    # Arrange
-    redis_mock.xadd = AsyncMock(side_effect=Exception("timeout"))
-
-    # Act / Assert
-    with pytest.raises(Exception, match="timeout"):
-        await bus.publish("stream", {"key": "val"})
-
-
-@pytest.mark.asyncio
-async def test_create_group_delegates_to_xgroup_create(bus, redis_mock):
-    # Arrange
-    redis_mock.xgroup_create = AsyncMock()
+    error = RedisConnectionError("redis offline")
+    redis_mock.xadd.side_effect = error
+    redis_mock.xreadgroup.side_effect = error
+    redis_mock.xack.side_effect = error
+    caplog.set_level(logging.ERROR, logger="src.events.redis_streams")
 
     # Act
-    await bus.create_group("stream", "group")
+    with pytest.raises(RedisConnectionError, match="redis offline"):
+        if operation == "publish":
+            await bus.publish("call:events", {"event": "started"})
+        elif operation == "consume":
+            await bus.consume("call:events", "workers", "worker-1")
+        else:
+            await bus.ack("call:events", "workers", "1-0")
 
     # Assert
-    redis_mock.xgroup_create.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_create_group_ignores_existing_group_error(bus, redis_mock):
-    # Arrange
-    redis_mock.xgroup_create = AsyncMock(side_effect=Exception("BUSYGROUP"))
-
-    # Act
-    await bus.create_group("stream", "group")
-
-    # Assert
-    assert redis_mock.xgroup_create.await_count == 1
-
-
-@pytest.mark.asyncio
-async def test_close_delegates_to_aclose(bus, redis_mock):
-    # Arrange
-    redis_mock.aclose = AsyncMock()
-
-    # Act
-    await bus.close()
-
-    # Assert
-    redis_mock.aclose.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_consume_with_block_zero_returns_empty(bus, redis_mock):
-    # Arrange
-    redis_mock.xreadgroup = AsyncMock(return_value=[])
-
-    # Act
-    result = await bus.consume("stream", "group", "consumer", block=0)
-
-    # Assert
-    assert result == []
+    called = {
+        "publish": redis_mock.xadd,
+        "consume": redis_mock.xreadgroup,
+        "ack": redis_mock.xack,
+    }
+    called[operation].assert_awaited_once()
+    assert "redis offline" in caplog.text

@@ -103,3 +103,66 @@ violaria Red → Green. O autor externo recebeu as correções começando por T0
   opt-in por `BUNKERWEB_URL`. Execução default: 3 passed, 3 skipped, sem rede. HTTP 404/502 e
   `ConnectError` não são tratados como sucesso.
 - Ressalva não bloqueante: o marker `integration` ainda não está registrado e gera warning.
+
+## Rodada serial por arquivo — 2026-07-31
+
+### Aceitos para revisão T113/T114
+
+- T071: servidor ESL asyncio local provou framing `auth ...\n\n` e timeout; integrações reais são
+  opt-in. Revalidação apó escrita tardia: 2 passed, 2 skipped.
+- T072/T073: 10 testes WebSocket passaram, cobrindo `Address`, conexão/desconexão, broadcast,
+  sessão pendente, erro Redis e conexão stale.
+- T077: 28 coletados, 20 passed e 8 Reds alinhados ao contrato SDD (`sanitize -> dict`, cartão
+  como suspeita, entradas inválidas e resposta LLM malformada). A revisão T114 ainda deve julgar
+  se todas as validações antecipadas pertencem ao contrato.
+- T078: 12 testes auth/RBAC passaram para assinatura, expiração, algoritmo, papel permitido e
+  acesso negado.
+
+### Mantidos abertos
+
+- T066/T067: autores encerraram sem corrigir os testes reprovados por T081.
+- T075: Claude, Laguna, Gemini e DeepSeek não produziram correção válida; Reds artificiais
+  continuam no arquivo.
+- T079: tentativa descartada por violação de escopo; o processo Claude executou comandos em
+  `/app/treinamento-videos` em vez do Zenith. O arquivo Zenith permaneceu inalterado.
+- T080: autor encerrou sem diff; os cenários artificiais anteriores continuam pendentes.
+
+Nenhum desses itens abertos autoriza iniciar o Green correspondente.
+
+## Consolidação pré-Green T081/T113/T114 — 2026-07-31
+
+As CLIs externas foram descontinuadas nesta rodada depois de uma chamada Claude conectar-se
+indevidamente a uma sessão de outro projeto. A autoria e revisão passaram a usar subagentes isolados,
+com arquivos disjuntos e troca obrigatória de papéis entre autor e revisor.
+
+| Gate | Autor | Revisor diferente | Rodadas | Veredito final |
+|------|-------|-------------------|---------|----------------|
+| T081 — banco | `author_database_reds` | `author_domain_reds` e `author_t080` | 3 | ACEITO |
+| T113 — fronteiras | autores externos anteriores + `author_t080` para T074 | `author_domain_reds` | 2 | ACEITO |
+| T114 — domínio | `author_domain_reds` + `author_t080` para T080 | `author_database_reds` | 2 | ACEITO |
+
+### Correções bloqueantes incorporadas
+
+- Banco: removidos módulos/APIs inventados; Alembic usa banco vazio por teste; restore exige
+  `restore=True`, prova UUIDs/vínculo persistidos e ausência real de estado parcial; guard rejeita
+  driver, porta, host override e hosts ambíguos; lifecycle preserva e remove sentinela corretamente.
+- Fronteiras: BunkerWeb deixou de testar `httpx` tautologicamente e passou a validar Compose real +
+  integração opt-in; multitenancy usa banco isolado, guard central, schema malicioso no Green e
+  teardown sob exceção/cancelamento.
+- Domínio: removidas factories e mocks internos criados no teste; Redis distingue `BUSYGROUP` de
+  falha de rede; consenso usa regex/grafo reais; T080 injeta erro no port SMB real.
+
+### Ressalvas não bloqueantes
+
+- Registrar o marker pytest `integration` em decisão/configuração futura apropriada.
+- T073 explicita que uma falha Redis apó accept deixa conexão registrada; vigiar como potencial
+  estado residual ao implementar T089/T090.
+- T077 ainda pode ganhar bordas de JSON estruturalmente válido mas semanticamente incorreto.
+- T078 ainda requer decisão de spec para `sub`/`tenant_id` ausentes em `tenant_admin`.
+
+## Veredito T115
+
+Os testes Red T066–T080 estão aptos a orientar o Green. Nenhum bloqueador de viés conhecido
+permanece. Integrações que exigem PostgreSQL, BunkerWeb ou FreeSWITCH continuam explicitamente
+opt-in e só poderão ser confirmadas no `zenith-postgres-test`/ambiente dedicado, nunca no banco
+operacional.

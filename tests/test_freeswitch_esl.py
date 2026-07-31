@@ -18,8 +18,9 @@ class _FramingAuthESLServer:
     def __init__(self, password: str):
         self._password = password
         self._server: asyncio.Server | None = None
-        self._writer: asyncio.StreamWriter | None = None
+        self._writers: list[asyncio.StreamWriter] = []
         self.received_auth_frame: bytes | None = None
+        self._client_tasks: set[asyncio.Task] = set()
 
     async def start(self) -> tuple[str, int]:
         self._server = await asyncio.start_server(self._handle_client, "127.0.0.1", 0)
@@ -27,25 +28,46 @@ class _FramingAuthESLServer:
         return host, port
 
     async def stop(self):
-        if self._writer is not None:
-            self._writer.close()
-            await self._writer.wait_closed()
+        for writer in self._writers:
+            if not writer.is_closing():
+                writer.close()
+                await writer.wait_closed()
+        self._writers.clear()
+        for task in self._client_tasks:
+            task.cancel()
+        if self._client_tasks:
+            await asyncio.gather(*self._client_tasks, return_exceptions=True)
+        self._client_tasks.clear()
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        self._writer = writer
-        writer.write(b"Content-Type: auth/request\n\n")
-        await writer.drain()
+        task = asyncio.current_task()
+        self._client_tasks.add(task)
+        self._writers.append(writer)
+        try:
+            writer.write(b"Content-Type: auth/request\n\n")
+            await writer.drain()
 
-        self.received_auth_frame = await asyncio.wait_for(reader.readuntil(b"\n\n"), timeout=5.0)
+            self.received_auth_frame = await asyncio.wait_for(
+                reader.read(4096), timeout=5.0
+            )
 
-        if self.received_auth_frame == f"auth {self._password}\n\n".encode():
-            writer.write(b"Content-Type: command/reply\nReply-Text: +OK accepted\n\n")
-        else:
-            writer.write(b"Content-Type: command/reply\nReply-Text: -ERR invalid\n\n")
-        await writer.drain()
+            if self.received_auth_frame == f"auth {self._password}\n\n".encode():
+                writer.write(b"Content-Type: command/reply\nReply-Text: +OK accepted\n\n")
+                await writer.drain()
+            else:
+                writer.write(b"Content-Type: command/reply\nReply-Text: -ERR invalid\n\n")
+                await writer.drain()
+        finally:
+            self._client_tasks.discard(task)
+            if writer in self._writers:
+                self._writers.remove(writer)
+            if not writer.is_closing():
+                writer.close()
+            await writer.wait_closed()
+
 
 
 class _StallingESLServer:
