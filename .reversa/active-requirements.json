@@ -4,8 +4,17 @@
   "feature-id": "011",
   "short-name": "smb-audio-backup",
   "started-at": "2026-07-27T14:10:50Z",
-  "current-stage": "coding-em-progresso",
-  "stages-completed": [],
+  "current-stage": "done",
+  "stages-completed": [
+    "requirements",
+    "clarify",
+    "plan",
+    "to-do",
+    "audit",
+    "quality",
+    "coding",
+    "sync"
+  ],
   "paused-features": [
     {
       "feature-id": "010",
