@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from src.database.models import Base
 from src.config import settings
-import os
 
 config = context.config
 if config.config_file_name is not None:
@@ -12,13 +11,11 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-SCHEMA_NAME = os.environ.get("SCHEMA_NAME")
-
 
 def include_object(obj, name, type_, reflected, compare_to):
-    if type_ == "table" and SCHEMA_NAME:
+    if type_ != "table":
         return True
-    return True
+    return getattr(obj, "schema", None) == "public"
 
 
 def run_migrations_offline():
@@ -28,12 +25,11 @@ def run_migrations_offline():
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        version_table_schema=SCHEMA_NAME,
+        version_table_schema="public",
         include_schemas=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
-        if SCHEMA_NAME:
-            context.execute(f"SET search_path TO {SCHEMA_NAME}")
         context.run_migrations()
 
 
@@ -41,12 +37,11 @@ def do_run_migrations(connection):
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        version_table_schema=SCHEMA_NAME,
+        version_table_schema="public",
         include_schemas=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
-        if SCHEMA_NAME:
-            context.execute(f"SET search_path TO {SCHEMA_NAME}")
         context.run_migrations()
 
 

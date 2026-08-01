@@ -1,40 +1,46 @@
-"""add tenants and pbxs tables in public schema
+"""Baseline pública do Zenith.
 
-Revision ID: 002
-Revises: 001
-Create Date: 2026-05-21 18:00:00.000000
+Revision ID: 001_public_baseline
+Revises:
 """
-from typing import Sequence, Union
-from alembic import op
+
+from typing import Sequence
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "002"
-down_revision: Union[str, None] = "001"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "001_public_baseline"
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     op.execute("CREATE SCHEMA IF NOT EXISTS public")
-
     op.create_table(
         "tenants",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.String(128), nullable=False),
-        sa.Column("schema_name", sa.String(64), unique=True, nullable=False),
-        sa.Column("status", sa.String(32), server_default="active"),
+        sa.Column("schema_name", sa.String(64), nullable=False),
+        sa.Column("status", sa.String(32), server_default="active", nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.UniqueConstraint("schema_name", name="uq_tenants_schema_name"),
         schema="public",
     )
     op.create_table(
         "pbxs",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", UUID(as_uuid=True), sa.ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("id", UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "tenant_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("public.tenants.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(128), nullable=False),
         sa.Column("host", sa.String(128), nullable=False),
-        sa.Column("port", sa.Integer(), server_default="5060"),
+        sa.Column("port", sa.Integer(), server_default="5060", nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         schema="public",
@@ -43,5 +49,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index("idx_pbxs_tenant", table_name="pbxs", schema="public")
     op.drop_table("pbxs", schema="public")
     op.drop_table("tenants", schema="public")

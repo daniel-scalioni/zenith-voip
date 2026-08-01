@@ -7,13 +7,13 @@ services:
     environment:
       POSTGRES_USER: zenith_test
       POSTGRES_PASSWORD: ${ZENITH_TEST_POSTGRES_PASSWORD:?defina ZENITH_TEST_POSTGRES_PASSWORD}
-      POSTGRES_DB: zenith_test
+      POSTGRES_DB: zenith_test_admin
     volumes:
       - zenith-postgres-test-data:/var/lib/postgresql/data
     networks:
       - zenith-quality-test-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zenith_test -d zenith_test"]
+      test: ["CMD-SHELL", "pg_isready -U zenith_test -d zenith_test_admin"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -22,12 +22,12 @@ services:
   quality-runner:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.quality
     container_name: zenith-quality-runner
     environment:
-      DATABASE_URL: postgresql+asyncpg://zenith_test:${ZENITH_TEST_POSTGRES_PASSWORD:?defina ZENITH_TEST_POSTGRES_PASSWORD}@postgres-test:5432/zenith_test
-      ZENITH_TEST_DATABASE_HOST: postgres-test
-      ZENITH_TEST_DATABASE_NAME: zenith_test
+      DATABASE_URL: postgresql+asyncpg://zenith_test:${ZENITH_TEST_POSTGRES_PASSWORD:?defina ZENITH_TEST_POSTGRES_PASSWORD}@zenith-postgres-test:5432/zenith_test_admin
+      ZENITH_TEST_DATABASE_HOST: zenith-postgres-test
+      ZENITH_TEST_DATABASE_NAME: zenith_test_admin
     volumes:
       - ./alembic:/app/alembic:ro
       - ./alembic.ini:/app/alembic.ini:ro
@@ -41,11 +41,34 @@ services:
     command: ["sleep", "infinity"]
     restart: "no"
 
+  postgres-rehearsal:
+    image: postgres:16-alpine
+    container_name: zenith-postgres-rehearsal
+    environment:
+      POSTGRES_USER: zenith_rehearsal
+      POSTGRES_PASSWORD: ${ZENITH_REHEARSAL_POSTGRES_PASSWORD:?defina ZENITH_REHEARSAL_POSTGRES_PASSWORD}
+      POSTGRES_DB: zenith_rehearsal
+    volumes:
+      - zenith-postgres-rehearsal-data:/var/lib/postgresql/data
+    networks:
+      - zenith-quality-rehearsal-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zenith_rehearsal -d zenith_rehearsal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
 volumes:
   zenith-postgres-test-data:
     name: zenith-postgres-test-data
+  zenith-postgres-rehearsal-data:
+    name: zenith-postgres-rehearsal-data
 
 networks:
   zenith-quality-test-net:
     name: zenith-quality-test-net
+    driver: bridge
+  zenith-quality-rehearsal-net:
+    name: zenith-quality-rehearsal-net
     driver: bridge

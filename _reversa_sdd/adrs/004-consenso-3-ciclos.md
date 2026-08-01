@@ -15,7 +15,9 @@ Implementar um grafo de consenso com 3 ciclos usando LangGraph:
 2. **Reviewer**: sanitiza apenas dados sensíveis via LLM
 3. **Decider**: aprova/rejeita baseado em sentiment_score e presença de entidades
 
-Se rejeitado e iteration < 3, volta ao reviewer.
+Se rejeitado e `iteration < 3`, volta ao extractor. Assim cada ciclo incrementa a iteração,
+reextrai o transcript e então passa novamente por reviewer e decider; o limite de três ciclos é
+observável e não depende de mutação no reviewer.
 
 ## Consequências
 

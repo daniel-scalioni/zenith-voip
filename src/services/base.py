@@ -13,18 +13,27 @@ class Strategy(ABC):
 
 
 class STTStrategy(Strategy):
+    async def execute(self, **kwargs) -> dict:
+        return await self.transcribe(**kwargs)
+
     @abstractmethod
     async def transcribe(self, audio_chunk: bytes, **kwargs) -> dict:
         ...
 
 
 class TTSStrategy(Strategy):
+    async def execute(self, **kwargs) -> bytes:
+        return await self.synthesize(**kwargs)
+
     @abstractmethod
     async def synthesize(self, text: str, **kwargs) -> bytes:
         ...
 
 
 class LLMStrategy(Strategy):
+    async def execute(self, **kwargs) -> str:
+        return await self.analyze(**kwargs)
+
     @abstractmethod
     async def analyze(self, prompt: str, **kwargs) -> str:
         ...
@@ -38,7 +47,11 @@ class Repository(Generic[ModelType]):
     async def create(self, **kwargs) -> ModelType:
         instance = self._model(**kwargs)
         self._session.add(instance)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except BaseException:
+            await self._session.rollback()
+            raise
         await self._session.refresh(instance)
         return instance
 
@@ -61,7 +74,11 @@ class Repository(Generic[ModelType]):
             return None
         for key, value in kwargs.items():
             setattr(instance, key, value)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except BaseException:
+            await self._session.rollback()
+            raise
         await self._session.refresh(instance)
         return instance
 
@@ -70,7 +87,11 @@ class Repository(Generic[ModelType]):
         if not instance:
             return False
         await self._session.delete(instance)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except BaseException:
+            await self._session.rollback()
+            raise
         return True
 
 

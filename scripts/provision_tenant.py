@@ -21,15 +21,37 @@ em freeswitch/conf/vars.xml como tenant_id=<slug>, e o UUID do PBX como pbx_id.
 import argparse
 import asyncio
 import sys
+import uuid
 
 sys.path.insert(0, ".")
 
 from src.database.database import async_session_factory, create_tenant_schema
 from src.database.models import Tenant, PBX
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 
-async def provision(name: str, schema_name: str, pbx_name: str, pbx_host: str, pbx_port: int):
+def _validate_restore_ids(
+    tenant_id: uuid.UUID | None, pbx_id: uuid.UUID | None, restore: bool
+) -> tuple[uuid.UUID, uuid.UUID]:
+    supplied = tenant_id is not None or pbx_id is not None
+    if supplied and not restore:
+        raise ValueError("UUIDs explícitos só são permitidos no modo restore")
+    if restore and (tenant_id is None or pbx_id is None):
+        raise ValueError("restore exige tenant_id e pbx_id explícitos")
+    return tenant_id or uuid.uuid4(), pbx_id or uuid.uuid4()
+
+
+async def provision(
+    name: str,
+    schema_name: str,
+    pbx_name: str,
+    pbx_host: str,
+    pbx_port: int,
+    *,
+    tenant_id: uuid.UUID | None = None,
+    pbx_id: uuid.UUID | None = None,
+    restore: bool = False,
+):
     if not schema_name.startswith("tenant_"):
         raise ValueError('schema_name deve começar com "tenant_" (convenção do projeto)')
     slug = schema_name.removeprefix("tenant_")
@@ -39,39 +61,88 @@ async def provision(name: str, schema_name: str, pbx_name: str, pbx_host: str, p
             f'_tenant_schema() monta a query SQL como f"tenant_{{tenant_id}}" sem aspas.'
         )
 
+    resolved_tenant_id, resolved_pbx_id = _validate_restore_ids(tenant_id, pbx_id, restore)
+    tenant_created = False
+    pbx_created = False
+
     async with async_session_factory() as session:
-        existing = await session.scalar(select(Tenant).where(Tenant.schema_name == schema_name))
-        if existing:
-            print(f"Tenant já existe: id={existing.id} name={existing.name} schema={existing.schema_name}")
-            tenant_id = existing.id
-        else:
-            tenant = Tenant(name=name, schema_name=schema_name)
-            session.add(tenant)
-            await session.commit()
-            await session.refresh(tenant)
-            tenant_id = tenant.id
-            print(f"Tenant criado: id={tenant_id} name={name} schema={schema_name}")
+        try:
+            existing = await session.scalar(
+                select(Tenant).where(Tenant.schema_name == schema_name)
+            )
+            if existing:
+                if restore and existing.id != resolved_tenant_id:
+                    raise ValueError("conflito de UUID do tenant durante restore")
+                resolved_tenant_id = existing.id
+                print(
+                    f"Tenant já existe: id={existing.id} name={existing.name} "
+                    f"schema={existing.schema_name}"
+                )
+            else:
+                tenant = Tenant(
+                    id=resolved_tenant_id, name=name, schema_name=schema_name
+                )
+                session.add(tenant)
+                await session.commit()
+                tenant_created = True
+                await session.refresh(tenant)
+                print(
+                    f"Tenant criado: id={resolved_tenant_id} name={name} "
+                    f"schema={schema_name}"
+                )
 
-        existing_pbx = await session.scalar(
-            select(PBX).where(PBX.tenant_id == tenant_id, PBX.host == pbx_host, PBX.port == pbx_port)
-        )
-        if existing_pbx:
-            print(f"PBX já existe: id={existing_pbx.id} host={pbx_host}:{pbx_port}")
-            pbx_id = existing_pbx.id
-        else:
-            pbx = PBX(tenant_id=tenant_id, name=pbx_name, host=pbx_host, port=pbx_port)
-            session.add(pbx)
-            await session.commit()
-            await session.refresh(pbx)
-            pbx_id = pbx.id
-            print(f"PBX criado: id={pbx_id} host={pbx_host}:{pbx_port}")
+            existing_pbx = await session.scalar(
+                select(PBX).where(
+                    PBX.tenant_id == resolved_tenant_id,
+                    PBX.host == pbx_host,
+                    PBX.port == pbx_port,
+                )
+            )
+            if existing_pbx:
+                if restore and existing_pbx.id != resolved_pbx_id:
+                    raise ValueError("conflito de UUID do PBX durante restore")
+                resolved_pbx_id = existing_pbx.id
+                print(
+                    f"PBX já existe: id={existing_pbx.id} "
+                    f"host={pbx_host}:{pbx_port}"
+                )
+            else:
+                pbx = PBX(
+                    id=resolved_pbx_id,
+                    tenant_id=resolved_tenant_id,
+                    name=pbx_name,
+                    host=pbx_host,
+                    port=pbx_port,
+                )
+                session.add(pbx)
+                await session.commit()
+                pbx_created = True
+                await session.refresh(pbx)
+                print(
+                    f"PBX criado: id={resolved_pbx_id} host={pbx_host}:{pbx_port}"
+                )
 
-    await create_tenant_schema(schema_name)
+            await create_tenant_schema(schema_name)
+        except BaseException:
+            await session.rollback()
+            # Os commits intermediários tornam os UUIDs disponíveis para logs e
+            # integrações, mas exigem compensação para manter o provisionamento
+            # atomicamente observável quando uma etapa posterior falha.
+            if pbx_created:
+                await session.scalar(delete(PBX).where(PBX.id == resolved_pbx_id).returning(PBX.id))
+            if tenant_created:
+                await session.scalar(
+                    delete(Tenant).where(Tenant.id == resolved_tenant_id).returning(Tenant.id)
+                )
+            if pbx_created or tenant_created:
+                await session.commit()
+            raise
+
     print(f"Schema '{schema_name}' criado/confirmado com as tabelas de Call/Transcript/CallInsight/STTMetric.")
 
     print("\n--- Adicione em freeswitch/conf/vars.xml ---")
     print(f'  <X-PRE-PROCESS cmd="set" data="tenant_id={slug}"/>')
-    print(f'  <X-PRE-PROCESS cmd="set" data="pbx_id={pbx_id}"/>')
+    print(f'  <X-PRE-PROCESS cmd="set" data="pbx_id={resolved_pbx_id}"/>')
 
 
 if __name__ == "__main__":
@@ -81,6 +152,20 @@ if __name__ == "__main__":
     parser.add_argument("--pbx-name", required=True, help='Nome do PBX, ex: "VitalPBX Akom"')
     parser.add_argument("--pbx-host", required=True, help="Host do PBX, ex: sip.maisalerta.tecnorise.com")
     parser.add_argument("--pbx-port", type=int, default=5060, help="Porta do PBX (default 5060)")
+    parser.add_argument("--tenant-id", type=uuid.UUID, help="UUID preservado no modo restore")
+    parser.add_argument("--pbx-id", type=uuid.UUID, help="UUID preservado no modo restore")
+    parser.add_argument("--restore", action="store_true", help="Preservar UUIDs durante restore")
     args = parser.parse_args()
 
-    asyncio.run(provision(args.name, args.schema, args.pbx_name, args.pbx_host, args.pbx_port))
+    asyncio.run(
+        provision(
+            args.name,
+            args.schema,
+            args.pbx_name,
+            args.pbx_host,
+            args.pbx_port,
+            tenant_id=args.tenant_id,
+            pbx_id=args.pbx_id,
+            restore=args.restore,
+        )
+    )

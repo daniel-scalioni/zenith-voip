@@ -1,0 +1,29 @@
+name: zenith-candidate
+
+services:
+  postgres-candidate:
+    image: postgres:16-alpine
+    container_name: zenith-postgres-candidate
+    environment:
+      POSTGRES_USER: zenith_candidate
+      POSTGRES_PASSWORD: ${ZENITH_CANDIDATE_POSTGRES_PASSWORD:?defina ZENITH_CANDIDATE_POSTGRES_PASSWORD}
+      POSTGRES_DB: zenith_candidate
+    volumes:
+      - zenith-postgres-candidate-data:/var/lib/postgresql/data
+    networks:
+      - zenith-quality-candidate-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zenith_candidate -d zenith_candidate"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+volumes:
+  zenith-postgres-candidate-data:
+    name: zenith-postgres-candidate-data
+
+networks:
+  zenith-quality-candidate-net:
+    name: zenith-quality-candidate-net
+    driver: bridge

@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import text
 from src.database.models import Base, TenantBase
@@ -5,6 +7,13 @@ from src.config import settings
 
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+_TENANT_SCHEMA_PATTERN = re.compile(r"^tenant_[a-z0-9_]+$")
+
+
+def _validate_tenant_schema(schema_name: str) -> str:
+    if not isinstance(schema_name, str) or not _TENANT_SCHEMA_PATTERN.fullmatch(schema_name):
+        raise ValueError("schema de tenant inválido")
+    return schema_name
 
 
 async def get_db() -> AsyncSession:
@@ -36,9 +45,10 @@ async def init_db():
 
 
 async def create_tenant_schema(schema_name: str):
+    schema_name = _validate_tenant_schema(schema_name)
     async with engine.begin() as conn:
-        await conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
-        await conn.execute(text(f"SET search_path TO {schema_name}"))
+        await conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
+        await conn.execute(text(f'SET search_path TO "{schema_name}"'))
         await conn.run_sync(TenantBase.metadata.create_all)
 
 
