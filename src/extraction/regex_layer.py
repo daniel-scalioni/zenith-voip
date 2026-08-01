@@ -30,7 +30,7 @@ class RegexExtractor:
         return results
 
     async def has_suspicion(self, text: str) -> bool:
-        for label in ("cpf", "rg", "plate"):
+        for label in ("cpf", "rg", "plate", "credit_card"):
             if self.PATTERNS[label].search(text):
                 return True
         return False

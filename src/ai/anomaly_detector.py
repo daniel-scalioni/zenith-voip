@@ -22,6 +22,8 @@ class AnomalyDetector:
         self.anomaly_threshold = 3
 
     async def analyze(self, call_id: str, text: str, speaker: str) -> dict:
+        if not isinstance(text, str):
+            raise TypeError("text deve ser uma string")
         fury_score = self._score_fury(text)
         stress_score = self._score_stress(text)
         total_score = fury_score + stress_score

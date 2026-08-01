@@ -3,7 +3,7 @@ spec:
   component: smb-backup
   layer: workers
   status: active
-  version: 1.1.0
+  version: 1.2.0
   language: python
   patterns: [strategy, singleton-module, observer]
   inputs:
@@ -18,7 +18,7 @@ spec:
     - {component: calls, layer: services}
     - {component: telemetry, layer: observability}
   events_produced: []
-  updated_at: 2026-07-29
+  updated_at: 2026-08-01
 ---
 
 # SMB Backup de Áudio
@@ -83,7 +83,10 @@ esquerdo e `rx` no direito, sem bloquear a gravação e sem expor arquivo remoto
 - Configuração vem exclusivamente de `Settings`/`.env`; `SMB_ENABLED=false` é o default.
 - Direct TCP/445, NTLMv2 e `SMB_SIGN_OPTIONS=2` são defaults.
 - Username, password e representação da conexão nunca entram em logs.
-- Conta Zenith tem WRITE; credencial separada de auditoria é READ-ONLY e não entra no Zenith.
+- A conta configurada no Zenith possui escrita e leitura. A leitura remota é usada somente para
+  validar o SHA-256 após a publicação. Por decisão explícita do responsável em 2026-08-01, uma
+  segunda conta READ-ONLY não é requisito desta entrega; o controle de acesso de usuários humanos
+  permanece responsabilidade administrativa do storage.
 
 ## Observabilidade
 
@@ -115,7 +118,8 @@ esquerdo e `rx` no direito, sem bloquear a gravação e sem expor arquivo remoto
 
 ## Gates operacionais pendentes
 
-- Provar ACL negativa com a conta READ-ONLY dos auditores.
+- Nenhum gate de ACL adicional: o responsável confirmou o áudio remoto e aprovou a mesma conta
+  técnica para escrita e verificação por leitura.
 - Executar Compose e suíte de infraestrutura no host com Docker/PostgreSQL/Redis disponíveis.
 - Executar `alembic upgrade head` com PostgreSQL acessível.
 - Implementar e redeployar o isolamento das filas ARQ aprovado em 2026-07-29. Como o produtor

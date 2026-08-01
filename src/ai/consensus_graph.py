@@ -47,7 +47,7 @@ class ConsensusGraph:
         builder.add_conditional_edges(
             "decider",
             self._decide_loop_or_end,
-            {"reviewer": "reviewer", END: END},
+            {"extractor": "extractor", END: END},
         )
 
         return builder.compile(checkpointer=self.checkpointer)
@@ -75,10 +75,12 @@ class ConsensusGraph:
 
     def _decide_loop_or_end(self, state: AgentState) -> str:
         if state["final_decision"] == "rejected" and state["iteration"] < 3:
-            return "reviewer"
+            return "extractor"
         return END
 
     async def run(self, call_id: str, transcript: str, sentiment: str = "neutral", sentiment_score: float = 0.0) -> dict:
+        if not isinstance(transcript, str):
+            raise TypeError("transcript deve ser uma string")
         initial_state = AgentState(
             call_id=call_id,
             transcript=transcript,

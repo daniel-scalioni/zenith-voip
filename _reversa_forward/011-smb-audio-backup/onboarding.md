@@ -379,3 +379,19 @@ O MP3 remoto foi lido em memória e analisado em arquivo temporário auto-removi
 nome remoto, número, UUID ou credencial foi persistido nos artefatos. A baixa correlação comprova
 que os canais não são duplicações do mesmo sinal; o mapeamento left=`tx`/right=`rx` permanece o
 contrato fixo do pipeline e já possui prova sintética independente.
+## Evidências pré-cutover — 2026-08-01
+
+- Dump lógico PostgreSQL 16 em diretório privado `0700`, arquivos `0600`, fora do repositório e de `/tmp`: SHA-256 `65eee2c787fd4a071fd3b0b247361c01cc4e11b39d350381c842a022f4bfe302` (21.184 bytes).
+- Restore no `zenith-postgres-rehearsal`: schemas/tabelas e manifesto de contagens/UUIDs equivalentes ao operacional. Manifestos operacional e rehearsal: SHA-256 `873ecc90974e03bc957925493dbb20f48c4823790d5cc763f48b42e5757bcaf1`.
+- Candidato vazio: `alembic upgrade head` executado duas vezes, revisão estável `001_public_baseline`; restore preservou UUIDs/dados. Manifesto candidato: mesmo SHA-256 `873ecc90974e03bc957925493dbb20f48c4823790d5cc763f48b42e5757bcaf1`.
+- Regeneração privada: 939 gateways, um ativo (`1001`), 938 inativos; hashes reproduzidos: nomes `8daf38023609ac90d45d97423d6143172293a7c6cc92d5ea126d24b7c1fea552`, directory `d73a38c1ae74e38a4659d94bc23a5b555018c06732336c1ee0d7defabf810e75`, conjunto ativo `58fbc17e6cb8f986aee209bc746915a7b07b5d56a81d01f49a3e1802e6f1f29b`. Temporários removidos.
+- Suíte hermética explícita (`tests/` + `src/`): 188 aprovados, 12 skipped exclusivamente por integrações externas/caos, cobertura `src` 86,01%. Núcleo de banco real: 45 aprovados.
+- Ensaio de rollback: candidato parado, rehearsal confirmado saudável, candidato reiniciado e confirmado saudável; `zenith-postgres`, rehearsal e candidato terminaram `healthy`. O operacional não foi parado, reiniciado ou reconfigurado.
+- Ownership isolado: operacional no projeto `zenith-voip`; teste/rehearsal em `zenith-quality`; candidato em `zenith-candidate`; volumes distintos e explicitamente prefixados.
+- Checkpoint T104 aprovado explicitamente pelo usuário em 2026-08-01; o sistema ainda não possui uso produtivo.
+- Cutover T105: somente os cinco escritores foram pausados; o alias interno `postgres` foi movido ao candidato. O PostgreSQL anterior permaneceu ligado, preservado e desconectado apenas da rede da aplicação. APIs 1/2 retornaram `healthy`; uploader, cleanup e SMB sync retornaram `running`, sem reinício por falha.
+- T106: 939 gateways permaneceram idênticos, profile `upstream` recarregado com sucesso e `upstream-1001` confirmado `REGED`/`UP`.
+- Smoke T107: ligação curta `1001 → 1140100` registrada no banco candidato como `completed`, com caller/callee presentes e duração de 16,23 s. O uploader concluiu em 0,91 s; o ciclo SMB seguinte processou uma chamada, concluiu uma e falhou zero. O log persistente ficou `done`, uma tentativa, sem erro; `stereo.mp3` local foi removido somente após a confirmação remota.
+- Gate T037: Compose válido (somente warnings antigos de variáveis opcionais), Alembic idempotente e suíte global/cobertura mantidas conforme evidências acima.
+- Decisão T035: o responsável autorizou a mesma conta SMB já configurada para publicação e leitura de verificação. Não haverá conta READ-ONLY adicional nesta entrega. A leitura do worker existe somente para comparar o checksum remoto; o responsável ouviu o arquivo final e confirmou que o áudio está correto.
+- E2E T024 concluído: chamada real, estéreo remoto audível, checksum e remoção pós-confirmação reais; timeout, offline, circuit breaker, throttle, lease, colisão, cleanup e sanitização permanecem cobertos pela suíte automatizada comportamental.
