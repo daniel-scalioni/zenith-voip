@@ -263,6 +263,7 @@ nomes, senhas e conteúdo de chamadas não foram registrados.
 
 O manifesto pós-restore e pós-importação deve repetir o mesmo algoritmo. Divergência em qualquer
 contagem ou hash é `NO-GO`; não se troca o DSN dos serviços.
+
 | Fila default | `arq:queue` sem jobs; não consultada pelos três workers durante a amostra |
 | APIs | 8001 e 8002 responderam HTTP 200 |
 | FreeSWITCH | não reiniciado; permaneceu healthy |
@@ -354,3 +355,27 @@ Este runbook ainda não autoriza operações destrutivas.
 4. Regerar os ramais a partir do CSV privado e comparar o manifesto antes de recarregar o profile.
 5. Executar health/readiness, smoke de tenant/PBX, ligação curta e E2E SMB.
 6. Em qualquer divergência, reapontar ao volume anterior; nenhum volume é removido.
+
+## Revalidação real do backup SMB — 2026-07-31
+
+Ligação solicitada pelo usuário e inspecionada de ponta a ponta, sem novo deploy porque os hashes
+dos arquivos runtime local/remoto eram idênticos.
+
+| Evidência | Resultado |
+|-----------|-----------|
+| Chamada no banco | `completed`, duração 7,89 s, caller/callee presentes |
+| Fila uploader | `upload_recording_batch` concluído em 0,79 s na fila exclusiva |
+| Ciclo SMB das 15:10 UTC | `calls_seen=1`, `completed=1`, `failed=0` |
+| Estado persistido | `done`, uma tentativa, sem `last_error` |
+| Tamanho remoto | 20.780 bytes |
+| SHA-256 local/remoto | `4ab9ddc27da70dd6d4892c71309b6531cf65ce54be167f2c653994835aa6ec2b`, idêntico |
+| `ffprobe` remoto | MP3, 8 kHz, 2 canais, stereo, 6,84 s |
+| Canal esquerdo (`tx`) | RMS 390,81; amostras não-zero 95,26% |
+| Canal direito (`rx`) | RMS 195,77; amostras não-zero 99,57% |
+| Separação | hashes PCM distintos; correlação normalizada -0,034394 |
+| Arquivo parcial/erro recente | nenhum; worker SMB saudável e sem erro de fila |
+
+O MP3 remoto foi lido em memória e analisado em arquivo temporário auto-removido. Nenhum áudio,
+nome remoto, número, UUID ou credencial foi persistido nos artefatos. A baixa correlação comprova
+que os canais não são duplicações do mesmo sinal; o mapeamento left=`tx`/right=`rx` permanece o
+contrato fixo do pipeline e já possui prova sintética independente.
