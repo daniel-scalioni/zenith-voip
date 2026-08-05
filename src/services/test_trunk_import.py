@@ -198,3 +198,212 @@ async def test_import_private_json_dry_run_never_persists_or_encrypts():
     assert result.dry_run is True
     assert result.rows == 1
     service.upsert_imported.assert_not_awaited()
+
+
+def _batch_trunk_entry(
+    numero="1020",
+    descricao="1020 - Parque Portugal",
+    tecnologia="PJSIP",
+    porta=7060,
+    local_secret="fixture-secret",
+    remote_secret="fixture-secret",
+    remote_username=None,
+):
+    return {
+        "numero": numero,
+        "descricao": descricao,
+        "tecnologia": tecnologia,
+        "configuracoes": {
+            "autenticacao_e_rede": {
+                "nome_de_usuario_de_saida": numero,
+                "nome_de_usuario_remoto": remote_username or numero,
+                "segredo_local": local_secret,
+                "segredo_remoto": remote_secret,
+                "identificar_por": "Auth Username",
+                "porta": porta,
+            },
+        },
+    }
+
+
+def _batch_trunk_json(entries=None):
+    entries = entries if entries is not None else [
+        _batch_trunk_entry(),
+        _batch_trunk_entry(numero="1780", descricao="1780 - Camboriu"),
+    ]
+    return json.dumps({"ramais": entries}).encode()
+
+
+CONDOMINIUM_NAMES = {"1020": "Parque Portugal", "1780": "Camboriu"}
+
+
+def test_parse_batch_json_maps_every_trunk_with_explicit_condominium():
+    # Arrange
+    from src.services.trunk_import import parse_trunk_json_batch
+
+    # Act
+    rows = parse_trunk_json_batch(_batch_trunk_json(), condominium_names=CONDOMINIUM_NAMES)
+
+    # Assert
+    assert [row.auth_username for row in rows] == ["1020", "1780"]
+    assert [row.condominium_name for row in rows] == ["Parque Portugal", "Camboriu"]
+    assert all(row.sip_profile == "internal-7060" for row in rows)
+    assert all(row.prefix is None for row in rows)
+    assert all("fixture-secret" not in repr(row) for row in rows)
+
+
+def test_parse_batch_json_never_derives_condominium_or_prefix_from_description():
+    # Arrange
+    from src.services.trunk_import import parse_trunk_json_batch
+
+    entries = [_batch_trunk_entry(numero="1780", descricao="1780 - Nome Errado No Arquivo")]
+
+    # Act
+    rows = parse_trunk_json_batch(
+        _batch_trunk_json(entries), condominium_names={"1780": "Camboriu"}
+    )
+
+    # Assert
+    assert rows[0].condominium_name == "Camboriu"
+    assert rows[0].prefix is None
+
+
+def test_parse_batch_json_rejects_trunk_without_explicit_condominium():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    # Act
+    with pytest.raises(CSVSchemaError) as error:
+        parse_trunk_json_batch(_batch_trunk_json(), condominium_names={"1020": "Parque Portugal"})
+
+    # Assert
+    assert str(error.value) == "trunk_json_condominium_missing"
+
+
+def test_parse_batch_json_rejects_whole_batch_when_one_item_is_invalid():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    entries = [
+        _batch_trunk_entry(),
+        _batch_trunk_entry(numero="1780", descricao="1780 - Camboriu", porta=5060),
+    ]
+
+    # Act
+    with pytest.raises(CSVSchemaError) as error:
+        parse_trunk_json_batch(_batch_trunk_json(entries), condominium_names=CONDOMINIUM_NAMES)
+
+    # Assert
+    assert str(error.value) == "trunk_json_sip_configuration_invalid"
+
+
+def test_parse_batch_json_rejects_secret_mismatch_without_leaking_values():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    local = "local-canary-secret"
+    remote = "remote-canary-secret"
+    entries = [_batch_trunk_entry(local_secret=local, remote_secret=remote)]
+
+    # Act
+    with pytest.raises(CSVSchemaError) as error:
+        parse_trunk_json_batch(_batch_trunk_json(entries), condominium_names=CONDOMINIUM_NAMES)
+
+    # Assert
+    assert str(error.value) == "trunk_json_credentials_mismatch"
+    assert local not in str(error.value)
+    assert remote not in str(error.value)
+
+
+def test_parse_batch_json_rejects_username_mismatch_between_outgoing_and_remote():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    entries = [_batch_trunk_entry(remote_username="9999")]
+
+    # Act
+    with pytest.raises(CSVSchemaError) as error:
+        parse_trunk_json_batch(_batch_trunk_json(entries), condominium_names=CONDOMINIUM_NAMES)
+
+    # Assert
+    assert str(error.value) == "trunk_json_username_mismatch"
+
+
+def test_parse_batch_json_rejects_document_without_ramais_list():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    # Act
+    with pytest.raises(CSVSchemaError) as error:
+        parse_trunk_json_batch(json.dumps({"ramais": {}}).encode(), condominium_names={})
+
+    # Assert
+    assert str(error.value) == "trunk_json_schema_invalid"
+
+
+def test_parse_batch_json_enforces_item_limit():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    entries = [_batch_trunk_entry(numero=str(1000 + index)) for index in range(4)]
+    names = {str(1000 + index): "Condominio" for index in range(4)}
+
+    # Act
+    with pytest.raises(CSVSchemaError) as error:
+        parse_trunk_json_batch(_batch_trunk_json(entries), condominium_names=names, max_items=3)
+
+    # Assert
+    assert str(error.value) == "trunk_json_too_many_items"
+
+
+@pytest.mark.asyncio
+async def test_import_batch_json_dry_run_never_persists_or_encrypts():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import import_trunk_json_batch
+
+    service = AsyncMock()
+
+    # Act
+    result = await import_trunk_json_batch(
+        _batch_trunk_json(),
+        "tenant-a",
+        "pbx-1",
+        condominium_names=CONDOMINIUM_NAMES,
+        condominium_ids={"Parque Portugal": "condo-1", "Camboriu": "condo-2"},
+        dry_run=True,
+        trunk_service=service,
+    )
+
+    # Assert
+    assert result.dry_run is True
+    assert result.rows == 2
+    service.upsert_imported.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_import_batch_json_persists_each_trunk_under_its_condominium():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import import_trunk_json_batch
+
+    service = AsyncMock()
+    service.upsert_imported.return_value = "created"
+
+    # Act
+    result = await import_trunk_json_batch(
+        _batch_trunk_json(),
+        "tenant-a",
+        "pbx-1",
+        condominium_names=CONDOMINIUM_NAMES,
+        condominium_ids={"Parque Portugal": "condo-1", "Camboriu": "condo-2"},
+        dry_run=False,
+        trunk_service=service,
+    )
+
+    # Assert
+    assert result.created == 2
+    persisted = [call.kwargs["row"] for call in service.upsert_imported.await_args_list]
+    assert [row.condominium_id for row in persisted] == ["condo-1", "condo-2"]

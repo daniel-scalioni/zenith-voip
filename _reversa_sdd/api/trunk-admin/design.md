@@ -43,11 +43,13 @@ Prefixo `/api/v1/admin`, Bearer JWT e papel obrigatório `tenant_admin`.
 - Erro estrutural aborta tudo; erros de linha são reportados sem linha bruta ou senha.
 - Default `enabled=false`.
 
-## Configuração individual VitalPBX
+## Configuração VitalPBX exportada
 
-- Quando não houver exportação em lote, o adaptador privado segue `interfaces/trunk-json.md`.
-- Condomínio é informado explicitamente; descrição, login e número discado não são inferidos como prefixo.
+- O adaptador privado segue `interfaces/trunk-json.md` e aceita duas formas do mesmo veículo: documento de tronco único (`configuracoes_gerais` + `general_configurations`) e lote (`ramais[]`, credenciais em `configuracoes.autenticacao_e_rede`).
+- Ambas as formas são **veículo transitório** de transferência GPhone → Zenith, não contrato permanente do projeto. Depois da importação a fonte de verdade é o banco; o arquivo é descartado.
+- Condomínio é informado explicitamente por identidade SIP; descrição, login e número discado não são inferidos como condomínio nem como prefixo.
 - PJSIP/7060 mapeia para `internal-7060`; identidades e segredos locais/remotos divergentes falham fechado.
+- No lote a falha é tudo-ou-nada: qualquer item inválido rejeita a importação inteira, sem persistir nenhum item.
 - Dry-run não cifra nem persiste; primeiro cadastro real sempre usa `enabled=false`.
 
 ## Respostas

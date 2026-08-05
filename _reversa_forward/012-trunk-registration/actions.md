@@ -8,7 +8,7 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Total de ações | 55 |
+| Total de ações | 56 |
 | Paralelizáveis (`[//]`) | 22 |
 | Maior cadeia de dependência | 15 |
 
@@ -63,6 +63,7 @@
 | [//] T033 | Implementar settings validados de chaves Fernet, Basic interno, URL e timeout XML Curl | T006, T009, T014 | [//] | `src/config.py` | 🟢 | [X] |
 | T052 | Implementar renderer atômico do `xml_curl.conf.xml` real a partir do `.env`, com arquivo `.example`, modo 0600 e regra gitignore | T018, T021, T033 | - | `scripts/render_freeswitch_secrets.py` | 🟢 | [X] |
 | T034 | Registrar routers e dependências no app sem iniciar listeners duplicados | T027, T028, T031, T033 | - | `src/main.py` | 🟢 | [X] |
+| T056 | Aceitar o veículo de exportação em lote (`ramais[]`) com condomínio explícito por identidade e falha tudo-ou-nada, sem inferir condomínio ou prefixo da descrição | T026, T043 | - | `src/services/trunk_import.py` | 🟢 | [X] |
 
 ## Fase 4, Integração
 
@@ -105,3 +106,4 @@
 | Data | Alteração | Autor |
 |------|-----------|-------|
 | 2026-08-01 | Versão inicial gerada por `/reversa-to-do` | reversa |
+| 2026-08-05 | T056: emenda do adaptador de importação para o veículo em lote `ramais[]`, aprovada por MASTER durante `/reversa-coding` | reversa |

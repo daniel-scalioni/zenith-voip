@@ -192,7 +192,7 @@ Este é o bloco canônico de gates do projeto — não duplique estes comandos e
 
 ```
 pytest -v tests src                           → suíte principal (ambos os caminhos, sempre)
-pytest -v tests src --cov --cov-fail-under=80 → cobertura mínima de 80% (nova feature)
+pytest -v tests src --cov=src --cov-fail-under=80  → cobertura mínima de 80% (nova feature)
 alembic upgrade head                          → migrations aplicam sem erro antes de qualquer deploy
 ```
 

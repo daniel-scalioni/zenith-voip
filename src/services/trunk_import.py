@@ -114,7 +114,16 @@ def parse_trunk_json(
     if not isinstance(general, dict) or not isinstance(connection, dict):
         raise CSVSchemaError("trunk_json_schema_invalid")
 
-    technology = str(general.get("tecnologia") or "").strip().lower()
+    return _normalize_trunk_entry(
+        technology=general.get("tecnologia"),
+        connection=connection,
+        condominium_name=condominium_name,
+        line=1,
+    )
+
+
+def _normalize_trunk_entry(*, technology, connection, condominium_name: str, line: int) -> TrunkCSVRow:
+    technology = str(technology or "").strip().lower()
     try:
         port = int(connection.get("porta"))
     except (TypeError, ValueError) as error:
@@ -137,13 +146,62 @@ def parse_trunk_json(
         raise CSVSchemaError("trunk_json_credentials_mismatch")
 
     return TrunkCSVRow(
-        line=1,
+        line=line,
         prefix=None,
         condominium_name=condominium_name.strip(),
         auth_username=remote_username,
         password=remote_secret,
         sip_profile="internal-7060",
     )
+
+
+def parse_trunk_json_batch(
+    content: bytes,
+    *,
+    condominium_names: dict,
+    max_items: int = 500,
+    max_bytes: int = 1024 * 1024,
+) -> list[TrunkCSVRow]:
+    """Lê o veículo de exportação em lote (`ramais[]`) exigindo condomínio explícito por identidade."""
+    if not isinstance(content, bytes) or len(content) > max_bytes:
+        raise CSVSchemaError("trunk_json_too_large")
+    try:
+        document = json.loads(content.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise CSVSchemaError("trunk_json_invalid") from error
+    if not isinstance(document, dict):
+        raise CSVSchemaError("trunk_json_schema_invalid")
+
+    entries = document.get("ramais")
+    if not isinstance(entries, list) or not entries:
+        raise CSVSchemaError("trunk_json_schema_invalid")
+    if len(entries) > max_items:
+        raise CSVSchemaError("trunk_json_too_many_items")
+
+    rows = []
+    for line, entry in enumerate(entries, start=1):
+        if not isinstance(entry, dict):
+            raise CSVSchemaError("trunk_json_schema_invalid")
+        settings = entry.get("configuracoes")
+        connection = settings.get("autenticacao_e_rede") if isinstance(settings, dict) else None
+        if not isinstance(connection, dict):
+            raise CSVSchemaError("trunk_json_schema_invalid")
+
+        # A descrição do arquivo nunca vira condomínio: o mapa explícito é a única fonte.
+        number = str(entry.get("numero") or "").strip()
+        condominium_name = str(condominium_names.get(number) or "").strip() if number else ""
+        if not condominium_name:
+            raise CSVSchemaError("trunk_json_condominium_missing")
+
+        rows.append(
+            _normalize_trunk_entry(
+                technology=entry.get("tecnologia"),
+                connection=connection,
+                condominium_name=condominium_name,
+                line=line,
+            )
+        )
+    return rows
 
 
 async def import_trunk_json(
@@ -173,4 +231,41 @@ async def import_trunk_json(
         result.updated = 1
     else:
         result.unchanged = 1
+    return result
+
+
+async def import_trunk_json_batch(
+    content,
+    tenant_id,
+    pbx_id,
+    *,
+    condominium_names: dict,
+    condominium_ids: dict,
+    dry_run: bool,
+    trunk_service,
+    max_items: int = 500,
+) -> TrunkImportResult:
+    rows = parse_trunk_json_batch(
+        content, condominium_names=condominium_names, max_items=max_items
+    )
+    result = TrunkImportResult(dry_run=dry_run, rows=len(rows))
+    if dry_run:
+        return result
+
+    # Falha fechada antes de cifrar qualquer credencial do lote.
+    if any(not condominium_ids.get(row.condominium_name) for row in rows):
+        raise CSVSchemaError("trunk_json_condominium_missing")
+
+    for row in rows:
+        outcome = await trunk_service.upsert_imported(
+            tenant_id=tenant_id,
+            pbx_id=pbx_id,
+            row=replace(row, condominium_id=condominium_ids[row.condominium_name]),
+        )
+        if outcome == "created":
+            result.created += 1
+        elif outcome == "updated":
+            result.updated += 1
+        else:
+            result.unchanged += 1
     return result

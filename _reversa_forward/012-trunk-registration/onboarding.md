@@ -107,9 +107,10 @@ O cliente sanitizado foi desenvolvido em TDD; após o primeiro parecer independe
 ## 9. Quality gates
 
 ```text
-pytest tests/ -v --cov --cov-fail-under=80
-pytest src/ -v --cov=src --cov-fail-under=80
-alembic upgrade head
+pytest -v tests src --cov=src --cov-fail-under=80
+alembic upgrade head    # duas vezes, a segunda no-op
 ```
+
+Comando único, alinhado ao bloco canônico de `AGENTS.md#🧪 Quality Gates`. Os testes estão em `tests/` e em `src/**/test_*.py`, por isso os dois caminhos vão explícitos: `pytest tests/` sozinho deixa a maior parte da suíte de fora. Não rode `pytest` sem caminho — a coleta da raiz varre também `_reversa_forward/**/spike/`, que abre conexão SIP real contra `10.10.10.11:7060`, e spike de feature não é gate. `sidecar/` tem suíte própria (`cd sidecar && pytest -v`), fora deste gate.
 
 Além dos comandos acima, obter veredito independente sobre casos de borda, viés dos testes, segredo e isolamento de tenant antes do aceite.
