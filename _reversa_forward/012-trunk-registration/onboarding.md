@@ -96,6 +96,46 @@ A indisponibilidade do SSH foi contornada pela conectividade SIP direta já auto
 
 O cliente sanitizado foi desenvolvido em TDD; após o primeiro parecer independente, passou a cobrir `qop=auth`, challenge sem qop e rejeição explícita de `auth-int` quando não há `auth`. A execução real repetida após a correção permaneceu `200/200`. O parecer final independente liberou T055 com melhorias de teste conhecidas para T048.
 
+### Estado parcial T044 em 2026-08-05 — ambiente operacional preparado e cadeia provada
+
+Checkpoint humano concedido por MASTER: janela de manutenção no FreeSWITCH operacional autorizada, uso do PostgreSQL operacional autorizado, ATA piloto trocado de 1020 para **1780 (Camboriu, 192.168.181.51)** porque o 1020 não tem rota de retorno.
+
+Retrato do ambiente antes da mudança: zero registros ativos nos profiles 5060, 7060 e 5062; `auth-calls=false` em todos; `mod_xml_curl` presente na imagem mas não carregado. Nenhuma população real dependia do binding.
+
+Correção relevante de diagnóstico: o banco que a API usa **não** é o `zenith-postgres`, e sim o `zenith-postgres-candidate`, que detém o alias de rede `postgres` em `zenith-voip_ai-hub-net`. O `zenith-postgres` está fora de qualquer rede. Os arquivos de compose ainda declaram o primeiro, divergência registrada em `regression-watch.md`.
+
+Sequência executada:
+
+1. Deploy da branch `feature/012-trunk-registration` no servidor (estava em `main`, sem a feature). Os 11 arquivos que apareciam como modificados eram byte a byte idênticos a `main` — ponteiro do git parado, não drift; backup preservado mesmo assim.
+2. `.env` do servidor recebeu `TRUNK_CREDENTIAL_KEYS`, `FREESWITCH_DIRECTORY_BASIC_*`, `FREESWITCH_DIRECTORY_URL`, timeout e `LEGACY_DIRECTORY_PATH`, gerados no próprio host, com o arquivo em modo 0600. Nenhum valor trafegou pela sessão de trabalho.
+3. Alembic: `stamp 001_public_baseline` e `upgrade head`, aplicando `002_ata_trunks`; segunda execução no-op; schemas `tenant_*` inalterados.
+4. Containers da API e workers recriados com `--no-deps`, preservando a amarração de rede do banco.
+5. Importação dos dois troncos pelo veículo em lote, com o JSON entrando por stdin: o arquivo com credenciais nunca tocou o disco do servidor. Dry-run com 2 linhas válidas e zero escrita; `--apply` criou 2 troncos com `enabled=false` e credencial cifrada (token de 120 bytes; busca por senha em claro na coluna retorna zero).
+6. Tronco 1780 habilitado pelo serviço; 1020 permanece desabilitado.
+7. `xml_curl.conf.xml` real renderizado a partir do `.env`, modo 0600, gitignorado, ausente do diff; `mod_xml_curl` carregado (`module_exists=true`), `reloadxml` e restart apenas do profile `internal-7060`.
+
+Provas obtidas sem envolver o ATA:
+
+| Verificação | Resultado |
+|---|---|
+| Callback com Basic inválido e sem credencial | 401 nos dois casos |
+| Lookup do 1780 em `internal-7060` | 200, `user id="1780"`, senha decifrada correta, `Cache-Control: no-store` |
+| Variáveis de contexto no XML | `zenith_tenant_id`, `zenith_pbx_id`, `zenith_condominium_id`, `zenith_trunk_id` |
+| Mesmo usuário no profile `internal` (5060) | não resolve — isolamento por profile |
+| Tronco 1020 desabilitado | não resolve |
+| Usuário legado do `extensions.xml` | resolve normalmente |
+| Usuário inexistente | `not found`, falha fechada |
+| REGISTER real com senha incorreta | **403** |
+| REGISTER real com senha correta | **200** |
+| REGISTER com `Expires: 0` | **200** |
+| Estado persistido | `registration_status` percorreu registered → unregistered, com ambos os timestamps |
+| Eventos Sofia | dois `CUSTOM` consumidos pelo ESL da instância 1 |
+| Canário de senha em logs de API e FreeSWITCH | zero ocorrências |
+
+Identidade exposta apenas por SHA-256 (`d8d0dedb4bda4204d0b5e1de5a990a00757aa2d80a64bd97699cad3b3d6fbf5f`).
+
+Pendente para fechar T044: registro a partir do ATA físico 192.168.181.51, expiração por TTL sem desregistro explícito, reconciliação após reinício do FreeSWITCH e ensaio do rollback.
+
 ## 8. Rollback
 
 1. Desabilitar o binding XML Curl nos profiles afetados.
