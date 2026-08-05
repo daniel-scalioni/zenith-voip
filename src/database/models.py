@@ -1,4 +1,7 @@
-from sqlalchemy import Column, String, DateTime, Float, JSON, ForeignKey, Text, Enum as SAEnum, Integer, Boolean
+from sqlalchemy import (
+    Boolean, CheckConstraint, Column, DateTime, Enum as SAEnum, Float,
+    ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -34,6 +37,8 @@ class Tenant(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     pbxs = relationship("PBX", back_populates="tenant", cascade="all, delete-orphan")
+    condominiums = relationship("Condominium", back_populates="tenant", cascade="all, delete-orphan")
+    ata_trunks = relationship("ATATrunk", back_populates="tenant", cascade="all, delete-orphan")
 
 
 class PBX(Base):
@@ -49,6 +54,84 @@ class PBX(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     tenant = relationship("Tenant", back_populates="pbxs")
+    condominiums = relationship("Condominium", back_populates="pbx", cascade="all, delete-orphan")
+    ata_trunks = relationship("ATATrunk", back_populates="pbx", cascade="all, delete-orphan")
+
+
+class Condominium(Base):
+    __tablename__ = "condominiums"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "pbx_id", "name", name="uq_condominiums_tenant_pbx_name"),
+        Index(
+            "uq_condominiums_tenant_pbx_external_id",
+            "tenant_id", "pbx_id", "external_id",
+            unique=True,
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+        {"schema": "public"},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False)
+    pbx_id = Column(UUID(as_uuid=True), ForeignKey("public.pbxs.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(128), nullable=False)
+    external_id = Column(String(128), nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", back_populates="condominiums")
+    pbx = relationship("PBX", back_populates="condominiums")
+    ata_trunks = relationship("ATATrunk", back_populates="condominium", cascade="all, delete-orphan")
+
+
+class ATATrunk(Base):
+    __tablename__ = "ata_trunks"
+    __table_args__ = (
+        Index(
+            "uq_ata_trunks_tenant_prefix",
+            "tenant_id",
+            "prefix",
+            unique=True,
+            postgresql_where=text("prefix IS NOT NULL"),
+        ),
+        UniqueConstraint("sip_profile", "auth_username", name="uq_ata_trunks_profile_username"),
+        CheckConstraint(
+            "prefix IS NULL OR prefix ~ '^[0-9]{1,32}$'",
+            name="ck_ata_trunks_prefix_digits",
+        ),
+        CheckConstraint("sip_profile IN ('internal', 'internal-7060')", name="ck_ata_trunks_sip_profile"),
+        CheckConstraint("transport = 'udp'", name="ck_ata_trunks_transport"),
+        CheckConstraint(
+            "registration_status IN ('unknown', 'registered', 'unregistered')",
+            name="ck_ata_trunks_registration_status",
+        ),
+        {"schema": "public"},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False)
+    pbx_id = Column(UUID(as_uuid=True), ForeignKey("public.pbxs.id", ondelete="CASCADE"), nullable=False)
+    condominium_id = Column(
+        UUID(as_uuid=True), ForeignKey("public.condominiums.id", ondelete="CASCADE"), nullable=False
+    )
+    prefix = Column(String(32), nullable=True)
+    auth_username = Column(String(128), nullable=False)
+    encrypted_password = Column(Text, nullable=False)
+    sip_profile = Column(String(32), nullable=False)
+    transport = Column(String(8), nullable=False, default="udp", server_default="udp")
+    enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    registration_status = Column(String(16), nullable=False, default="unknown", server_default="unknown")
+    last_registered_at = Column(DateTime(timezone=True), nullable=True)
+    last_unregistered_at = Column(DateTime(timezone=True), nullable=True)
+    last_error_code = Column(String(64), nullable=True)
+    last_error_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", back_populates="ata_trunks")
+    pbx = relationship("PBX", back_populates="ata_trunks")
+    condominium = relationship("Condominium", back_populates="ata_trunks")
 
 
 class Call(TenantBase):

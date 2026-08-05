@@ -81,3 +81,4 @@ COPY --from=builder /usr/src/mod_audio_stream/build/mod_audio_stream.so /usr/lib
 # uma promoção de imagem errada, como já aconteceu em produção) só seria
 # percebida em runtime, sem gravação de áudio nenhuma.
 RUN test -s /usr/lib/freeswitch/mod/mod_audio_stream.so
+RUN test -s /usr/lib/freeswitch/mod/mod_xml_curl.so

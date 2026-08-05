@@ -1,22 +1,83 @@
-# Reversa
+# Zenith AI Audio Hub
 
-> Framework de Engenharia Reversa instalado neste projeto.
+> Instruções de projeto para agentes de IA. Este é o arquivo canônico — `CLAUDE.md` é um symlink para ele, portanto qualquer harness que leia um dos dois vê exatamente o mesmo conteúdo. Edite sempre `AGENTS.md`.
 
-## Como usar
+## Regra permanente de execução
 
-Digite `reversa` para ativar o Reversa e iniciar ou retomar a análise do projeto.
+Sempre montar um plano antes de executar ações (mudanças de config, código, infra, comandos remotos via SSH, etc.) e apresentá-lo ao usuário antes de sair executando, mesmo quando o usuário já autorizou execução autônoma da tarefa em si.
 
-## Comportamento ao ativar
+---
 
-Quando o usuário digitar `reversa` sozinho em uma mensagem:
+## 🎯 O que é Zenith?
 
-1. Ative o skill `reversa` disponível em `.agents/skills/reversa/SKILL.md`
-2. Leia o SKILL.md na íntegra e siga exatamente as instruções do Reversa
+**Zenith AI Audio Hub** é um sistema de IA para transcrição e análise de chamadas VoIP em tempo real. Funciona como um **B2BUA (Back-to-Back User Agent)** posicionado entre os interfones/softphones do cliente e o PBX de produção (VitalPBX/GPhone).
 
-## Regra não-negociável
+### Topologia SIP: B2BUA com Registration Forwarding
 
-Nunca apague, modifique ou sobrescreva arquivos pré-existentes do projeto legado.
-O Reversa escreve **apenas** em `.reversa/` e `_reversa_sdd/`.
+```
+Interfone/Softphone (IP local do cliente)
+    │  REGISTER ext=1001 → sip:freeswitch:5060
+    ▼
+FreeSWITCH (10.10.10.11:5060) — profile "internal"
+    │  Aceita REGISTER, re-registra upstream
+    │  REGISTER ext=1001 → sip.maisalerta.tecnorise.com:PORT
+    ▼
+VitalPBX (177.71.153.68 / sip.maisalerta.tecnorise.com)
+    │  Enxerga ramal como registrado (via FreeSWITCH, transparente)
+    ▼
+FreeSWITCH captura áudio (mod_audio_fork) → Zenith API → Transcrição/IA
+```
+
+**Por que B2BUA:** Um proxy SIP simples encaminha SDP sem tocar em mídia — impossível capturar áudio. O B2BUA termina a chamada em cada lado, reconstrói-a, e controla o áudio. O `mod_audio_fork` só funciona quando FreeSWITCH é a ponte de mídia.
+
+### Infraestrutura
+
+| Componente | Localização | Porta | Função |
+|---|---|---|---|
+| **VitalPBX** | Cloud (177.71.153.68) | 7060 (PJSIP), 5060 (SIP) | PBX de produção; fonte de verdade dos ramais |
+| **FreeSWITCH** | Docker (10.10.10.11) | 5060 (internal), 5065 (upstream) | B2BUA; registra cada ramal upstream |
+| **PostgreSQL** | Docker | 5432 | Multi-tenant schema-per-tenant |
+| **Redis** | Docker | 6379 | Fila de eventos, cache, mapeamento IP→ext |
+| **FastAPI** | Docker | 8000 | API REST, ESL client, transcrição |
+| **Deepgram API** | Cloud | HTTPS | STT primário (fallback: Whisper local) |
+| **Ollama** | Docker | 11434 | LLM local (Mistral 7B, dados sensíveis nunca saem) |
+
+### Serviços do Docker Compose
+
+- **app**: FastAPI (Zenith API) + ESL client
+- **freeswitch**: Central telefônica com B2BUA
+- **postgres**: Base de dados multi-tenant
+- **redis**: Fila de eventos
+- **ollama**: LLM local
+- **bunkerweb**: Proxy reverso com sticky session
+
+Containers NO MESMO HOST (10.10.10.11), comunicação via Docker network. A política de nomes e isolamento está em [🐳 Docker & Containers](#-docker--containers-regra-crítica).
+
+### Importação de Ramais: `import_extensions.py`
+
+O script `scripts/import_extensions.py` lê o CSV exportado do VitalPBX (`specs/export_extensions.csv`) e gera:
+- `freeswitch/conf/directory/extensions.xml` — usuários para autenticação local
+- `freeswitch/conf/sip_profiles/upstream/upstream-{ext}.xml` — gateways upstream por ramal
+
+**Dedup:** Se um ramal tem entradas SIP e PJSIP no CSV, PJSIP prevalece (porta 7060). Exemplo: ramal 1001 tem ambas; FreeSwitch usa PJSIP:7060.
+
+**Registro:** Por padrão todos têm `register=false` (seguro para produção). Ativa com `--enable 1001`:
+```bash
+python3 scripts/import_extensions.py specs/export_extensions.csv --enable 1001
+# Depois copiar os arquivos e fazer "sofia profile upstream rescan" no FreeSWITCH
+```
+
+### Credenciais e Segurança
+
+| Item | Local | Nota |
+|---|---|---|
+| SSH server (10.10.10.11) | Usuario `administrator`, chave `~/.ssh/id_ed25519` (senha local/sudo em `.claude/deploy-access.local.md`, gitignored) | Para acessar logs/debug do FreeSWITCH |
+| JWT_SECRET | `config.py` | ALTERAR em produção (atual: "change-me-in-production") |
+| ESL password | `config.py` | Default FreeSWITCH ("ClueCon") — registrado em ADR-005 como to-do |
+| Senhas SIP | CSV + senhas salvas em banco (cifradas) | NUNCA commitar `upstream-*.xml` ou `extensions.xml` |
+| S3 credentials | `.env` (gitignored) | Via variáveis de ambiente, nunca em commits |
+
+---
 
 ## 🏛️ Padrões do Projeto
 
@@ -78,52 +139,7 @@ spec:
 ---
 ```
 3. **Alterar spec antes do código** — violação alterar código sem a spec correspondente refletir a mudança primeiro.
-4. **Ciclo de evolução**: usar `/reversa-forward` (requirements → clarify → plan → to-do → audit/quality → coding) para qualquer feature ou ajuste novo — mantém versionamento e evita estourar o contexto do modelo. A etapa de código usa o passo nativo `/reversa-coding` do próprio `/reversa-forward`. `/reversa-migrate` é um pipeline diferente (Time de Migração: paradigm-advisor → curator → strategist → designer → inspector), reservado para mudança de paradigma de um sistema legado — não usar para evolução incremental deste projeto.
-
-### 🧪 Quality Gates (bloqueantes)
-```
-pytest tests/ -v                              → suite de testes (pytest + pytest-asyncio, ver tests/)
-alembic upgrade head                          → migrations aplicam sem erro antes de qualquer deploy
-```
-Não há hoje linter/formatter/type-checker fixado no projeto (`requirements.txt` não pina `ruff`/`black`/`mypy`). Se for adotado um desses, registrar a decisão em ADR (`_reversa_sdd/adrs/`) antes de torná-lo bloqueante aqui.
-
-### 🚫 Anti-Padrões
-SQL solto fora de `services/`/`Repository` · `print()` em vez de logging estruturado · `import *` · herança > 2 níveis → preferir composição · God Class · variável de canal FreeSWITCH lida sem checar se foi de fato definida (ver histórico de `pbx_host`/`tenant_id` nunca populados) · segredos hardcoded ou colados em specs/commits (usar arquivo gitignored + `.example`, padrão `freeswitch/signalwire_token.txt`) · `except Exception` genérico sem log do erro original
-
-### 🧠 Legibilidade
-Nomes que revelam intenção · máximo 2 níveis de indentação · métodos pequenos e de responsabilidade única · comentários só para o "porquê" (decisão não-óbvia), nunca para o "o quê"
-
-### 🐳 Política de Containers e Isolamento de Projetos
-
-**REGRA CRÍTICA:** Todo container deve ter o prefixo `zenith-`.
-
-**Prefixo definido para ESTE projeto:** `zenith-`
-
-#### Obrigações
-- **Prefixo obrigatório:** `zenith-*` para containers, volumes e redes deste projeto
-- **Isolamento:** Nunca reutilizar ou tocar em containers de outro projeto, mesmo que disponíveis
-- **Confirmação:** Se um container necessário já existe em outro projeto, sempre solicitar confirmação ao usuário antes de reutilizar ou criar um novo
-- **Documentação:** Containers, redes e volumes devem estar claramente marcados com prefixo no `docker-compose.yml`
-
-#### Regras não-negociáveis
-1. **Containers são exclusivos do projeto** — nunca reutilize containers, volumes ou serviços de outros projetos (Redis, PostgreSQL, etc.), a menos que o usuário diga explicitamente para reutilizar
-2. **Nunca toque em recursos fora do prefixo `zenith-`** — proibido parar, remover, reiniciar ou modificar containers de terceiros, mesmo para resolver conflito de porta. Servidores de deploy são compartilhados com outros stacks
-3. **Comandos em massa são proibidos** — nunca use `docker rm -f`, `docker stop`, `docker prune` ou loops sobre TODOS os containers. Sempre filtre pelo prefixo: `docker ps --filter "name=zenith-"`
-4. **Conflito de porta:** se uma porta estiver ocupada por container de terceiro, **mude a porta do NOSSO serviço** no docker-compose.yml — nunca derrube o container alheio
-
-#### Exemplo
-```yaml
-services:
-  zenith-postgres:
-    image: postgres:16-alpine
-    container_name: zenith-postgres
-    volumes:
-      - zenith_postgres_data:/var/lib/postgresql/data
-
-volumes:
-  zenith_postgres_data:
-    driver: local
-```
+4. **Ciclo de evolução**: usar `/reversa-forward` (requirements → clarify → plan → to-do → audit/quality → coding → sync) para qualquer feature ou ajuste novo — mantém versionamento e evita estourar o contexto do modelo. A etapa de código usa o passo nativo `/reversa-coding` do próprio `/reversa-forward`; emendas curtas na feature ativa usam `/reversa-add`. `/reversa-migrate` é um pipeline diferente (Time de Migração: paradigm-advisor → curator → strategist → designer → inspector), reservado para mudança de paradigma de um sistema legado — não usar para evolução incremental deste projeto.
 
 ### 🔴 TDD (Test-Driven Development) — obrigatório
 
@@ -139,6 +155,8 @@ volumes:
 - Mocks: use `pytest.MonkeyPatch` ou `unittest.mock` apenas em *ports* (interfaces externas); nunca mocke código de domínio
 - Framework: `pytest` + `pytest-asyncio`
 
+Os testes vivem em **dois lugares**: `tests/` (suíte transversal) e `src/**/test_*.py` (ao lado do código testado, o caso majoritário). Ver [🧪 Quality Gates](#-quality-gates-bloqueantes) para o comando que coleta ambos.
+
 #### Escopo por camada
 | Camada | Tipo de teste | O que mockar |
 |--------|--------------|--------------|
@@ -148,11 +166,8 @@ volumes:
 | `workers/` | Unitário com mocks | Redis, banco, S3 |
 | `ai/`, `extraction/` | Unitário puro | Nada — funções determinísticas |
 
-#### Cobertura mínima (quality gate bloqueante)
-```
-pytest tests/ -v --cov --cov-fail-under=80
-```
-- Toda nova feature: ≥ 80% de linhas cobertas
+#### Cobertura mínima
+- Toda nova feature: ≥ 80% de linhas cobertas (gate bloqueante, ver abaixo)
 - Toda correção de bug: teste de regressão obrigatório, nomeando explicitamente o cenário
 
 #### Veredito de LLM independente (anti-viés) — obrigatório
@@ -171,19 +186,122 @@ O advisor deve verificar:
 
 **Sem o veredito do advisor**, testes escritos pelo mesmo agente que gerou o código são considerados 🟡 (inferidos) nas specs SDD — não 🟢 confirmados.
 
-### 🔍 Descoberta de Caminhos (Path Discovery)
+### 🧪 Quality Gates (bloqueantes)
+
+Este é o bloco canônico de gates do projeto — não duplique estes comandos em outras seções.
+
+```
+pytest -v tests src                           → suíte principal (ambos os caminhos, sempre)
+pytest -v tests src --cov --cov-fail-under=80 → cobertura mínima de 80% (nova feature)
+alembic upgrade head                          → migrations aplicam sem erro antes de qualquer deploy
+```
+
+**Passe sempre `tests src` — nem só `tests/`, nem a raiz nua.** Os testes vivem nos dois lugares e a maioria está em `src/` (~25 arquivos contra ~13 em `tests/`), então `pytest tests/` isolado deixa a maior parte da suíte de fora e dá falsa sensação de verde. Já `pytest` sem caminho nenhum é pior: o `pytest.ini` não define `testpaths`, e a coleta da raiz varre também `_reversa_forward/**/spike/`, onde há teste que abre conexão SIP real contra o host de deploy (`10.10.10.11:7060`) — spikes de feature não são gate.
+
+`sidecar/` é um componente à parte, com `requirements.txt` e Dockerfile próprios; seu `test_watcher.py` importa `watcher` como módulo de topo e só roda de dentro da pasta (`cd sidecar && pytest -v`). Não faz parte do gate principal.
+
+`pytest-cov` não está em `requirements.txt`: vem de `requirements-quality.txt` (`pytest-cov==7.0.0`), que precisa ser instalado antes de usar as flags `--cov`.
+
+Não há hoje linter/formatter/type-checker fixado no projeto (nem `requirements.txt` nem `requirements-quality.txt` pinam `ruff`/`black`/`mypy`). Se for adotado um desses, registrar a decisão em ADR (`_reversa_sdd/adrs/`) antes de torná-lo bloqueante aqui.
+
+### 🚫 Anti-Padrões
+SQL solto fora de `services/`/`Repository` · `print()` em vez de logging estruturado · `import *` · herança > 2 níveis → preferir composição · God Class · variável de canal FreeSWITCH lida sem checar se foi de fato definida (ver histórico de `pbx_host`/`tenant_id` nunca populados) · segredos hardcoded ou colados em specs/commits (usar arquivo gitignored + `.example`, padrão `freeswitch/signalwire_token.txt`) · `except Exception` genérico sem log do erro original
+
+### 🧠 Legibilidade
+Nomes que revelam intenção · máximo 2 níveis de indentação · métodos pequenos e de responsabilidade única · comentários só para o "porquê" (decisão não-óbvia), nunca para o "o quê"
+
+---
+
+## 🐳 Docker & Containers (Regra Crítica)
+
+### Prefixo do projeto
+
+Todo projeto DEVE definir um **prefixo único** para seus recursos Docker (containers, volumes, networks, imagens). O prefixo deve identificar o **projeto**, não a empresa (todos os projetos são da Akom — `akom-` sozinho é genérico demais e não isola nada).
+
+**Prefixo definido para ESTE projeto:**
+
+| Recurso | Prefixo | Exemplo |
+|---|---|---|
+| Containers | `zenith-` | `zenith-api-1`, `zenith-arq-uploader`, `zenith-postgres` |
+| Volumes / Networks (compose) | `zenith_` | `zenith_recordings_tmpfs`, `zenith_ollama_data` |
+| Imagens locais | `zenith-` | `zenith-voip-freeswitch:latest` |
+
+Qualquer ajuste, criação ou remoção de recurso Docker deste projeto usa **sempre** este prefixo. Se um novo projeto for iniciado, a primeira tarefa de infra é definir o prefixo dele nesta mesma seção do `AGENTS.md` correspondente.
+
+### Obrigações
+
+- **Prefixo obrigatório:** conforme a tabela acima, para containers, volumes, networks e imagens deste projeto
+- **Isolamento:** nunca reutilizar ou tocar em containers de outro projeto, mesmo que disponíveis
+- **Confirmação:** se um container necessário já existe em outro projeto, sempre solicitar confirmação ao usuário antes de reutilizar ou criar um novo
+- **Documentação:** containers, redes e volumes devem estar claramente marcados com prefixo no `docker-compose.yml`
+
+### Regras não-negociáveis
+
+1. **Containers são exclusivos do projeto** — nunca reutilize containers, volumes ou serviços de outros projetos (Redis, PostgreSQL, etc.), a menos que o usuário diga explicitamente para reutilizar
+2. **Nunca toque em recursos fora do prefixo do projeto** — proibido parar, remover, reiniciar ou modificar containers de terceiros, mesmo para resolver conflito de porta. Servidores de deploy são compartilhados com outros stacks (ex.: 10.10.10.11 roda `zenith-*`, `sre_*`, `hermes*`, `freeswitch`, `portainer`)
+3. **Comandos em massa são proibidos** — nunca use `docker rm -f`, `docker stop`, `docker prune` ou loops sobre TODOS os containers. Sempre filtre pelo prefixo: `docker ps --filter "name=zenith-"`
+4. **Conflito de porta:** se uma porta estiver ocupada por container de terceiro, **mude a porta do NOSSO serviço** no docker-compose.yml — nunca derrube o container alheio
+
+### Exemplo
+
+```yaml
+services:
+  zenith-postgres:
+    image: postgres:16-alpine
+    container_name: zenith-postgres
+    volumes:
+      - zenith_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  zenith_postgres_data:
+    driver: local
+```
+
+---
+
+## 🔍 Descoberta de Caminhos (Path Discovery)
 
 Caminhos NÃO são fixados nas instruções. O projeto já possui um mecanismo de descoberta implementado em `.reversa/context/`:
 - `surface.json` — varredura superficial: linguagens, frameworks, entry points, arquivos de configuração, módulos, integrações
 - `modules.json` — análise detalhada por módulo: propósito, arquivos principais, funções, entidades, regras de negócio, dependências
 
-#### Como consultar
+### Como consultar
+
 Sempre consulte `.reversa/context/surface.json` antes de assumir caminhos no projeto:
 - `config_files` → lista de arquivos de configuração do projeto
 - `docker` → arquivos compose e Dockerfile
 - `modules` → camadas/layers encontradas
 - `entry_points` → pontos de entrada da aplicação
 
-O diretório de specs SDD é `_reversa_sdd/` (configurado em `.reversa/config.toml` `[output] folder = "specs"`).
+O diretório de specs SDD é `_reversa_sdd/`, definido em `.reversa/config.toml` na chave `[output] folder`.
 
 Reexecute a descoberta se o projeto mudar estruturalmente (novas pastas, frameworks, etc.).
+
+---
+
+## 🧭 Reversa
+
+> Framework de Engenharia Reversa instalado neste projeto.
+
+### Como usar
+
+Use o fluxo adequado no chat:
+
+- `/reversa` — descobrir e documentar um sistema existente
+- `/reversa-new` — criar PRD e specs para um projeto novo
+- `/reversa-forward` — implementar ou evoluir código a partir das specs
+- `/reversa-migrate` — planejar a migração de um sistema legado
+- `/reversa-docs` — gerar o mini-site visual da documentação
+- `/reversa-agents-help` — consultar o catálogo completo de agentes
+
+### Comportamento ao ativar
+
+Quando o usuário digitar `/reversa` ou a palavra `reversa` sozinha em uma mensagem:
+
+1. Ative o skill `reversa` disponível em `.agents/skills/reversa/SKILL.md` — este é o caminho canônico; as entradas em `.claude/skills/` são symlinks para `.agents/skills/`
+2. Leia o SKILL.md na íntegra e siga exatamente as instruções do Reversa
+
+### Regra não-negociável
+
+Nunca apague, modifique ou sobrescreva arquivos pré-existentes do projeto legado.
+O Reversa escreve **apenas** em `.reversa/`, `_reversa_sdd/`, `_reversa_forward/` e `_reversa_docs/`.

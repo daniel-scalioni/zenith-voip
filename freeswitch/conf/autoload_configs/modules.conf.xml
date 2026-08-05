@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration name="modules.conf" description="Modules">
   <modules>
+    <!-- O XML Curl deve carregar no estágio normal, antes do Sofia. O arquivo
+         pre_load_modules.conf.xml causa segfault no FreeSWITCH 1.10.12 desta imagem. -->
+    <load module="mod_xml_curl"/>
     <load module="mod_sofia"/>
     <!-- mod_audio_fork substituído por mod_audio_stream (feature
          007-audio-stream-migration): repositório de origem do mod_audio_fork

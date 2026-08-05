@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     FREESWITCH_ESL_HOST: str = "172.21.0.1"
     FREESWITCH_ESL_PORT: int = 8021
     FREESWITCH_ESL_PASSWORD: str = "ClueCon"
+    TRUNK_CREDENTIAL_KEYS: str = ""
+    FREESWITCH_DIRECTORY_BASIC_USERNAME: str = ""
+    FREESWITCH_DIRECTORY_BASIC_PASSWORD: str = ""
+    FREESWITCH_DIRECTORY_URL: str = "http://127.0.0.1:8001/internal/freeswitch/directory"
+    FREESWITCH_DIRECTORY_TIMEOUT_SECONDS: float = Field(default=2.0, gt=0, le=10)
+    LEGACY_DIRECTORY_PATH: str = "/run/zenith-directory/extensions.xml"
 
     AUDIO_STREAM_CALLBACK_HOST: str = "127.0.0.1:8001"
 

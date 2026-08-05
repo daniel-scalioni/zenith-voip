@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- O arquivo real é gerado por scripts/render_freeswitch_secrets.py e tem modo 0600. -->
+<configuration name="xml_curl.conf" description="Exemplo sem credenciais">
+  <bindings>
+    <binding name="zenith-directory">
+      <param name="gateway-url" value="http://127.0.0.1:8001/internal/freeswitch/directory" bindings="directory"/>
+      <param name="method" value="POST"/>
+      <param name="timeout" value="2"/>
+    </binding>
+  </bindings>
+</configuration>

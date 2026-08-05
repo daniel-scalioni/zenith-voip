@@ -7,6 +7,7 @@ REGRAS DE PREENCHIMENTO:
 - Marcador de paralelismo é [//] no início da linha de ID. Tarefas [//] não compartilham arquivo alvo.
 - Coluna "Dependências" lista IDs separados por vírgula. Ações sem dependência usam "-".
 - Status inicial é [ ]. /reversa-coding muda para [X] ao concluir.
+- /reversa-add acrescenta uma seção "## Emendas" ao final, com o mesmo formato de tabela, IDs E001, E002, ... e status já [X].
 - Toda ação precisa ser ATÔMICA: cabe num turno do agente, sem precisar de feedback humano no meio.
 -->
 

@@ -20,7 +20,9 @@
       <param name="rtp-ip" value="$${local_ip}"/>
       <param name="sip-ip" value="$${local_ip}"/>
 
-      <param name="auth-calls" value="false"/>
+      <param name="auth-calls" value="true"/>
+      <param name="accept-blind-reg" value="false"/>
+      <param name="accept-blind-auth" value="false"/>
       <!-- Softphones migrados da VitalPBX (ex: 3CX) usam o PBXAddr também como domínio do REGISTER,
            que nunca bate com $${domain} (zenith.local). Força a resolução do domínio real.
            Compartilha essa lógica com internal-7060.xml e internal-5062.xml
