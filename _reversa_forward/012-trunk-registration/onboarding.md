@@ -102,7 +102,7 @@ Checkpoint humano concedido por MASTER: janela de manutenção no FreeSWITCH ope
 
 Retrato do ambiente antes da mudança: zero registros ativos nos profiles 5060, 7060 e 5062; `auth-calls=false` em todos; `mod_xml_curl` presente na imagem mas não carregado. Nenhuma população real dependia do binding.
 
-Correção relevante de diagnóstico: o banco que a API usa **não** é o `zenith-postgres`, e sim o `zenith-postgres-candidate`, que detém o alias de rede `postgres` em `zenith-voip_ai-hub-net`. O `zenith-postgres` está fora de qualquer rede. Os arquivos de compose ainda declaram o primeiro, divergência registrada em `regression-watch.md`.
+Correção relevante de diagnóstico: o banco que a API usa **não** é o `zenith-postgres`, e sim o `zenith-postgres-candidate`, que detém o alias de rede `postgres` em `zenith-voip_ai-hub-net`. O `zenith-postgres` está fora de qualquer rede. Os arquivos de compose ainda declaram o primeiro; a divergência virou o watch item W002.
 
 Sequência executada:
 
@@ -113,6 +113,8 @@ Sequência executada:
 5. Importação dos dois troncos pelo veículo em lote, com o JSON entrando por stdin: o arquivo com credenciais nunca tocou o disco do servidor. Dry-run com 2 linhas válidas e zero escrita; `--apply` criou 2 troncos com `enabled=false` e credencial cifrada (token de 120 bytes; busca por senha em claro na coluna retorna zero).
 6. Tronco 1780 habilitado pelo serviço; 1020 permanece desabilitado.
 7. `xml_curl.conf.xml` real renderizado a partir do `.env`, modo 0600, gitignorado, ausente do diff; `mod_xml_curl` carregado (`module_exists=true`), `reloadxml` e restart apenas do profile `internal-7060`.
+
+**O binding não é escopado por profile.** Ele é declarado como `bindings="directory"`, ou seja, por **seção**: uma vez ativo, o backend Zenith responde lookups de diretório para `internal` (5060) e `internal-5062` também, não só para o 7060. O que foi escopado ao 7060 foi apenas o `sofia profile … restart` que aplicou `auth-calls=true`. Hoje o que protege o 5062 é o próprio `auth-calls=false`, não o alcance do binding. Verificado após a ativação: um usuário legado do `extensions.xml` registrou no profile `internal` (5060) com **200/200**, confirmando que o `LegacyDirectoryProvider` atende a população existente pelo binding global.
 
 Provas obtidas sem envolver o ATA:
 
@@ -138,8 +140,8 @@ Pendente para fechar T044: registro a partir do ATA físico 192.168.181.51, expi
 
 ## 8. Rollback
 
-1. Desabilitar o binding XML Curl nos profiles afetados.
-2. Restaurar os arquivos de profile anteriores e executar `reloadxml`/restart apenas do profile autorizado.
+1. Desabilitar o binding XML Curl: `fs_cli -x "unload mod_xml_curl"` e remover/renomear `freeswitch/conf/autoload_configs/xml_curl.conf.xml`. Como o binding é por seção, isso devolve o diretório estático a **todos** os profiles de uma vez.
+2. Restaurar os arquivos de profile: os do disco já são os da feature (`auth-calls=true`), então "restaurar" significa `git checkout main -- freeswitch/conf/sip_profiles/`, seguido de `fs_cli -x "reloadxml"` e restart apenas do profile autorizado.
 3. Confirmar que chamadas existentes não foram derrubadas e que 5062/upstream permanecem intactos.
 4. Manter as tabelas aditivas; não executar downgrade no banco operacional.
 5. Registrar evidências sanitizadas em `progress.jsonl` e `regression-watch.md`.

@@ -8,6 +8,8 @@
 | ID | Origem (arquivo, seção) | Regra esperada após mudança | Tipo de verificação | Sinal de violação |
 |----|-------------------------|-----------------------------|--------------------|-------------------|
 | W001 | `_reversa_sdd/domain.md#SIP e Telefonia`, R54 | FreeSWITCH só fica healthy quando `mod_audio_stream` e `mod_xml_curl` estão carregados. | redação | Healthcheck aceita container sem um dos dois módulos. |
+| W002 | `docker-compose.infra.yml`, serviço `postgres` | O banco que a API usa é quem detém o alias de rede `postgres` em `zenith-voip_ai-hub-net`. Hoje é o `zenith-postgres-candidate`; o compose ainda declara `zenith-postgres`, que está fora de qualquer rede. | presença | Um `docker compose up` sem `--no-deps` reconecta o `zenith-postgres`, a API passa a apontar para um banco sem `condominiums`/`ata_trunks` e o registro de troncos falha fechado sem erro aparente. |
+| W003 | `freeswitch/conf/sip_profiles/internal.xml` | O profile `internal` (5060) tem `auth-calls=true` **em disco** mas ainda não aplicado em memória; o container tem `restart: unless-stopped`. | presença | Qualquer restart do container ou do host aplica autenticação no 5060 sem gate deliberado. A população legada continua atendida pelo binding (verificado: registro 200/200), mas a mudança passa a valer sem decisão humana. |
 
 ## Observações
 
@@ -18,6 +20,8 @@
 - O tronco 1020 é identidade SIP, não prefixo: o Zenith deve preservar o destino `100` sem adicionar ou remover dígitos.
 - A configuração individual de Parque Portugal foi importada com `prefix=null` e `enabled=false`; a ativação real continua bloqueada por T044.
 - A equivalência do diretório legado foi comprovada para 939 usuários, sem ausências ou divergências; um registro legado real em 7060 e sua remoção retornaram SIP 200.
+- O binding XML Curl é declarado por seção (`bindings="directory"`), nunca por profile: uma vez ativo, vale para 5060, 7060 e 5062 simultaneamente. O que isola o 5062 hoje é `auth-calls=false`, não o alcance do binding.
+- Com o binding global ativo, um usuário legado registrou no profile `internal` (5060) com 200/200, confirmando que o provider somente-leitura atende a população existente.
 
 ## Histórico de re-extrações
 
