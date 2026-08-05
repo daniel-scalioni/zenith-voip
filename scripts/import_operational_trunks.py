@@ -61,13 +61,25 @@ async def _run(args, content: bytes) -> int:
             legacy_provider=LegacyDirectoryProvider(settings.LEGACY_DIRECTORY_PATH),
         )
 
+        # Em dry-run nada é criado: o Repository commita por conta própria, então
+        # criar condomínio aqui persistiria mesmo na validação.
+        existing = {
+            item.name: str(item.id)
+            for item in await condominium_service.list(args.tenant_id, args.pbx_id)
+        }
         condominium_ids = {}
         for name in dict.fromkeys(args.condominium_names.values()):
-            condominium = await condominium_service.create(
-                tenant_id=args.tenant_id, pbx_id=args.pbx_id, name=name
-            )
-            condominium_ids[name] = str(condominium.id)
-            print(f"condomínio pronto: {name} -> {condominium.id}")
+            if name in existing:
+                condominium_ids[name] = existing[name]
+                print(f"condomínio existente: {name} -> {existing[name]}")
+            elif not args.apply:
+                print(f"condomínio ausente (seria criado no --apply): {name}")
+            else:
+                condominium = await condominium_service.create(
+                    tenant_id=args.tenant_id, pbx_id=args.pbx_id, name=name
+                )
+                condominium_ids[name] = str(condominium.id)
+                print(f"condomínio criado: {name} -> {condominium.id}")
 
         result = await import_trunk_json_batch(
             content,
