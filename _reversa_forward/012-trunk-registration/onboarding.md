@@ -136,7 +136,29 @@ Provas obtidas sem envolver o ATA:
 
 Identidade exposta apenas por SHA-256 (`d8d0dedb4bda4204d0b5e1de5a990a00757aa2d80a64bd97699cad3b3d6fbf5f`).
 
-Pendente para fechar T044: registro a partir do ATA físico 192.168.181.51, expiração por TTL sem desregistro explícito, reconciliação após reinício do FreeSWITCH e ensaio do rollback.
+### Registro do ATA físico em 2026-08-06
+
+A identidade real do equipamento é **2780** (Camboriu), não 1780: a captura mostrou o ATA `KAP320` autenticando como `2780`. O arquivo de exportação foi complementado por MASTER com esse tronco, importado pelo mesmo veículo em lote; o `1780` foi desabilitado para manter um piloto único.
+
+Duas tentativas anteriores ao cadastro (11:06:25 e 11:09:40) receberam **403 Forbidden** — identidade inexistente, falha fechada, com o `1780` intacto e sem `last_error_code` espúrio. Isso comprovou o caminho negativo com equipamento real, sem precisar forçar senha errada.
+
+Após o cadastro e o force de registro no ATA:
+
+```
+11:23:19.243  REGISTER sem auth              192.168.181.51:45667 -> 10.10.10.11:7060
+11:23:19.245  401 Unauthorized + challenge   realm 10.10.10.11, qop="auth"
+11:23:19.258  REGISTER + Digest username="2780", qop=auth, nc=00000001
+11:23:19.395  200 OK, expires=120
+11:23:19.420  registration_status=registered persistido
+```
+
+Latência entre o `200 OK` e o estado persistido: **25 ms**, contra o limite de 5 s do RF de registro. `sofia status profile internal-7060 reg` mostra `Registered(UDP-NAT)`, `Auth-User: 2780`, `Ping-Status: Reachable`. Um evento `CUSTOM` foi consumido pelo ESL da instância 1. Canário de senha ausente dos logs de API e FreeSWITCH.
+
+O contato chega com `fs_nat=yes` e `fs_path`: o ATA está atrás de NAT, em rede privada distinta da do servidor. O registro funciona, mas isso é relevante para o caminho de mídia quando a T046 exercitar chamadas.
+
+Efeito colateral observado na reimportação: um tronco já existente tem `registration_status` reposto para `unknown`, enquanto `last_registered_at` e `last_unregistered_at` permanecem preenchidos — estado internamente inconsistente. Ver W004.
+
+Pendente para fechar T044: expiração por TTL sem desregistro explícito, reconciliação após reinício do FreeSWITCH e ensaio do rollback.
 
 ## 8. Rollback
 
