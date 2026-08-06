@@ -171,7 +171,23 @@ Com o ATA retirado da rede, sem envio de `Expires: 0`, o registro venceu sozinho
 
 O `EXP` anunciado pelo profile era exatamente `14:33:20`. Prova que o caminho de expiração — antes observado apenas no rehearsal isolado da T042 — funciona com equipamento real, e que o Zenith **não mantém `registered` sem evidência operacional atual**. O tronco chegou a `unregistered` sem qualquer desregistro explícito e sem `last_error_code`.
 
-Pendente para fechar T044: reconciliação após reinício do FreeSWITCH e ensaio do rollback.
+### Reconciliação após perda do consumidor ESL em 2026-08-06
+
+Desenho do teste: derrubar o registro **enquanto** o consumidor ESL está cego, para que reportar `registered` na volta seja necessariamente erro. Reiniciar a API com o registro intacto não discriminaria nada.
+
+```
+11:47:33  docker stop zenith-api-1                      consumidor ESL fora
+11:47:35  flush_inbound_reg 2780@10.10.10.11            profile=0, banco ainda "registered" (obsoleto)
+11:47:36  docker start zenith-api-1
+11:47:38  registration_status -> unknown   (profile=0)  reconciliação corrigiu em ~2 s
+11:48:18  registration_status -> registered (profile=1) ATA re-registrou, evidência real
+```
+
+Confirma o desenho de `TrunkStateService.reconcile`: `mark_registered_unknown` rebaixa tudo que estava `registered` e só reconfirma o que o FreeSWITCH efetivamente lista. O estado após perder um registro é **`unknown`**, não `unregistered` — ausência de evidência é distinta de desregistro observado, e por isso `last_unregistered_at` permanece com o valor da expiração real (14:33:20), sem ser sobrescrito.
+
+Duas tentativas anteriores foram inconclusivas e ficam registradas para não se repetirem: `flush_inbound_reg 2780` sem `@domínio` não derruba nada (responde `+OK` mesmo assim), e amostragem de 10 s perde a janela, que dura poucos segundos até o ATA voltar.
+
+Pendente para fechar T044: ensaio do rollback.
 
 ## 8. Rollback
 
