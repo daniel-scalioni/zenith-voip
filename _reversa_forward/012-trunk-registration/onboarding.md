@@ -187,12 +187,31 @@ Confirma o desenho de `TrunkStateService.reconcile`: `mark_registered_unknown` r
 
 Duas tentativas anteriores foram inconclusivas e ficam registradas para não se repetirem: `flush_inbound_reg 2780` sem `@domínio` não derruba nada (responde `+OK` mesmo assim), e amostragem de 10 s perde a janela, que dura poucos segundos até o ATA voltar.
 
-Pendente para fechar T044: ensaio do rollback.
+### Ensaio de rollback em 2026-08-06
+
+Executado o procedimento do §8 na íntegra e depois refeito o caminho de ida. O ensaio **encontrou um defeito no próprio procedimento**, que era seu objetivo.
+
+```
+11:55:38  unload mod_xml_curl            module_exists=false
+11:55:4x  xml_curl.conf.xml removido
+11:55:5x  git checkout main -- sip_profiles/   auth-calls=false nos três
+11:56:0x  reloadxml + restart internal-7060
+          → profile subiu em sip:mod_sofia@200.170.149.139:7060   ← IP PÚBLICO
+11:56:19  ATA tentou renovar e recebeu 403      rollback efetivo, comprovado
+11:56:5x  caminho de ida refeito
+          → profile de volta em sip:mod_sofia@10.10.10.11:7060
+```
+
+**Defeito encontrado:** restaurar os profiles a partir de `main` reintroduz o GAP-NET-01. A versão de `main` usa `$${external_sip_ip}`/`$${external_rtp_ip}`, e o `zenith-ip-watcher` sobrescreve essas variáveis com o IP público; a versão da feature usa `$${local_ip}`, que é o fix. O §8 foi corrigido: o rollback deve reverter **somente** o parâmetro `auth-calls`, nunca o arquivo inteiro. Ver W005.
+
+**Comportamento operacional relevante:** depois de tomar `403`, o ATA entra em backoff e não retenta sozinho em tempo útil — o registro só voltou com force manual. Um rollback real exige forçar o registro nos equipamentos afetados; não basta desfazer a configuração e esperar.
+
+Preservado durante todo o ensaio: 939 gateways upstream, os três profiles ativos e o `internal-5062` intocado em `auth-calls=false`. O estado no banco acompanhou corretamente, sem estado fantasma: com o profile vazio, o tronco ficou `unregistered`, não `registered` obsoleto.
 
 ## 8. Rollback
 
 1. Desabilitar o binding XML Curl: `fs_cli -x "unload mod_xml_curl"` e remover/renomear `freeswitch/conf/autoload_configs/xml_curl.conf.xml`. Como o binding é por seção, isso devolve o diretório estático a **todos** os profiles de uma vez.
-2. Restaurar os arquivos de profile: os do disco já são os da feature (`auth-calls=true`), então "restaurar" significa `git checkout main -- freeswitch/conf/sip_profiles/`, seguido de `fs_cli -x "reloadxml"` e restart apenas do profile autorizado.
+2. Reverter **apenas o `auth-calls`** dos profiles afetados, editando o parâmetro para `false` no arquivo. **Nunca** use `git checkout main -- freeswitch/conf/sip_profiles/`: a versão de `main` traz `ext-sip-ip`/`ext-rtp-ip` apontando para `$${external_sip_ip}`, que o `zenith-ip-watcher` sobrescreve com o IP público, reintroduzindo o GAP-NET-01 e subindo o profile em `200.170.149.139` em vez de `10.10.10.11`. Comprovado no ensaio de 2026-08-06. Depois, `fs_cli -x "reloadxml"` e restart apenas do profile autorizado.
 3. Confirmar que chamadas existentes não foram derrubadas e que 5062/upstream permanecem intactos.
 4. Manter as tabelas aditivas; não executar downgrade no banco operacional.
 5. Registrar evidências sanitizadas em `progress.jsonl` e `regression-watch.md`.
