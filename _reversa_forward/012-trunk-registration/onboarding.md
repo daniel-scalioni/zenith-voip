@@ -158,7 +158,20 @@ O contato chega com `fs_nat=yes` e `fs_path`: o ATA está atrás de NAT, em rede
 
 Efeito colateral observado na reimportação: um tronco já existente tem `registration_status` reposto para `unknown`, enquanto `last_registered_at` e `last_unregistered_at` permanecem preenchidos — estado internamente inconsistente. Ver W004.
 
-Pendente para fechar T044: expiração por TTL sem desregistro explícito, reconciliação após reinício do FreeSWITCH e ensaio do rollback.
+### Expiração por TTL em 2026-08-06
+
+Com o ATA retirado da rede, sem envio de `Expires: 0`, o registro venceu sozinho:
+
+```
+14:30:20.399  last_registered_at  (último re-registro antes da desconexão)
+14:33:20.417  evento CUSTOM sofia::expire no ESL
+14:33:20.421  last_unregistered_at persistido  (4 ms depois)
+14:33:25      sofia status: 0 registros no profile; banco: unregistered
+```
+
+O `EXP` anunciado pelo profile era exatamente `14:33:20`. Prova que o caminho de expiração — antes observado apenas no rehearsal isolado da T042 — funciona com equipamento real, e que o Zenith **não mantém `registered` sem evidência operacional atual**. O tronco chegou a `unregistered` sem qualquer desregistro explícito e sem `last_error_code`.
+
+Pendente para fechar T044: reconciliação após reinício do FreeSWITCH e ensaio do rollback.
 
 ## 8. Rollback
 
