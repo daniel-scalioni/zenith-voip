@@ -208,6 +208,20 @@ Executado o procedimento do §8 na íntegra e depois refeito o caminho de ida. O
 
 Preservado durante todo o ensaio: 939 gateways upstream, os três profiles ativos e o `internal-5062` intocado em `auth-calls=false`. O estado no banco acompanhou corretamente, sem estado fantasma: com o profile vazio, o tronco ficou `unregistered`, não `registered` obsoleto.
 
+Após o force final, o tronco voltou a `registered` às 15:09:55 — timestamp posterior ao caminho de ida, comprovando que a autenticação fim a fim foi restabelecida e não se tratava de registro sobrevivente do cache do FreeSWITCH.
+
+### Resumo da captura de pacotes (arquivo destruído)
+
+Captura restrita a `udp port 7060 and host 192.168.181.51`, deliberadamente sem a loopback, onde trafega o XML com a senha em claro. Janela `11:06:25` → `12:15:56` de 2026-08-06, 86 pacotes, uma única identidade SIP observada:
+
+| Resposta do FreeSWITCH | Ocorrências | Significado no gate |
+|---|---|---|
+| `200 OK` | 34 | registros e renovações aceitos |
+| `401 Unauthorized` | 6 | challenges Digest |
+| `403 Forbidden` | 3 | identidade inexistente (2× antes do cadastro) e janela de rollback (1×) |
+
+O `.pcap` foi apagado após a extração deste resumo: continha sinalização SIP de equipamento real e não deve permanecer em disco. Para repetir a captura na T045, o filtro deve trocar a porta para 5060 e o IP para o do ATA daquele profile.
+
 ## 8. Rollback
 
 1. Desabilitar o binding XML Curl: `fs_cli -x "unload mod_xml_curl"` e remover/renomear `freeswitch/conf/autoload_configs/xml_curl.conf.xml`. Como o binding é por seção, isso devolve o diretório estático a **todos** os profiles de uma vez.
