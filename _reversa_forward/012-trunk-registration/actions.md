@@ -79,7 +79,7 @@
 | T042 | Executar spike isolado do payload XML Curl e dos eventos Sofia, atualizando adaptadores somente com evidência real | T004, T035, T036, T038, T041 | - | `_reversa_forward/012-trunk-registration/investigation.md` | 🟡 | [X] |
 | T043 | Normalizar a configuração privada individual do tronco 1020, executar dry-run sem inferir prefixo e cadastrar inicialmente desabilitado | T005, T026, T040, T041 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟢 | [X] |
 | T055 | Comparar todos os usuários de `extensions.xml` com o backend e comprovar um registro legado real no ambiente isolado | T042, T054 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟢 | [X] |
-| T044 | Após checkpoint humano, habilitar um ATA piloto 7060 e comprovar auth, estados, expiração, reconciliação e rollback | T042, T043, T055 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟡 | [ ] |
+| T044 | Após checkpoint humano, habilitar um ATA piloto 7060 e comprovar auth, estados, expiração, reconciliação e rollback | T042, T043, T055 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟢 | [X] |
 | T045 | Após sucesso do piloto 7060, repetir o gate em um ATA 5060 sem alterar o profile 5062 | T044 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟡 | [ ] |
 | T046 | Executar E2E com chamadas simultâneas, eventos duplicados e prefixos iguais entre tenants, preservando dígitos e isolamento | T045 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟡 | [ ] |
 
