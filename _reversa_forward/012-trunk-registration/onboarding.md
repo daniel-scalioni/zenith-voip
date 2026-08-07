@@ -220,7 +220,27 @@ Captura restrita a `udp port 7060 and host 192.168.181.51`, deliberadamente sem 
 | `401 Unauthorized` | 6 | challenges Digest |
 | `403 Forbidden` | 3 | identidade inexistente (2× antes do cadastro) e janela de rollback (1×) |
 
-O `.pcap` foi apagado após a extração deste resumo: continha sinalização SIP de equipamento real e não deve permanecer em disco. Para repetir a captura na T045, o filtro deve trocar a porta para 5060 e o IP para o do ATA daquele profile.
+O `.pcap` foi apagado após a extração deste resumo: continha sinalização SIP de equipamento real e não deve permanecer em disco. ~~Para repetir a captura na T045...~~ **N/A em 2026-08-07:** T045 (gate em 5060) foi descoposto — ver requirements.md §9.
+
+### T045 descoposto em 2026-08-07
+
+Durante o preparo do gate em 5060, o usuário identificou que esse profile hospeda troncos PSTN externos reais, não ATAs de condomínio. Ativar `auth-calls` ali arriscaria derrubar conectividade PSTN em produção. Decisão registrada em `requirements.md §9`: a ativação real desta feature fica restrita a 7060; 5060 fica para uma feature dedicada futura.
+
+Ao investigar, achou-se que `freeswitch/conf/sip_profiles/internal.xml` (5060) já estava com `auth-calls=true` **em disco**, tanto no repositório quanto no servidor `10.10.10.11` (bind mount `/home/administrator/zenith-voip/freeswitch/conf`, container `zenith-freeswitch`) — resquício do T036, nunca aplicado em memória (só o profile `internal-7060` foi restartado no T044), mas pronto para disparar em qualquer restart/deploy futuro. Corrigido nos dois lugares para `auth-calls=false`, sem `reloadxml`/restart, com backup do arquivo original salvo no servidor (`internal.xml.bak-2026-08-07`). Registrado como W003 (resolvido) em `regression-watch.md`.
+
+### T046 em 2026-08-07 — prefixo idêntico entre tenants, sem hardware físico
+
+Sem ATA físico disponível (o piloto 2780 foi reapontado pelo usuário para o VitalPBX de produção), a prova de isolamento por prefixo foi feita com REGISTER SIP real de dois troncos:
+
+1. Tenant sintético de teste provisionado direto no banco (`tenants`/`pbxs`, sem endpoint HTTP para isso), claramente nomeado `Teste E2E T046 (sintetico, nao-cliente)`.
+2. Dois troncos criados via `POST /trunks` de verdade (não SQL direto): um no tenant real Akom/Camboriu, outro no tenant sintético — mesmo prefixo `9199`, profile `internal-7060`, ambos `enabled=true`. JWTs `tenant_admin` gerados dentro do próprio container `zenith-api-1` (nunca expondo `JWT_SECRET`).
+3. Registro real via `spike/trunk_sip_register.py` contra `10.10.10.11:7060` para os dois: senha errada → `403`, senha correta → `200`.
+4. **Achado no meio do caminho, não relacionado a isolamento:** o tenant sintético foi criado com `status='test'`; `TrunkService` exige `tenant.status == "active"` para resolver o diretório, então o lookup falhava fechado (403 mesmo com senha certa) como se o tronco não existisse. Corrigido o `status` para `active` e o registro passou a `200`.
+5. Os dois deixados registrados **ao mesmo tempo** (sem o passo de remoção): `sofia status profile internal-7060 reg` mostrou as duas entradas simultaneamente, com `Auth-User` distintos; o banco confirmou `registration_status=registered` nos dois, mesmo prefixo `9199`, `tenant_id` diferentes. Nenhum cruzamento de estado.
+6. Tentativa de simular chamadas simultâneas via `originate` falhou: a imagem FreeSWITCH (`safarov/freeswitch:1.10.12`, vanilla) só tem o endpoint `sofia` carregado — sem `mod_loopback`/`mod_dummy` — e não há um segundo ATA físico. Simular de verdade exigiria um UAC SIP completo (INVITE/SDP/ACK), fora do escopo desta rodada. Por decisão do usuário, a cláusula de chamadas simultâneas/eventos duplicados/contador não-negativo do critério de aceite fica coberta pela suíte automatizada já verde (T016/T030), não por E2E real.
+7. Limpeza: os dois troncos de teste foram desregistrados de verdade (`Expires: 0`, `200/200`) e desabilitados. Como `PATCH /trunks/{id}` não existe no router (ver W006), a desabilitação foi feita por `UPDATE` direto no banco — mesma classe de exceção documentada no restante deste arquivo.
+
+**Achado adicional, sem relação com T045/T046:** `PATCH /trunks/{id}` e `PATCH /condominiums/{id}`, documentados em `interfaces/trunks-api.md`, não existem no router (`src/api/routers/trunks.py` só tem `POST`/`GET`), embora a lógica de atualização já exista e esteja testada na camada de serviço (`TrunkService.update`, `test_update_trunk_without_password_preserves_existing_cipher`). Por decisão do usuário, registrado como gap conhecido (W006) e não implementado nesta rodada.
 
 ## 8. Rollback
 

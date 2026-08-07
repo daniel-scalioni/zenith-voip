@@ -20,7 +20,13 @@
       <param name="rtp-ip" value="$${local_ip}"/>
       <param name="sip-ip" value="$${local_ip}"/>
 
-      <param name="auth-calls" value="true"/>
+      <!-- Revertido para false em 2026-08-07 (feature 012-trunk-registration): este profile
+           (porta 5060) hospeda troncos PSTN externos reais, não ATAs de condomínio. Habilitar
+           auth-calls aqui arriscaria derrubar conectividade PSTN em produção. Ativação de ATA
+           em 5060 fica para feature dedicada futura — ver actions.md#T045/T036 e
+           requirements.md#9-esclarecimentos. Não reverter sem antes resolver a coexistência
+           com as identidades PSTN já registradas neste profile. -->
+      <param name="auth-calls" value="false"/>
       <param name="accept-blind-reg" value="false"/>
       <param name="accept-blind-auth" value="false"/>
       <!-- Softphones migrados da VitalPBX (ex: 3CX) usam o PBXAddr também como domínio do REGISTER,

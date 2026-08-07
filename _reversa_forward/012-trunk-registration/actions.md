@@ -70,7 +70,7 @@
 | ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
 |----|-----------|--------------|-------------|--------------|-------------|--------|
 | T035 | Carregar `mod_xml_curl` antes do Sofia em `modules.conf.xml` e configurar binding `directory` privado, timeout 2 s e limite 64 KiB | T004, T018, T028, T033, T052 | - | `freeswitch/conf/autoload_configs/modules.conf.xml` | 🟢 | [X] |
-| T036 | Habilitar autenticação segura de registros nos profiles `internal` e `internal-7060`, mantendo blind auth falso e 5062 inalterado | T018, T035 | - | `freeswitch/conf/sip_profiles/internal.xml` | 🟢 | [X] |
+| T036 | Habilitar autenticação segura de registros nos profiles `internal` e `internal-7060`, mantendo blind auth falso e 5062 inalterado. **Revertido em 2026-08-07 para o profile `internal` (5060)**: descoberto que hospeda troncos PSTN externos reais; `auth-calls` voltou a `false` nesse arquivo, mantendo `internal-7060` com `auth-calls=true`. Ver T045 | T018, T035 | - | `freeswitch/conf/sip_profiles/internal.xml` | 🟢 | [X] |
 | T037 | Alterar somente a origem dos metadados no dialplan, preservando número, destino e bridge upstream | T019, T028, T036 | - | `freeswitch/conf/dialplan/default.xml` | 🟢 | [X] |
 | T038 | Assinar eventos Sofia CUSTOM, integrar `TrunkStateService` e disparar reconciliação sem competir no socket ESL | T015, T017, T029, T030, T031 | - | `src/telephony/esl_client.py` | 🟢 | [X] |
 | [//] T039 | Bloquear `/internal/` no proxy público e exigir presença do `mod_xml_curl` no gate do FreeSWITCH sem tocar recursos terceiros | T018, T035 | [//] | `docker-compose.app.yml` | 🟢 | [X] |
@@ -80,8 +80,8 @@
 | T043 | Normalizar a configuração privada individual do tronco 1020, executar dry-run sem inferir prefixo e cadastrar inicialmente desabilitado | T005, T026, T040, T041 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟢 | [X] |
 | T055 | Comparar todos os usuários de `extensions.xml` com o backend e comprovar um registro legado real no ambiente isolado | T042, T054 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟢 | [X] |
 | T044 | Após checkpoint humano, habilitar um ATA piloto 7060 e comprovar auth, estados, expiração, reconciliação e rollback | T042, T043, T055 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟢 | [X] |
-| T045 | Após sucesso do piloto 7060, repetir o gate em um ATA 5060 sem alterar o profile 5062 | T044 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟡 | [ ] |
-| T046 | Executar E2E com chamadas simultâneas, eventos duplicados e prefixos iguais entre tenants, preservando dígitos e isolamento | T045 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟡 | [ ] |
+| T045 | N/A — descoposto em 2026-08-07: profile 5060 hospeda troncos PSTN externos reais, não ATAs de condomínio; repetir o gate ali arriscaria derrubar conectividade PSTN em produção. Ativação de ATA em 5060 fica para feature dedicada futura. Decisão de MASTER, registrada em `requirements.md#9-esclarecimentos` | T044 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟡 | [X] |
+| T046 | Executar E2E no profile 7060 com prefixos iguais entre tenants (dois troncos reais/tenants no mesmo profile, um sintético). Chamadas simultâneas/eventos duplicados/contador não-negativo cobertos pela suíte automatizada (T016/T030), sem hardware real disponível para E2E de voz — ver `onboarding.md#2026-08-07` | T044, T055 | - | `_reversa_forward/012-trunk-registration/onboarding.md` | 🟡 | [X] |
 
 ## Fase 5, Polimento
 
@@ -95,10 +95,11 @@
 
 ## Notas de execução
 
-- T004, T005, T042, T043, T044, T045 e T046 dependem de ambiente ou evidência real; nunca marcar por inferência.
+- T004, T005, T042, T043, T044 e T046 dependem de ambiente ou evidência real; nunca marcar por inferência.
 - T044 é checkpoint humano bloqueante para qualquer ativação de ATA real.
 - `zenith-postgres` operacional não pode ser parado, recriado ou usado como banco de teste.
 - O profile `internal-5062` e os gateways upstream são regressões protegidas, não alvos desta feature.
+- O profile `internal` (5060) hospeda troncos PSTN externos reais (descoberto em 2026-08-07); nunca habilitar `auth-calls` nesse profile nesta feature — é regressão protegida no mesmo nível do 5062. Ver T045 e `requirements.md#9-esclarecimentos`.
 - Código e testes escritos pelo mesmo agente permanecem 🟡 até o veredito independente de T048.
 
 ## Histórico de alterações
@@ -107,3 +108,5 @@
 |------|-----------|-------|
 | 2026-08-01 | Versão inicial gerada por `/reversa-to-do` | reversa |
 | 2026-08-05 | T056: emenda do adaptador de importação para o veículo em lote `ramais[]`, aprovada por MASTER durante `/reversa-coding` | reversa |
+| 2026-08-07 | T045 fechada N/A (profile 5060 hospeda troncos PSTN externos reais, descoposto para feature futura); T046 reancorada em T044/T055, escopo 7060 apenas | reversa |
+| 2026-08-07 | T046 fechada: prefixo igual (`9199`) comprovado entre tenant real (Akom) e tenant sintético de teste, registro SIP real simultâneo nos dois; chamadas simultâneas/eventos duplicados aceitos via suíte automatizada (T016/T030), sem hardware real disponível | reversa |

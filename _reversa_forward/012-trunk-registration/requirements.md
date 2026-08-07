@@ -48,6 +48,7 @@ O escopo e as decisões funcionais abaixo foram aprovados pelo usuário em 2026-
 5. **RN-05:** Cada tronco usará UDP em uma das entradas aprovadas: SIP na porta 5060 ou a entrada 7060 usada pelos dispositivos classificados como PJSIP no VitalPBX. No FreeSWITCH, ambas são profiles Sofia, isto é, conjuntos independentes de parâmetros de escuta e autenticação SIP. 🟢
    - Origem no legado: `_reversa_sdd/domain.md#PBXs`
    - Tipo: nova
+   - **Nota de escopo (2026-08-07):** a ativação real de `auth-calls` e o gate de comprovação operacional desta feature ficam restritos à entrada 7060. A entrada 5060 já hospeda troncos PSTN externos reais (descoberto durante o preparo do gate T045), não ramais/ATAs de condomínio; ativar autenticação de tronco ATA nesse profile exige antes resolver a coexistência de identidades e fica para uma feature dedicada futura. Ver §9.
 6. **RN-06:** O Zenith não alterará dígitos, não escolherá fila de destino e não duplicará regras de roteamento do ATA ou do VitalPBX. 🟢
    - Tipo: nova
 7. **RN-07:** `enabled`, `registration_status` e `active_calls` representarão dimensões independentes; `in_use` será derivado de `active_calls > 0`. 🟢
@@ -70,7 +71,7 @@ O escopo e as decisões funcionais abaixo foram aprovados pelo usuário em 2026-
 | RF-02 | Manter troncos ATA com condomínio, usuário, segredo, perfil de entrada, estado administrativo e prefixo opcional. | Must | Um tronco sem prefixo é persistido e identificado por profile/usuário; o segredo nunca retorna em leitura. | 🟢 |
 | RF-03 | Cadastrar troncos individualmente a partir da configuração privada disponível e manter importação CSV quando a origem oferecer exportação. | Must | Cadastro e dry-run aceitam prefixo ausente, iniciam desabilitados e nunca revelam segredos; CSV continua suportado sem ser pré-condição operacional. | 🟢 |
 | RF-04 | Impedir prefixos repetidos dentro do mesmo tenant quando preenchidos. | Must | Dois troncos com o mesmo prefixo não nulo no tenant são rejeitados; vários troncos sem prefixo são aceitos e a identidade SIP permanece globalmente única por profile/usuário. | 🟢 |
-| RF-05 | Disponibilizar os troncos habilitados para registro iniciado pelo ATA no profile 5060 ou 7060 correspondente. | Must | Credenciais corretas no profile configurado registram o ATA; credenciais erradas, tronco desabilitado ou profile divergente são recusados. | 🟢 |
+| RF-05 | Disponibilizar os troncos habilitados para registro iniciado pelo ATA no profile 5060 ou 7060 correspondente. | Must | Credenciais corretas no profile configurado registram o ATA; credenciais erradas, tronco desabilitado ou profile divergente são recusados. **Comprovação operacional real nesta feature limitada ao profile 7060** — o profile 5060 hospeda troncos PSTN externos reais e sua ativação para ATA fica para feature dedicada futura (ver RN-05 e §9). | 🟢 |
 | RF-06 | Resolver cada registro para tenant, PBX, condomínio e tronco sem depender de variáveis globais fixas. | Must | Dois tenants com o mesmo prefixo são identificados corretamente pelas credenciais e pelo contexto de registro, sem cruzamento de dados. | 🟢 |
 | RF-07 | Atualizar o estado de registro a partir do estado real do FreeSWITCH. | Must | Registro e desregistro alteram `registration_status` e seus timestamps; perda de evidência atual resulta em `unknown` ou `unregistered`, nunca em falso positivo. | 🟢 |
 | RF-08 | Contabilizar chamadas ativas por tronco. | Must | Início e término de chamadas ajustam `active_calls` sem valor negativo; `in_use` corresponde exatamente a `active_calls > 0`. | 🟢 |
@@ -102,7 +103,7 @@ Cenário: Importar troncos ATA de dois condomínios
   E nenhuma credencial aparece no resultado da importação
 
 Cenário: Registrar ATA habilitado
-  Dado um tronco habilitado com credenciais válidas e profile 5060
+  Dado um tronco habilitado com credenciais válidas e profile 7060
   Quando o ATA envia o registro ao FreeSWITCH
   Então o registro é aceito
   E o tronco passa para registered em até 5 segundos
@@ -175,6 +176,8 @@ Cenário: Reconciliar depois de reconexão ESL
 
 > Decisões aprovadas em 2026-08-01 e refinadas em 2026-08-04: ATA inicia o registro; escopo limitado a troncos ATA; hierarquia Tenant → PBX → Condomínio → Tronco ATA; entradas UDP 5060/7060; sem manipulação de dígitos ou filas; prefixo opcional e único por tenant somente quando preenchido; identidade por profile/usuário; estado administrativo, registro e uso independentes.
 
+> **Descoberta operacional em 2026-08-07 (durante preparo do gate T045):** o profile Sofia 5060 (`internal`), previsto como segunda entrada de ativação desta feature, já hospeda troncos PSTN externos reais — não ramais/ATAs de condomínio. Ativar `auth-calls=true` nesse profile sem antes isolar essas identidades arriscaria derrubar conectividade PSTN em produção. Decisão de MASTER: esta feature (`012-trunk-registration`) fica restrita à comprovação operacional no profile 7060; a ativação de troncos ATA no profile 5060 é descoposta para uma feature dedicada futura, que precisa primeiro mapear e isolar as identidades PSTN já registradas ali. RN-05 e RF-05 permanecem descrevendo o modelo de dados (ambos os profiles são entradas válidas), mas o gate real e os critérios de aceite desta feature (roadmap.md §10) foram ajustados para 7060 apenas.
+
 ## 10. Lacunas
 
 - Nenhuma lacuna funcional pendente. O formato exato do CSV, o mecanismo de proteção do segredo e a estratégia de reconciliação serão definidos no plano técnico sem alterar o contrato acima.
@@ -185,3 +188,4 @@ Cenário: Reconciliar depois de reconexão ESL
 |------|-----------|-------|
 | 2026-08-01 | Versão inicial gerada por `/reversa-requirements` a partir do contrato aprovado em sessão anterior | reversa |
 | 2026-08-01 | Siglas e conceito de profile Sofia definidos após `/reversa-quality` | reversa |
+| 2026-08-07 | Escopo de ativação real restrito ao profile 7060; 5060 descoposto para feature dedicada futura (troncos PSTN reais descobertos no profile) | reversa |

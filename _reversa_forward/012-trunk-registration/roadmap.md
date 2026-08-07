@@ -87,8 +87,8 @@ Não há `[DÚVIDA]` pendente no `requirements.md`.
 6. Provar que o backend devolve os usuários legados atuais de forma equivalente e que colisões com troncos ATA são bloqueadas.
 7. Importar uma extração privada de troncos em rehearsal e comparar contagens/constraints sem exibir credenciais.
 8. Ativar diretório dinâmico primeiro no profile 7060, registrar um usuário legado e um ATA piloto, validar eventos, consulta e chamada.
-9. Ativar no profile 5060 após o piloto, preservando 5062 e gateways upstream.
-10. Remover o uso das variáveis globais de tenant/PBX somente após os metadados por tronco estarem comprovados em chamada E2E.
+9. ~~Ativar no profile 5060 após o piloto, preservando 5062 e gateways upstream.~~ **Descoposto em 2026-08-07:** o profile 5060 hospeda troncos PSTN externos reais; ativação de ATA nesse profile fica para feature dedicada futura. Ver `requirements.md#9-esclarecimentos`.
+10. Remover o uso das variáveis globais de tenant/PBX somente após os metadados por tronco estarem comprovados em chamada E2E no profile 7060.
 11. Manter rollback: restaurar profiles anteriores, remover o binding e recarregar XML; as tabelas novas podem permanecer inativas.
 
 ## 9. Riscos e mitigações
@@ -116,7 +116,7 @@ Não há `[DÚVIDA]` pendente no `requirements.md`.
 - [ ] `mod_xml_curl` presente, endpoint não acessível pelo proxy público e timeout comprovado
 - [ ] Configuração Basic real gitignored/0600 e nenhum segredo no diff
 - [ ] Todos os usuários legados resolvidos pelo backend e um registro legado real preservado
-- [ ] Registro/desregistro/expiração reais comprovados nos profiles 5060 e 7060
+- [ ] Registro/desregistro/expiração reais comprovados no profile 7060 (5060 descoposto em 2026-08-07 — troncos PSTN externos reais no profile, ver `requirements.md#9-esclarecimentos`)
 - [ ] Chamadas simultâneas e eventos duplicados não produzem contador negativo
 - [ ] Chamada E2E preserva dígitos e recebe IDs de tenant/PBX/condomínio/tronco corretos
 - [ ] Rollback de configuração ensaiado sem excluir dados
@@ -131,3 +131,4 @@ Não há `[DÚVIDA]` pendente no `requirements.md`.
 | Data | Alteração | Autor |
 |------|-----------|-------|
 | 2026-08-01 | Versão inicial gerada por `/reversa-plan` | reversa |
+| 2026-08-07 | Item 9 do plano de migração e critério de pronto ajustados: ativação real restrita ao profile 7060, 5060 descoposto (troncos PSTN externos reais descobertos no profile) | reversa |
