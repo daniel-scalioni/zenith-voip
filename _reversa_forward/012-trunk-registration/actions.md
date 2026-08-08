@@ -87,7 +87,7 @@
 
 | ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
 |----|-----------|--------------|-------------|--------------|-------------|--------|
-| T047 | Auditar logs, erros, métricas, access logs e XML temporário com canário, eliminando todo vazamento de credencial | T028, T032, T038, T042 | - | `_reversa_forward/012-trunk-registration/security-verdict.md` | 🟢 | [ ] |
+| T047 | Auditar logs, erros, métricas, access logs e XML temporário com canário, eliminando todo vazamento de credencial | T028, T032, T038, T042 | - | `_reversa_forward/012-trunk-registration/security-verdict.md` | 🟢 | [X] |
 | T048 | Obter veredito independente pós-Green sobre casos de borda, viés, isolamento, cifra, XML e eventos; aplicar correções bloqueantes | T041, T046, T047 | - | `_reversa_forward/012-trunk-registration/test-bias-verdict.md` | 🟢 | [ ] |
 | T049 | Executar suite global com coleta `tests/` e `src/**/test_*.py`, cobertura ≥80% e Alembic head duas vezes no banco isolado | T048 | - | `_reversa_forward/012-trunk-registration/progress.jsonl` | 🟢 | [ ] |
 | T050 | Gerar `legacy-impact.md` e `regression-watch.md` com evidências reais, riscos de auth, variáveis, 5062, segredo e rollback | T049 | - | `_reversa_forward/012-trunk-registration/regression-watch.md` | 🟢 | [ ] |
@@ -110,3 +110,4 @@
 | 2026-08-05 | T056: emenda do adaptador de importação para o veículo em lote `ramais[]`, aprovada por MASTER durante `/reversa-coding` | reversa |
 | 2026-08-07 | T045 fechada N/A (profile 5060 hospeda troncos PSTN externos reais, descoposto para feature futura); T046 reancorada em T044/T055, escopo 7060 apenas | reversa |
 | 2026-08-07 | T046 fechada: prefixo igual (`9199`) comprovado entre tenant real (Akom) e tenant sintético de teste, registro SIP real simultâneo nos dois; chamadas simultâneas/eventos duplicados aceitos via suíte automatizada (T016/T030), sem hardware real disponível | reversa |
+| 2026-08-08 | T047 fechada: canário real (`POST /trunks` + REGISTER SIP completo) sem ocorrência em logs de app, FreeSWITCH, proxy, métricas ou XML temporário; ver `security-verdict.md` | reversa |
