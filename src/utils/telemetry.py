@@ -41,6 +41,30 @@ multi_schema_query_duration = Histogram(
     buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 2.0],
 )
 
+trunk_active_calls = Gauge(
+    "trunk_active_calls",
+    "Quantidade agregada de chamadas ativas em troncos ATA",
+    ["profile"],
+)
+
+trunk_directory_lookups_total = Counter(
+    "trunk_directory_lookups_total",
+    "Total de consultas ao diretório de troncos ATA",
+    ["result", "profile"],
+)
+
+trunk_reconciliation_total = Counter(
+    "trunk_reconciliation_total",
+    "Total de resultados de reconciliação de troncos ATA",
+    ["result"],
+)
+
+trunk_registration_state = Gauge(
+    "trunk_registration_state",
+    "Quantidade agregada de troncos ATA por estado",
+    ["profile", "state"],
+)
+
 
 def set_active_tenant_schemas(count: int):
     tenant_schemas_active.set(count)

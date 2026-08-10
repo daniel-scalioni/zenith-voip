@@ -35,3 +35,6 @@ Nenhuma re-extração executada após esta feature.
 ## Arquivadas
 
 Nenhum item arquivado.
+- Provisionamento concorrente do mesmo `schema_name` deve continuar falhando de modo seguro e sem resíduo.
+- Falha durante a compensação transacional não pode ocultar o erro operacional original.
+- `alembic downgrade` da baseline não é o rollback de produção; o rollback suportado continua sendo reapontar os serviços ao PostgreSQL anterior preservado.

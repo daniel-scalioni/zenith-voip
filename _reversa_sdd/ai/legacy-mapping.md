@@ -47,7 +47,7 @@
 1. Extractor: extrai entidades do transcript via RegexExtractor
 2. Reviewer: sanitiza entidades sensíveis via LocalLLMExtractor (Ollama)
 3. Decider: aprova/rejeita baseado em presença de entidades + sentiment_score >= -0.3
-4. Loop: se rejected e iteration < 3, volta ao reviewer
+4. Loop: se rejected e iteration < 3, volta ao extractor
 
 ## Estruturas de Dados
 

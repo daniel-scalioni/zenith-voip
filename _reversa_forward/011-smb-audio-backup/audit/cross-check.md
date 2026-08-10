@@ -109,3 +109,16 @@ T001–T115 devido aos gates globais de Alembic, banco de teste e cobertura.
 ## Veredito atualizado
 
 A decomposição está apta para `/reversa-coding`, iniciando somente pela Preparação T056–T065.
+
+## Veredito final pós-cutover — 2026-08-01
+
+Claude/Sonnet, OpenCode DeepSeek V4 Flash Free e OpenCode Mimo V2.5 Free revisaram migrations,
+isolamento, rollback e evidências reais. Os bloqueios processuais encontrados foram incorporados:
+requirements RF-07/RF-10 agora refletem a decisão explícita sobre a conta SMB; ADR-004 e o mapping
+de consenso foram alinhados ao loop pelo extractor; todos os arquivos novos serão incluídos no
+commit da feature; e T109/T110 são encerrados somente após esta consolidação.
+
+Não restou achado técnico bloqueante. O banco anterior continua disponível para rollback, o
+candidato passou pelo smoke real e o áudio remoto foi confirmado pelo responsável.
+
+**Veredito consolidado: GO para sincronizar, commitar e mesclar a feature 011.**

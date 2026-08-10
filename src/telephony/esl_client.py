@@ -51,9 +51,13 @@ class ESLClient:
         if b"+OK" not in response and b"OK" not in response:
             raise ConnectionError(f"ESL auth failed: {response}")
 
-        self.writer.write(b"events json CHANNEL_CREATE CHANNEL_ANSWER CHANNEL_HANGUP SOFIA_REGISTER SOFIA_UNREGISTER\n\n")
+        self.writer.write(
+            b"events json CHANNEL_CREATE CHANNEL_ANSWER CHANNEL_HANGUP "
+            b"SOFIA_REGISTER SOFIA_UNREGISTER CUSTOM sofia::register sofia::unregister sofia::expire\n\n"
+        )
         await self.writer.drain()
         self.connected = True
+        await self._reconcile_trunks()
 
     async def _connect_command(self):
         reader, writer = await asyncio.wait_for(
@@ -118,6 +122,7 @@ class ESLClient:
                 await self._read_events()
             except (ConnectionError, asyncio.TimeoutError, OSError) as e:
                 self.connected = False
+                await self._mark_trunks_unknown()
                 await asyncio.sleep(2)
             except asyncio.CancelledError:
                 break
@@ -168,6 +173,10 @@ class ESLClient:
                 await self._handle_register(event)
             elif event_name == "SOFIA_UNREGISTER":
                 await self._handle_unregister(event)
+            elif event_name == "CUSTOM" and event.get("Event-Subclass") in {
+                "sofia::register", "sofia::unregister", "sofia::expire"
+            }:
+                await self._handle_trunk_registration(event)
             elif event_name == "CHANNEL_CREATE":
                 await self._handle_channel_create(event)
             elif event_name == "CHANNEL_ANSWER":
@@ -189,18 +198,22 @@ class ESLClient:
             return
 
         await self._cache_sip_mapping(from_user, sip_ip, event)
+        await self._handle_trunk_registration(event)
 
     async def _handle_unregister(self, event: dict):
         from_user = event.get("Caller-Caller-ID-Number", "") or event.get("sip_from_user", "")
         if from_user:
             await self._remove_sip_mapping(from_user)
+        await self._handle_trunk_registration(event)
 
     async def _handle_channel_create(self, event: dict):
+        await self._track_trunk_call(event, active=True)
         dest = event.get("Caller-Destination-Number", "")
         if dest == "*88":
             await self._handle_manual_linkage(event)
 
     async def _handle_channel_answer(self, event: dict):
+        await self._track_trunk_call(event, active=True)
         call_id = event.get("Caller-Unique-ID", "") or event.get("Unique-ID", "")
         tenant_id = event.get("variable_zenith_tenant_id", "") or ""
         pbx_id = event.get("variable_zenith_pbx_id", "") or ""
@@ -256,6 +269,8 @@ class ESLClient:
         if not call_id:
             return
 
+        await self._track_trunk_call(event, active=False)
+
         if tenant_id:
             await finalize_call_record(tenant_id, call_id)
 
@@ -310,6 +325,79 @@ class ESLClient:
         if ip:
             await event_bus.redis.delete(f"zenith:sip:ip_to_extension:{ip.decode()}")
         await event_bus.redis.delete(f"zenith:sip:extension_to_ip:{extension}")
+
+    async def _with_trunk_state(self, operation):
+        from src.database.database import async_session_factory
+        from src.telephony.trunk_state import (
+            TrunkIdentityResolver, TrunkStateRepository, TrunkStateService,
+        )
+
+        async with async_session_factory() as session:
+            service = TrunkStateService(
+                TrunkStateRepository(session), event_bus.redis, TrunkIdentityResolver(session)
+            )
+            return await operation(service)
+
+    async def _handle_trunk_registration(self, event: dict):
+        try:
+            await self._with_trunk_state(lambda service: service.apply_registration_event(event))
+        except Exception:
+            logger.exception("trunk_registration_event_failed")
+
+    async def _track_trunk_call(self, event: dict, *, active: bool):
+        trunk_id = event.get("variable_zenith_trunk_id", "")
+        call_uuid = event.get("Caller-Unique-ID", "") or event.get("Unique-ID", "")
+        if not trunk_id or not call_uuid:
+            return
+        try:
+            await self._with_trunk_state(
+                lambda service: service.track_call(trunk_id, call_uuid, active=active)
+            )
+        except Exception:
+            logger.exception("trunk_active_call_tracking_failed call_id=%s", call_uuid)
+
+    async def _mark_trunks_unknown(self):
+        async def mark(service):
+            return await service._repository.mark_registered_unknown()
+
+        try:
+            await self._with_trunk_state(mark)
+        except Exception:
+            logger.exception("trunk_mark_unknown_failed")
+
+    async def _reconcile_trunks(self):
+        try:
+            await self._with_trunk_state(lambda service: service.reconcile(self))
+        except Exception:
+            logger.exception("trunk_reconciliation_failed")
+
+    async def list_registrations(self) -> list[dict[str, str]]:
+        registrations: list[dict[str, str]] = []
+        for profile in ("internal", "internal-7060"):
+            raw = await self.send_api(f"sofia status profile {profile} reg")
+            for line in raw.splitlines():
+                match = re.search(r"(?:Auth-User|User)\s*[:=]\s*([^\s,|]+)", line, re.IGNORECASE)
+                if match:
+                    registrations.append({"profile": profile, "auth_username": match.group(1)})
+        return registrations
+
+    async def list_trunk_channels(self) -> list[dict[str, str]]:
+        raw = await self.send_api("show channels as json")
+        json_start = raw.find("{")
+        if json_start < 0:
+            return []
+        try:
+            payload = json.loads(raw[json_start:])
+        except json.JSONDecodeError:
+            logger.warning("trunk_channel_reconciliation_invalid_json")
+            return []
+        channels = []
+        for row in payload.get("rows", []):
+            trunk_id = row.get("variable_zenith_trunk_id")
+            call_uuid = row.get("uuid") or row.get("call_uuid")
+            if trunk_id and call_uuid:
+                channels.append({"trunk_id": str(trunk_id), "call_uuid": str(call_uuid)})
+        return channels
 
     async def close(self):
         self._running = False

@@ -1,11 +1,17 @@
 {
   "schema-version": 1,
-  "feature-dir": "_reversa_forward/011-smb-audio-backup",
-  "feature-id": "011",
-  "short-name": "smb-audio-backup",
-  "started-at": "2026-07-27T14:10:50Z",
-  "current-stage": "coding-em-progresso",
-  "stages-completed": [],
+  "feature-dir": "_reversa_forward/012-trunk-registration",
+  "feature-id": "012",
+  "short-name": "trunk-registration",
+  "started-at": "2026-08-01T21:31:22Z",
+  "current-stage": "coding",
+  "stages-completed": [
+    "requirements",
+    "plan",
+    "to-do",
+    "audit",
+    "quality"
+  ],
   "paused-features": [
     {
       "feature-id": "010",

@@ -78,6 +78,55 @@ async def test_repository_create_rolls_back_when_commit_fails():
 
 
 @pytest.mark.asyncio
+async def test_repository_create_translates_integrity_error():
+    # Arrange
+    from sqlalchemy.exc import IntegrityError
+
+    from src.services.base import IntegrityConstraintError
+
+    session = _session()
+    session.commit.side_effect = IntegrityError(
+        "INSERT", {},
+        Exception('duplicate key value violates unique constraint "uq_ata_trunks_profile_username"'),
+    )
+    repository = Repository(session, ServiceRecord)
+
+    # Act
+    with pytest.raises(IntegrityConstraintError) as error:
+        await repository.create(tenant_id="tenant-a", name="dup")
+
+    # Assert
+    assert "uq_ata_trunks_profile_username" in str(error.value)
+    session.rollback.assert_awaited_once_with()
+    session.refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_repository_update_translates_integrity_error():
+    # Arrange
+    from sqlalchemy.exc import IntegrityError
+
+    from src.services.base import IntegrityConstraintError
+
+    record = ServiceRecord(id=1, tenant_id="tenant-a", name="old")
+    session = _session()
+    session.execute.return_value = _query_result(record=record)
+    session.commit.side_effect = IntegrityError(
+        "UPDATE", {},
+        Exception('new row violates check constraint "ck_ata_trunks_prefix_digits"'),
+    )
+    repository = Repository(session, ServiceRecord)
+
+    # Act
+    with pytest.raises(IntegrityConstraintError) as error:
+        await repository.update(1, name="new")
+
+    # Assert
+    assert "ck_ata_trunks_prefix_digits" in str(error.value)
+    session.rollback.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
 async def test_repository_get_and_find_by_return_database_results():
     # Arrange
     first = ServiceRecord(id=1, tenant_id="tenant-a", name="first")

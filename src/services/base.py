@@ -2,8 +2,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from sqlalchemy.exc import IntegrityError
 
 ModelType = TypeVar("ModelType")
+
+
+class IntegrityConstraintError(Exception):
+    """Violação de constraint do banco, traduzida sem expor o dialeto SQL ao domínio."""
 
 
 class Strategy(ABC):
@@ -13,18 +18,27 @@ class Strategy(ABC):
 
 
 class STTStrategy(Strategy):
+    async def execute(self, **kwargs) -> dict:
+        return await self.transcribe(**kwargs)
+
     @abstractmethod
     async def transcribe(self, audio_chunk: bytes, **kwargs) -> dict:
         ...
 
 
 class TTSStrategy(Strategy):
+    async def execute(self, **kwargs) -> bytes:
+        return await self.synthesize(**kwargs)
+
     @abstractmethod
     async def synthesize(self, text: str, **kwargs) -> bytes:
         ...
 
 
 class LLMStrategy(Strategy):
+    async def execute(self, **kwargs) -> str:
+        return await self.analyze(**kwargs)
+
     @abstractmethod
     async def analyze(self, prompt: str, **kwargs) -> str:
         ...
@@ -38,7 +52,14 @@ class Repository(Generic[ModelType]):
     async def create(self, **kwargs) -> ModelType:
         instance = self._model(**kwargs)
         self._session.add(instance)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as error:
+            await self._session.rollback()
+            raise IntegrityConstraintError(str(getattr(error, "orig", error))) from error
+        except BaseException:
+            await self._session.rollback()
+            raise
         await self._session.refresh(instance)
         return instance
 
@@ -61,7 +82,14 @@ class Repository(Generic[ModelType]):
             return None
         for key, value in kwargs.items():
             setattr(instance, key, value)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as error:
+            await self._session.rollback()
+            raise IntegrityConstraintError(str(getattr(error, "orig", error))) from error
+        except BaseException:
+            await self._session.rollback()
+            raise
         await self._session.refresh(instance)
         return instance
 
@@ -70,7 +98,11 @@ class Repository(Generic[ModelType]):
         if not instance:
             return False
         await self._session.delete(instance)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except BaseException:
+            await self._session.rollback()
+            raise
         return True
 
 

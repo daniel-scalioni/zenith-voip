@@ -32,6 +32,22 @@ allowed-tools: Read, Bash, Grep, Write
 - **Você julga cada resposta antes de aceitar.** Se um modelo devolver algo quebrado, fora de tópico, ou claramente ruim (aconteceu com Llama numa consulta real — ver exemplo abaixo), descarte e troque por outro modelo. Não insista no mesmo modelo por ele estar "na lista"; não invente uma resposta melhor no lugar dela.
 - **Você faz o veredito final**, baseado em análise das divergências reais, não em votação nem em média.
 
+## ⚠️ Execução SEMPRE sequencial (regra não-negociável)
+
+As consultas/chamadas a modelos **nunca devem ser executadas em paralelo**. Rode uma por vez
+(serialize): inicie um modelo, aguarde o retorno completo, julgue-o **então** passe para o
+próximo. Isso vale para todos os modos (consulta e delegação) e para os múltiplos modelos/lentes.
+
+Motivo: a execução paralela de várias LLMs simultaneamente consome excessivamente CPU/RAM/GPU do
+hardware local e pode saturar a máquina. Ser mais lento um pouco, mas sustentável, é preferível.
+
+Na prática:
+- Não dispare todas as chamadas de uma vez num único bloco de comandos (`&&` encadeado, loop
+  `&`, `xargs -P`, background jobs em paralelo).
+- Rode a primeira chamada, espere o terminal/CLI devolver a resposta completa, verifique o
+  resultado, e só então rode a próxima.
+- Ao usar múltiplos agentes/tasks, espere um terminar antes de iniciar o seguinte.
+
 ## Protocolo (passo a passo validado em uso real)
 
 1. **Confirme as CLIs e modelos disponíveis:** `opencode models`; para Anthropic direto, confirme
@@ -47,7 +63,9 @@ allowed-tools: Read, Bash, Grep, Write
 4. **Escreva um prompt autocontido por modelo.** Cada processo começa sem acesso à conversa —
    inclua contexto, artefatos que deve ler, pergunta/tarefa exata, limites e formato de saída.
    Para prompts longos, use arquivo temporário no scratchpad e passe seu conteúdo à CLI.
-5. **Rode de verdade via uma CLI confirmada:**
+5. **Rode de verdade via uma CLI confirmada — SEMPRE em sequência**, um modelo por vez: execute a
+   primeira chamada, aguarde o retorno completo, julgue e só então execute a próxima. Nunca lance
+   os vários modelos em paralelo num mesmo bloco de comandos (ver seção "Execução SEMPRE sequencial").
    - OpenCode:
      ```bash
      opencode run --model <provider/model> "$(cat prompt.txt)"
@@ -101,6 +119,7 @@ O Llama devolveu uma resposta sem sentido (invocou uma skill errada, retornou um
 | Tratar divergência como empate/média | É onde está a informação real — investigue |
 | Inventar score/confiança numérica sem lastro | Reporte incerteza real, não teatro de precisão |
 | Fazer a mesma pergunta genérica para todos os modelos | Cada lente deve testar algo diferente |
+| Executar múltiplos modelos/consultas em paralelo (bloco único de comandos, `&&` encadeado, `xargs -P`, background) | Satura CPU/RAM/GPU do hardware local; serialize — um modelo por vez, aguarde e julgue antes do próximo |
 | Permitir dois modelos editarem os mesmos arquivos em paralelo | Mistura autoria, cria conflitos e invalida a revisão independente |
 | O orquestrador “melhorar” silenciosamente testes delegados | Reintroduz o viés que a delegação deveria reduzir |
 | Usar `--permission-mode bypassPermissions` por conveniência | Amplia autoridade sem necessidade; prefira ferramentas e permissões mínimas |

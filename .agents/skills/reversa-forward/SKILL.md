@@ -1,6 +1,6 @@
 ---
 name: reversa-forward
-description: 'Orquestrador do ciclo forward do Reversa: detecta o estágio da feature ativa em `_reversa_forward/` e roteia para o próximo agente (requirements, clarify, plan, to-do, audit, quality, coding, sync). Só roteia, não escreve artefatos. Use com "/reversa-forward", "iniciar evolução", "iniciar pipeline forward".'
+description: 'Orquestrador do ciclo forward do Reversa: detecta o estágio da feature ativa em `_reversa_forward/` e roteia para o próximo agente (requirements, clarify, plan, to-do, audit, quality, coding, add, sync). Só roteia, não escreve artefatos. Use com "/reversa-forward", "iniciar evolução", "iniciar pipeline forward".'
 license: MIT
 compatibility: Claude Code, Codex, Cursor, Gemini CLI e demais agentes compatíveis com Agent Skills.
 metadata:
@@ -165,7 +165,7 @@ O próximo skill é decidido pela combinação entre estágio físico e argument
 
 Aguarde a escolha. Não decida sozinho.
 
-## Etapas opcionais (audit, quality)
+## Etapas opcionais (audit, quality, add)
 
 `/reversa-audit` e `/reversa-quality` são opcionais e não fazem parte do caminho feliz do roteamento acima. Você só os sugere quando:
 
@@ -174,6 +174,8 @@ Aguarde a escolha. Não decida sozinho.
 
 Quando aplicável, sugira como passo intermediário antes do próximo skill obrigatório, deixando a decisão com o usuário.
 
+`/reversa-add` também é opcional, roda depois do coding e é repetível. Ele existe para ajustes de minuto na feature já entregue ("aumenta esse título", "põe um loading aqui"), registrando a emenda na spec antes de implementar. Sugira apenas quando o usuário descrever um ajuste curto sobre o que a feature entregou. Nunca sugira `/reversa-add` para ideia nova, feature nova, ou qualquer coisa que exija dependência nova, mudança de schema ou contrato, superfície pública nova, ou caminho de auth. Nesses casos o encaminhamento é `/reversa-requirements`.
+
 ## Apresentação ao usuário
 
 Use exatamente este formato (substituindo os placeholders por valores reais):
@@ -181,7 +183,7 @@ Use exatamente este formato (substituindo os placeholders por valores reais):
 > Olá, `<user_name>`. Pipeline forward do Reversa:
 >
 > ```
-> requirements → clarify? → plan → to-do → audit? → quality? → coding → sync?
+> requirements → clarify? → plan → to-do → audit? → quality? → coding → add? → sync?
 > ```
 >
 > Estado atual: **`<estado descritivo>`**
@@ -194,14 +196,14 @@ Use exatamente este formato (substituindo os placeholders por valores reais):
 
 ### Linhas adicionais por estado
 
-- **Sem feature ativa, sem argumento:** liste os agentes do pipeline com uma linha por agente (`reversa-requirements`, `reversa-clarify`, `reversa-plan`, `reversa-to-do`, `reversa-audit`, `reversa-quality`, `reversa-coding`, `reversa-sync`) e peça: "Descreva em uma frase a feature que você quer construir."
+- **Sem feature ativa, sem argumento:** liste os agentes do pipeline com uma linha por agente (`reversa-requirements`, `reversa-clarify`, `reversa-plan`, `reversa-to-do`, `reversa-audit`, `reversa-quality`, `reversa-coding`, `reversa-add`, `reversa-sync`) e peça: "Descreva em uma frase a feature que você quer construir."
 - **Sem feature ativa, com argumento:** mostre o argumento entre aspas e diga que ele será o ponto de partida do `/reversa-requirements`.
 - **Estágio `requirements` com N marcadores `[DÚVIDA]`:** diga "`requirements.md` tem `<N>` ponto(s) em aberto, vale rodar `/reversa-clarify` antes do plano."
 - **Estágio `requirements` sem `[DÚVIDA]`:** diga "`requirements.md` está fechado, pronto para o plano."
 - **Estágio `plan`:** diga "`roadmap.md` está pronto, falta decompor em ações atômicas."
 - **Estágio `coding-em-progresso`:** diga "`<N>` de `<M>` ações concluídas em `actions.md`, codificação em andamento."
 - **Estágio `done` sem adendo:** diga "Todas as ações estão fechadas, falta converger a entrega na extração com `/reversa-sync` para `<output_folder>/` não ficar defasado."
-- **Estágio `done` com adendo vigente:** diga "Todas as ações estão fechadas e a entrega já foi convergida em `<output_folder>/addenda/`. Se quiser, retome uma feature pausada com `/reversa-resume` ou comece outra com `/reversa-requirements <descrição>`."
+- **Estágio `done` com adendo vigente:** diga "Todas as ações estão fechadas e a entrega já foi convergida em `<output_folder>/addenda/`. Se quiser, retome uma feature pausada com `/reversa-resume` ou comece outra com `/reversa-requirements <descrição>`. Para ajustes curtos sobre o que essa feature entregou, use `/reversa-add`."
 - **Estágio `vazio` (pasta sem `requirements.md`):** diga "A `feature-dir` em `active-requirements.json` existe mas não tem `requirements.md`. Recomendado recomeçar com `/reversa-requirements`."
 
 Se houver `paused-features` com entradas, em qualquer estado, acrescente uma linha:

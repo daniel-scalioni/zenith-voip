@@ -21,6 +21,20 @@ secrets:
     file: ./freeswitch/signalwire_token.txt
 
 services:
+  zenith-freeswitch-config:
+    image: python:3.12-slim
+    container_name: zenith-freeswitch-config
+    env_file: .env
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ./freeswitch/conf/autoload_configs:/output
+    command:
+      - python
+      - /app/scripts/render_freeswitch_secrets.py
+      - --output
+      - /output/xml_curl.conf.xml
+    restart: "no"
+
   freeswitch:
     # Build customizado restaurado (feature 007-audio-stream-migration):
     # mod_audio_fork foi substituído por mod_audio_stream, que não depende
@@ -43,13 +57,16 @@ services:
       - SYS_RESOURCE
     environment:
       - TZ=America/Sao_Paulo
+    depends_on:
+      zenith-freeswitch-config:
+        condition: service_completed_successfully
     # Healthcheck próprio (GAP-24) — substitui o genérico da imagem base, que
     # não sabe nada sobre módulos do projeto. Sem isso, a imagem rodou 24h
     # "healthy" em produção sem mod_audio_stream carregado, sem nenhum sinal.
     # start_period alto porque o profile upstream carrega ~939 gateways no
     # boot e pode não aceitar comandos ESL/CLI nos primeiros segundos.
     healthcheck:
-      test: ["CMD-SHELL", "fs_cli -x 'module_exists mod_audio_stream' | grep -q true"]
+      test: ["CMD-SHELL", "fs_cli -x 'module_exists mod_audio_stream' | grep -q true && fs_cli -x 'module_exists mod_xml_curl' | grep -q true"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -79,6 +96,7 @@ services:
     volumes:
       - ./src:/app/src
       - zenith_recordings_tmpfs:/data/recordings
+      - ./freeswitch/conf/directory/extensions.xml:/run/zenith-directory/extensions.xml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,6 +132,7 @@ services:
     volumes:
       - ./src:/app/src
       - zenith_recordings_tmpfs:/data/recordings
+      - ./freeswitch/conf/directory/extensions.xml:/run/zenith-directory/extensions.xml:ro
     depends_on:
       postgres:
         condition: service_healthy

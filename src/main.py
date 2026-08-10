@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from src._version import __version__
 from src.config import settings
 from src.api.rate_limit import rate_limit_middleware
-from src.api.routers import pbxs
+from src.api.routers import pbxs, trunks
+from src.api import freeswitch_directory
 from src.audio.ingestor import audio_ingestor
 
 logging.basicConfig(level=settings.LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -41,6 +42,8 @@ app = FastAPI(
 
 app.middleware("http")(rate_limit_middleware)
 app.include_router(pbxs.router)
+app.include_router(trunks.router)
+app.include_router(freeswitch_directory.router)
 
 
 @app.get("/health")

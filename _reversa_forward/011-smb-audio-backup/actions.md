@@ -96,21 +96,21 @@
 | T050 | Remover somente o `stereo.mp3` local após checksum remoto confirmado e preservá-lo em falha | T015, T049 | - | `src/workers/smb_sync.py` | 🟢 | `[X]` |
 | T017 | Implementar `run_smb_sync`: varrer pares, recuperar raw, gerar/copy/checksum sob timeout global de 30 s, ordenar fila, aplicar lock/lease e atualizar log | T011, T012, T014, T015, T016, T034, T040, T044, T046, T050, T051 | - | `src/workers/smb_sync.py` | 🟢 | `[X]` |
 | T054 | Configurar filas `zenith:audio-upload`, `zenith:audio-cleanup` e `zenith:smb-sync`, roteando o produtor para a fila do uploader e removendo o uso da fila default nesses workers | T053 | - | `src/workers/audio_uploader.py`, `src/workers/audio_cleanup.py`, `src/workers/smb_sync.py` | 🟢 | `[X]` |
-| T082 | Implementar baseline Alembic pública mínima para tornar T066 verde, sem tabelas de chamada em `public` | T057, T064, T066, T081 | - | `alembic/versions/001_public_baseline.py` | 🟡 | `[ ]` |
-| T083 | Restringir `alembic/env.py` e metadata alvo ao schema `public`, mantendo segunda execução como no-op | T066, T082 | - | `alembic/env.py` | 🟢 | `[ ]` |
-| T084 | Adaptar provisionamento/restauração para UUIDs explícitos, preservando o caminho normal e tornando T067 verde | T067, T081, T083 | - | `scripts/provision_tenant.py` | 🟢 | `[ ]` |
-| T085 | Implementar guard de DSN, criação única e teardown do banco de teste para tornar T068 verde | T068, T081, T065 | - | `tests/conftest.py` | 🟢 | `[ ]` |
-| [//] T086 | Corrigir ingestor somente se T069 provar defeito; se o contrato atual estiver correto, fechar N/A com evidência e manter só o teste atualizado | T069, T113 | `[//]` | `src/audio/ingestor.py` | 🟢 | `[ ]` |
-| [//] T087 | Ajustar harness BunkerWeb para tornar T070 verde sem alterar proxy de produção; fechar N/A se a falha for somente ambiente | T070, T113 | `[//]` | `tests/test_bunker_sticky.py` | 🟢 | `[ ]` |
-| [//] T088 | Corrigir cliente/harness ESL somente se T071 provar defeito; caso contrário fechar N/A com evidência de ambiente | T071, T113 | `[//]` | `src/telephony/esl_client.py` | 🟢 | `[ ]` |
-| T089 | Corrigir conexão/desconexão WebSocket somente conforme T072, fechando N/A se o defeito for apenas mock obsoleto | T072, T113 | - | `src/api/websockets.py` | 🟢 | `[ ]` |
-| T090 | Corrigir broadcast e caminhos de erro WebSocket somente conforme T073, sem mudar o contrato público | T073, T089 | - | `src/api/websockets.py` | 🟢 | `[ ]` |
-| T091 | Tornar multitenancy verde exclusivamente no banco de teste, provando teardown e ausência de schema residual no operacional | T074, T085 | - | `tests/test_multitenancy.py` | 🟢 | `[ ]` |
-| [//] T092 | Implementar apenas ajustes de testabilidade necessários em Repository/Strategy/Factory; fechar N/A se T075 já passar | T075, T114 | `[//]` | `src/services/base.py` | 🟢 | `[ ]` |
-| [//] T093 | Implementar apenas ajustes de testabilidade necessários em Redis Streams; fechar N/A se T076 já passar | T076, T114 | `[//]` | `src/events/redis_streams.py` | 🟢 | `[ ]` |
-| [//] T094 | Implementar apenas ajustes de testabilidade necessários em extraction; fechar N/A se T077 já passar | T077, T114 | `[//]` | `src/extraction/` | 🟢 | `[ ]` |
-| [//] T111 | Implementar apenas ajustes de testabilidade necessários em auth/RBAC; fechar N/A se T078 já passar | T078, T114 | `[//]` | `src/api/auth.py` | 🟢 | `[ ]` |
-| [//] T112 | Implementar apenas ajustes de testabilidade necessários em anomalia/consenso; fechar N/A se T079 já passar | T079, T114 | `[//]` | `src/ai/` | 🟢 | `[ ]` |
+| T082 | Implementar baseline Alembic pública mínima para tornar T066 verde, sem tabelas de chamada em `public` | T057, T064, T066, T081 | - | `alembic/versions/001_public_baseline.py` | 🟡 | `[X]` |
+| T083 | Restringir `alembic/env.py` e metadata alvo ao schema `public`, mantendo segunda execução como no-op | T066, T082 | - | `alembic/env.py` | 🟢 | `[X]` |
+| T084 | Adaptar provisionamento/restauração para UUIDs explícitos, preservando o caminho normal e tornando T067 verde | T067, T081, T083 | - | `scripts/provision_tenant.py` | 🟢 | `[X]` |
+| T085 | Implementar guard de DSN, criação única e teardown do banco de teste para tornar T068 verde | T068, T081, T065 | - | `tests/conftest.py` | 🟢 | `[X]` |
+| [//] T086 | Corrigir ingestor somente se T069 provar defeito; se o contrato atual estiver correto, fechar N/A com evidência e manter só o teste atualizado | T069, T113 | `[//]` | `src/audio/ingestor.py` | 🟢 | `[X]` |
+| [//] T087 | Ajustar harness BunkerWeb para tornar T070 verde sem alterar proxy de produção; fechar N/A se a falha for somente ambiente | T070, T113 | `[//]` | `tests/test_bunker_sticky.py` | 🟢 | `[X]` |
+| [//] T088 | Corrigir cliente/harness ESL somente se T071 provar defeito; caso contrário fechar N/A com evidência de ambiente | T071, T113 | `[//]` | `src/telephony/esl_client.py` | 🟢 | `[X]` |
+| T089 | Corrigir conexão/desconexão WebSocket somente conforme T072, fechando N/A se o defeito for apenas mock obsoleto | T072, T113 | - | `src/api/websockets.py` | 🟢 | `[X]` |
+| T090 | Corrigir broadcast e caminhos de erro WebSocket somente conforme T073, sem mudar o contrato público | T073, T089 | - | `src/api/websockets.py` | 🟢 | `[X]` |
+| T091 | Tornar multitenancy verde exclusivamente no banco de teste, provando teardown e ausência de schema residual no operacional | T074, T085 | - | `tests/test_multitenancy.py` | 🟢 | `[X]` |
+| [//] T092 | Implementar apenas ajustes de testabilidade necessários em Repository/Strategy/Factory; fechar N/A se T075 já passar | T075, T114 | `[//]` | `src/services/base.py` | 🟢 | `[X]` |
+| [//] T093 | Implementar apenas ajustes de testabilidade necessários em Redis Streams; fechar N/A se T076 já passar | T076, T114 | `[//]` | `src/events/redis_streams.py` | 🟢 | `[X]` |
+| [//] T094 | Implementar apenas ajustes de testabilidade necessários em extraction; fechar N/A se T077 já passar | T077, T114 | `[//]` | `src/extraction/` | 🟢 | `[X]` |
+| [//] T111 | Implementar apenas ajustes de testabilidade necessários em auth/RBAC; fechar N/A se T078 já passar | T078, T114 | `[//]` | `src/api/auth.py` | 🟢 | `[X]` |
+| [//] T112 | Implementar apenas ajustes de testabilidade necessários em anomalia/consenso; fechar N/A se T079 já passar | T079, T114 | `[//]` | `src/ai/` | 🟢 | `[X]` |
 
 ## Fase 4, Integração
 
@@ -122,21 +122,21 @@
 | T021 | Adicionar `zenith-smb-sync`, volume `zenith_smb_logs` e montagem de `zenith_recordings_tmpfs`, sem reutilizar recursos externos | T003, T005, T017, T048 | - | `docker-compose.app.yml` | 🟢 | `[X]` |
 | T022 | Instrumentar sucesso, falha, latência, fila e conversão pendente nos pontos definidos pelo contrato | T006, T017 | - | `src/workers/smb_sync.py` | 🟢 | `[X]` |
 | T041 | Verificar sem exibir valores que o `.env` privado contém endpoint e conta técnica WRITE, registrar as operações confirmadas no spike e manter credenciais de auditoria fora do Zenith | T003, T004, T042 | - | `_reversa_forward/011-smb-audio-backup/storage-write-spike.md` | 🟢 | `[X]` |
-| T035 | Executar e registrar a configuração manual de ACL: conta worker com WRITE e conta auditor com READ-ONLY, incluindo delete/rename negados | T021 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟡 | `[ ]` |
+| T035 | Registrar a decisão explícita de usar a mesma conta técnica para escrita e verificação por leitura, deixando ACL humana fora desta entrega | T021 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
 | T055 | Redeployar os três workers afetados e executar rolling restart das duas APIs que hospedam o produtor, comprovar filas distintas no Redis e executar nova ligação sem recuperar o job falho da primeira ligação | T054 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
-| [//] T095 | Adicionar recursos Compose do rehearsal sem porta publicada, sem reutilizar volumes/redes e sem tocar `zenith-postgres` | T062 | `[//]` | `docker-compose.quality.yml` | 🟢 | `[ ]` |
-| [//] T096 | Adicionar recursos Compose do candidato sem porta publicada, sem reutilizar volumes/redes e sem tocar `zenith-postgres` | T063 | `[//]` | `docker-compose.candidate.yml` | 🟢 | `[ ]` |
-| T097 | Gerar dump lógico em diretório privado gitignored, registrar checksum e inventário, sem parar ou alterar `zenith-postgres` | T059, T060 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
-| T098 | Restaurar o dump no rehearsal e comparar schemas, UUIDs, contagens, tipos e constraints | T095, T097 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
-| T099 | Rodar baseline duas vezes no candidato vazio, provisionar tenant e restaurar dados com UUIDs preservados | T084, T096, T097 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
-| [//] T100 | Regenerar ramais em diretório privado temporário, comparar 939 entradas e conjunto ativo, e remover os temporários após o manifesto | T059 | `[//]` | `scripts/import_extensions.py` | 🟢 | `[ ]` |
-| T101 | Executar toda a suíte no banco de teste com coleta explícita `tests/` e testes `src/**/test_*.py`, `--cov=src --cov-fail-under=80`, sem falhas ou schemas residuais | T082, T083, T084, T085, T086, T087, T088, T090, T091, T092, T093, T094, T111, T112, T115 | - | `tests/`, `src/` | 🟢 | `[ ]` |
-| T102 | Obter veredito independente de que a cobertura de T101 é comportamental, não inflada, e devolver correções bloqueantes aos autores externos | T101 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[ ]` |
-| T103 | Ensaiar rollback antes do corte, alternando somente rehearsal/candidato e comprovando retorno de UUIDs, contagens e health sem tocar o banco atual | T098, T099 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
-| T104 | Repetir inspeção de ownership e apresentar checkpoint humano go/no-go; manter `[ ]` até aprovação explícita, sem mutação nesta tarefa | T100, T101, T102, T103 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
-| T105 | Após T104 aprovado, apontar por rolling restart `zenith-api-1`, `zenith-api-2`, `zenith-arq-uploader`, `zenith-arq-cleanup` e `zenith-smb-sync` ao candidato, validando health entre cada recriação e preservando o PostgreSQL atual | T104 | - | `docker-compose.app.yml` | 🟡 | `[ ]` |
-| T106 | Reimportar os ramais validados, confirmar contagem e conjunto ativo e recarregar apenas o profile upstream, com fallback para os arquivos privados anteriores | T100, T105 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
-| T107 | Executar smoke pós-cutover de tenant/PBX e uma ligação curta, provando nova linha `Call` com caller/callee; não duplicar o E2E SMB de T024 | T105, T106 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
+| [//] T095 | Adicionar recursos Compose do rehearsal sem porta publicada, sem reutilizar volumes/redes e sem tocar `zenith-postgres` | T062 | `[//]` | `docker-compose.quality.yml` | 🟢 | `[X]` |
+| [//] T096 | Adicionar recursos Compose do candidato sem porta publicada, sem reutilizar volumes/redes e sem tocar `zenith-postgres` | T063 | `[//]` | `docker-compose.candidate.yml` | 🟢 | `[X]` |
+| T097 | Gerar dump lógico em diretório privado gitignored, registrar checksum e inventário, sem parar ou alterar `zenith-postgres` | T059, T060 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
+| T098 | Restaurar o dump no rehearsal e comparar schemas, UUIDs, contagens, tipos e constraints | T095, T097 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
+| T099 | Rodar baseline duas vezes no candidato vazio, provisionar tenant e restaurar dados com UUIDs preservados | T084, T096, T097 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
+| [//] T100 | Regenerar ramais em diretório privado temporário, comparar 939 entradas e conjunto ativo, e remover os temporários após o manifesto | T059 | `[//]` | `scripts/import_extensions.py` | 🟢 | `[X]` |
+| T101 | Executar toda a suíte no banco de teste com coleta explícita `tests/` e testes `src/**/test_*.py`, `--cov=src --cov-fail-under=80`, sem falhas ou schemas residuais | T082, T083, T084, T085, T086, T087, T088, T090, T091, T092, T093, T094, T111, T112, T115 | - | `tests/`, `src/` | 🟢 | `[X]` |
+| T102 | Obter veredito independente de que a cobertura de T101 é comportamental, não inflada, e devolver correções bloqueantes aos autores externos | T101 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[X]` |
+| T103 | Ensaiar rollback antes do corte, alternando somente rehearsal/candidato e comprovando retorno de UUIDs, contagens e health sem tocar o banco atual | T098, T099 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
+| T104 | Repetir inspeção de ownership e apresentar checkpoint humano go/no-go; manter `[ ]` até aprovação explícita, sem mutação nesta tarefa | T100, T101, T102, T103 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
+| T105 | Após T104 aprovado, apontar por rolling restart `zenith-api-1`, `zenith-api-2`, `zenith-arq-uploader`, `zenith-arq-cleanup` e `zenith-smb-sync` ao candidato, validando health entre cada recriação e preservando o PostgreSQL atual | T104 | - | `docker-compose.app.yml` | 🟡 | `[X]` |
+| T106 | Reimportar os ramais validados, confirmar contagem e conjunto ativo e recarregar apenas o profile upstream, com fallback para os arquivos privados anteriores | T100, T105 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
+| T107 | Executar smoke pós-cutover de tenant/PBX e uma ligação curta, provando nova linha `Call` com caller/callee; não duplicar o E2E SMB de T024 | T105, T106 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
 
 ## Fase 5, Polimento
 
@@ -144,13 +144,13 @@
 |----|-----------|--------------|-------------|--------------|-------------|--------|
 | T023 | Revisar logging estruturado e sanitização inclusive das exceções `pysmb`, impedindo exposição de username, password ou conexão | T016, T017, T022 | - | `src/workers/smb_sync.py` | 🟢 | `[X]` |
 | T036 | Obter veredito independente sobre casos de borda e viés dos testes, registrando lacunas e correções aplicadas | T019, T020, T023 | - | `_reversa_forward/011-smb-audio-backup/test-bias-verdict.md` | 🟢 | `[X]` |
-| T037 | Executar Compose, `alembic upgrade head` duas vezes e suíte global coletando `tests/` + `src/**/test_*.py` com `--cov=src --cov-fail-under=80`, registrando resultados reais | T021, T036, T101, T102, T107 | - | `tests/`, `src/` | 🟢 | `[ ]` |
-| T024 | Executar E2E real: SLA/timeout 30 s, checksum, canais, offline, circuit breaker, throttle, lease 120/30 s, colisão, cleanup e segredos | T035, T037, T041, T048, T050, T051, T107 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟡 | `[ ]` |
-| [//] T025 | Gerar regression watch para worker offline, fila, canal invertido/misturado, parcial, cleanup precoce, throughput e segredo | T024 | `[//]` | `_reversa_forward/011-smb-audio-backup/regression-watch.md` | 🟢 | `[ ]` |
-| T026 | Atualizar spec SDD e gaps com resultados reais, incluindo caller/callee, estéreo, ACL e compatibilidade do servidor | T024 | - | `_reversa_sdd/workers/smb-backup/design.md` | 🟢 | `[ ]` |
-| T108 | Registrar hashes, contagens, versões, resultados de rollback/cutover e ausência de segredos nos artefatos da feature | T024, T026, T103, T107 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[ ]` |
-| T109 | Obter veredito multi-LLM final sobre migrations, risco de dados, isolamento dos testes e rollback a partir dos diffs/evidências reais | T108 | - | `_reversa_forward/011-smb-audio-backup/audit/cross-check.md` | 🟢 | `[ ]` |
-| T110 | Preparar `/reversa-sync` somente após T025, T026 e T109, mantendo o PostgreSQL anterior disponível até aceite pós-entrega | T025, T026, T109 | - | `_reversa_forward/011-smb-audio-backup/regression-watch.md` | 🟢 | `[ ]` |
+| T037 | Executar Compose, `alembic upgrade head` duas vezes e suíte global coletando `tests/` + `src/**/test_*.py` com `--cov=src --cov-fail-under=80`, registrando resultados reais | T021, T036, T101, T102, T107 | - | `tests/`, `src/` | 🟢 | `[X]` |
+| T024 | Executar E2E real: SLA/timeout 30 s, checksum, canais, offline, circuit breaker, throttle, lease 120/30 s, colisão, cleanup e segredos | T035, T037, T041, T048, T050, T051, T107 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟡 | `[X]` |
+| [//] T025 | Gerar regression watch para worker offline, fila, canal invertido/misturado, parcial, cleanup precoce, throughput e segredo | T024 | `[//]` | `_reversa_forward/011-smb-audio-backup/regression-watch.md` | 🟢 | `[X]` |
+| T026 | Atualizar spec SDD e gaps com resultados reais, incluindo caller/callee, estéreo, ACL e compatibilidade do servidor | T024 | - | `_reversa_sdd/workers/smb-backup/design.md` | 🟢 | `[X]` |
+| T108 | Registrar hashes, contagens, versões, resultados de rollback/cutover e ausência de segredos nos artefatos da feature | T024, T026, T103, T107 | - | `_reversa_forward/011-smb-audio-backup/onboarding.md` | 🟢 | `[X]` |
+| T109 | Obter veredito multi-LLM final sobre migrations, risco de dados, isolamento dos testes e rollback a partir dos diffs/evidências reais | T108 | - | `_reversa_forward/011-smb-audio-backup/audit/cross-check.md` | 🟢 | `[X]` |
+| T110 | Preparar `/reversa-sync` somente após T025, T026 e T109, mantendo o PostgreSQL anterior disponível até aceite pós-entrega | T025, T026, T109 | - | `_reversa_forward/011-smb-audio-backup/regression-watch.md` | 🟢 | `[X]` |
 
 ## Notas de execução
 
