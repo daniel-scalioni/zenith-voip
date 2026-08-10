@@ -65,6 +65,101 @@ async def test_create_trunk_rejects_identity_present_in_legacy_directory():
 
 
 @pytest.mark.asyncio
+async def test_create_trunk_rejects_whitespace_only_password():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    with pytest.raises(ValueError, match="invalid_password"):
+        await service.create(
+            tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+            prefix="1140", auth_username="ata-1140", password="   ",
+            sip_profile="internal", enabled=False,
+        )
+
+    # Assert
+    repositories[0].create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_trunk_translates_concurrent_identity_race_to_duplicate_error():
+    # Arrange
+    from src.services.base import IntegrityConstraintError
+
+    TrunkService, _, DuplicateIdentityError = _service()
+    repositories = _repositories()
+    repositories[0].create.side_effect = IntegrityConstraintError(
+        'duplicate key value violates unique constraint "uq_ata_trunks_profile_username"'
+    )
+    legacy_provider = AsyncMock()
+    legacy_provider.contains.return_value = False
+    cipher = AsyncMock()
+    cipher.encrypt.return_value = "encrypted"
+    service = TrunkService(*repositories, credential_cipher=cipher, legacy_provider=legacy_provider)
+
+    # Act
+    with pytest.raises(DuplicateIdentityError, match="duplicate_auth_identity"):
+        await service.create(
+            tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+            prefix="1140", auth_username="ata-race", password="secret",
+            sip_profile="internal", enabled=False,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_trunk_translates_concurrent_prefix_race_to_duplicate_prefix():
+    # Arrange
+    from src.services.base import IntegrityConstraintError
+
+    TrunkService, _, DuplicateIdentityError = _service()
+    repositories = _repositories()
+    repositories[0].create.side_effect = IntegrityConstraintError(
+        'duplicate key value violates unique constraint "uq_ata_trunks_tenant_prefix"'
+    )
+    legacy_provider = AsyncMock()
+    legacy_provider.contains.return_value = False
+    cipher = AsyncMock()
+    cipher.encrypt.return_value = "encrypted"
+    service = TrunkService(*repositories, credential_cipher=cipher, legacy_provider=legacy_provider)
+
+    # Act
+    with pytest.raises(DuplicateIdentityError, match="duplicate_prefix"):
+        await service.create(
+            tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+            prefix="1140", auth_username="ata-race", password="secret",
+            sip_profile="internal", enabled=False,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_trunk_translates_foreign_key_race_to_scope_error():
+    # Arrange
+    from src.services.base import IntegrityConstraintError
+
+    TrunkService, ScopeValidationError, _ = _service()
+    repositories = _repositories()
+    repositories[0].create.side_effect = IntegrityConstraintError(
+        'insert or update on table "ata_trunks" violates foreign key constraint '
+        '"ata_trunks_condominium_id_fkey"'
+    )
+    legacy_provider = AsyncMock()
+    legacy_provider.contains.return_value = False
+    cipher = AsyncMock()
+    cipher.encrypt.return_value = "encrypted"
+    service = TrunkService(*repositories, credential_cipher=cipher, legacy_provider=legacy_provider)
+
+    # Act
+    with pytest.raises(ScopeValidationError, match="condominium_not_found"):
+        await service.create(
+            tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+            prefix="1140", auth_username="ata-race", password="secret",
+            sip_profile="internal", enabled=False,
+        )
+
+
+@pytest.mark.asyncio
 async def test_update_trunk_without_password_preserves_existing_cipher():
     # Arrange
     TrunkService, _, _ = _service()
@@ -87,6 +182,50 @@ async def test_update_trunk_without_password_preserves_existing_cipher():
     cipher.encrypt.assert_not_called()
     repositories[0].update.assert_awaited_once()
     assert "encrypted_password" not in repositories[0].update.await_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_update_trunk_rejects_whitespace_only_password():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    existing = SimpleNamespace(
+        id="trunk-1", tenant_id="tenant-a", pbx_id="pbx-1",
+        condominium_id="condo-1", encrypted_password="existing-token",
+        auth_username="ata-1140", sip_profile="internal",
+    )
+    repositories[0].get.return_value = existing
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    with pytest.raises(ValueError, match="invalid_password"):
+        await service.update("tenant-a", "trunk-1", password="   ")
+
+    # Assert
+    repositories[0].update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_trunk_translates_check_constraint_to_invalid_prefix():
+    # Arrange
+    from src.services.base import IntegrityConstraintError
+
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    existing = SimpleNamespace(
+        id="trunk-1", tenant_id="tenant-a", pbx_id="pbx-1",
+        condominium_id="condo-1", encrypted_password="existing-token",
+        auth_username="ata-1140", sip_profile="internal",
+    )
+    repositories[0].get.return_value = existing
+    repositories[0].update.side_effect = IntegrityConstraintError(
+        'new row for relation "ata_trunks" violates check constraint "ck_ata_trunks_prefix_digits"'
+    )
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    with pytest.raises(ValueError, match="invalid_prefix"):
+        await service.update("tenant-a", "trunk-1", prefix="not-digits")
 
 
 @pytest.mark.asyncio
@@ -159,6 +298,72 @@ async def test_create_trunk_without_prefix_uses_only_sip_identity_uniqueness():
         sip_profile="internal-7060", auth_username="1020"
     )
     assert repositories[0].create.await_args.kwargs["prefix"] is None
+
+
+@pytest.mark.asyncio
+async def test_validate_importable_rejects_cross_tenant_condominium_without_persisting():
+    # Arrange
+    from src.services.trunk_import import TrunkCSVRow
+
+    TrunkService, ScopeValidationError, _ = _service()
+    repositories = _repositories(tenant_id="tenant-b")
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+    row = TrunkCSVRow(
+        line=1, prefix="1140", condominium_name="X", auth_username="ata-1140",
+        password="secret", sip_profile="internal", condominium_id="condo-1",
+    )
+
+    # Act
+    with pytest.raises(ScopeValidationError):
+        await service.validate_importable(tenant_id="tenant-a", pbx_id="pbx-1", row=row)
+
+    # Assert
+    repositories[0].create.assert_not_awaited()
+    repositories[0].update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_importable_rejects_whitespace_only_password_for_existing_identity():
+    # Arrange
+    from src.services.trunk_import import TrunkCSVRow
+
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    repositories[0].find_by.return_value = [SimpleNamespace(id="trunk-1", tenant_id="tenant-a")]
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+    row = TrunkCSVRow(
+        line=1, prefix=None, condominium_name="X", auth_username="1020",
+        password="   ", sip_profile="internal-7060", condominium_id="condo-1",
+    )
+
+    # Act
+    with pytest.raises(ValueError, match="invalid_password"):
+        await service.validate_importable(tenant_id="tenant-a", pbx_id="pbx-1", row=row)
+
+    # Assert
+    repositories[0].update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_importable_accepts_new_identity_without_persisting():
+    # Arrange
+    from src.services.trunk_import import TrunkCSVRow
+
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    legacy_provider = AsyncMock()
+    legacy_provider.contains.return_value = False
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=legacy_provider)
+    row = TrunkCSVRow(
+        line=1, prefix=None, condominium_name="X", auth_username="1020",
+        password="fixture-secret", sip_profile="internal-7060", condominium_id="condo-1",
+    )
+
+    # Act
+    await service.validate_importable(tenant_id="tenant-a", pbx_id="pbx-1", row=row)
+
+    # Assert
+    repositories[0].create.assert_not_awaited()
 
 
 @pytest.mark.asyncio

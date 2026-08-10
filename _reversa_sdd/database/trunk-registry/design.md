@@ -3,14 +3,14 @@ spec:
   component: trunk-registry
   layer: database
   status: active
-  version: 1.1.0
+  version: 1.2.0
   language: python
   patterns: [repository]
   inputs: [{name: trunk_configuration, type: validated_command, from: trunk-admin}]
   outputs: [{name: persisted_trunk, type: ATATrunk, to: trunk-registration}]
   dependencies: [{component: tenants-pbxs, layer: database}]
   events_produced: []
-  updated_at: 2026-08-04
+  updated_at: 2026-08-10
 ---
 
 # Trunk Registry — Design
@@ -80,6 +80,7 @@ Persistir condomínios e troncos ATA no schema `public`, mantendo a hierarquia `
 - Routers e handlers não emitem SQL.
 - Serviços reutilizam `Repository` para operações simples e queries SQLAlchemy encapsuladas para filtros/locks compostos.
 - Toda falha de commit executa rollback e preserva o erro original no log sanitizado.
+- Violação de constraint (`IntegrityError` do SQLAlchemy) nunca escapa como exceção crua do dialeto: `Repository.create`/`update` traduz para `IntegrityConstraintError` (genérico, definido em `services/base.py`, sem acoplar o domínio ao SQL). A camada de serviço (`TrunkService`/`CondominiumService`) traduz `IntegrityConstraintError` para o erro de domínio correspondente (`DuplicateIdentityError`/`ValueError`) inspecionando o nome da constraint na mensagem original — isso cobre a corrida real entre a checagem prévia (`_ensure_unique`, check-then-act) e a escrita efetiva.
 
 ## Testes bloqueantes
 

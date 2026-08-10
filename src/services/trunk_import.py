@@ -10,6 +10,17 @@ class CSVSchemaError(ValueError):
     pass
 
 
+_ROW_ERROR_FIELDS = {
+    "pbx_not_found": "pbx_id",
+    "condominium_not_found": "condominium_id",
+    "duplicate_auth_identity": "auth_username",
+    "duplicate_prefix": "prefix",
+    "invalid_prefix": "prefix",
+    "invalid_password": "password",
+    "invalid_sip_configuration": "sip_profile",
+}
+
+
 @dataclass(frozen=True)
 class TrunkCSVRow:
     line: int
@@ -80,12 +91,22 @@ def parse_trunk_csv(content: bytes, *, max_rows: int = 10_000, max_bytes: int = 
 
 
 async def import_trunk_csv(content, tenant_id, pbx_id, *, dry_run, trunk_service) -> TrunkImportResult:
+    from src.services.trunks import DuplicateIdentityError, ScopeValidationError
+
     parsed = parse_trunk_csv(content)
     result = TrunkImportResult(dry_run=dry_run, rows=len(parsed.rows), unchanged=parsed.ignored)
     if dry_run:
         return result
     for row in parsed.rows:
-        outcome = await trunk_service.upsert_imported(tenant_id=tenant_id, pbx_id=pbx_id, row=row)
+        try:
+            outcome = await trunk_service.upsert_imported(tenant_id=tenant_id, pbx_id=pbx_id, row=row)
+        except (ScopeValidationError, DuplicateIdentityError, ValueError) as error:
+            code = str(error)
+            result.rejected += 1
+            result.errors.append({
+                "line": row.line, "code": code, "field": _ROW_ERROR_FIELDS.get(code),
+            })
+            continue
         if outcome == "created":
             result.created += 1
         elif outcome == "updated":
@@ -256,11 +277,20 @@ async def import_trunk_json_batch(
     if any(not condominium_ids.get(row.condominium_name) for row in rows):
         raise CSVSchemaError("trunk_json_condominium_missing")
 
-    for row in rows:
+    resolved_rows = [
+        replace(row, condominium_id=condominium_ids[row.condominium_name]) for row in rows
+    ]
+
+    # Tudo-ou-nada (design.md#Importação VitalPBX Exportada): valida cada item antes
+    # de persistir o primeiro, para nunca deixar o lote parcialmente escrito.
+    for row in resolved_rows:
+        await trunk_service.validate_importable(tenant_id=tenant_id, pbx_id=pbx_id, row=row)
+
+    for row in resolved_rows:
         outcome = await trunk_service.upsert_imported(
             tenant_id=tenant_id,
             pbx_id=pbx_id,
-            row=replace(row, condominium_id=condominium_ids[row.condominium_name]),
+            row=row,
         )
         if outcome == "created":
             result.created += 1

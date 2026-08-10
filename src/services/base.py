@@ -2,8 +2,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from sqlalchemy.exc import IntegrityError
 
 ModelType = TypeVar("ModelType")
+
+
+class IntegrityConstraintError(Exception):
+    """Violação de constraint do banco, traduzida sem expor o dialeto SQL ao domínio."""
 
 
 class Strategy(ABC):
@@ -49,6 +54,9 @@ class Repository(Generic[ModelType]):
         self._session.add(instance)
         try:
             await self._session.commit()
+        except IntegrityError as error:
+            await self._session.rollback()
+            raise IntegrityConstraintError(str(getattr(error, "orig", error))) from error
         except BaseException:
             await self._session.rollback()
             raise
@@ -76,6 +84,9 @@ class Repository(Generic[ModelType]):
             setattr(instance, key, value)
         try:
             await self._session.commit()
+        except IntegrityError as error:
+            await self._session.rollback()
+            raise IntegrityConstraintError(str(getattr(error, "orig", error))) from error
         except BaseException:
             await self._session.rollback()
             raise

@@ -110,6 +110,66 @@ async def test_import_csv_repeated_rows_delegate_to_idempotent_upsert():
 
 
 @pytest.mark.asyncio
+async def test_import_csv_collects_row_errors_without_aborting_batch():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunks import DuplicateIdentityError
+
+    _, import_trunk_csv, _ = _importer()
+    service = AsyncMock()
+    service.upsert_imported.side_effect = [
+        "created",
+        DuplicateIdentityError("duplicate_auth_identity"),
+        "created",
+    ]
+    content = (
+        "technology,device_user,device_password\n"
+        "sip,ata-1,fixture-secret\n"
+        "sip,ata-2,fixture-secret\n"
+        "sip,ata-3,fixture-secret\n"
+    ).encode()
+
+    # Act
+    result = await import_trunk_csv(content, "tenant-a", "pbx-1", dry_run=False, trunk_service=service)
+
+    # Assert
+    assert result.created == 2
+    assert result.rejected == 1
+    assert result.errors == [{"line": 3, "code": "duplicate_auth_identity", "field": "auth_username"}]
+    assert service.upsert_imported.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_import_csv_collects_scope_and_value_errors_per_row():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunks import ScopeValidationError
+
+    _, import_trunk_csv, _ = _importer()
+    service = AsyncMock()
+    service.upsert_imported.side_effect = [
+        ScopeValidationError("condominium_not_found"),
+        ValueError("invalid_prefix"),
+    ]
+    content = (
+        "technology,device_user,device_password\n"
+        "sip,ata-1,fixture-secret\n"
+        "sip,ata-2,fixture-secret\n"
+    ).encode()
+
+    # Act
+    result = await import_trunk_csv(content, "tenant-a", "pbx-1", dry_run=False, trunk_service=service)
+
+    # Assert
+    assert result.rejected == 2
+    assert result.created == 0
+    assert [item["code"] for item in result.errors] == ["condominium_not_found", "invalid_prefix"]
+    assert [item["line"] for item in result.errors] == [2, 3]
+
+
+@pytest.mark.asyncio
 async def test_import_csv_structural_error_happens_before_any_persistence():
     # Arrange
     from unittest.mock import AsyncMock
@@ -380,6 +440,34 @@ async def test_import_batch_json_dry_run_never_persists_or_encrypts():
     assert result.dry_run is True
     assert result.rows == 2
     service.upsert_imported.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_import_batch_json_rejects_whole_batch_without_persisting_when_one_item_would_fail():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import import_trunk_json_batch
+    from src.services.trunks import DuplicateIdentityError
+
+    service = AsyncMock()
+    service.validate_importable.side_effect = [None, DuplicateIdentityError("duplicate_auth_identity")]
+
+    # Act
+    with pytest.raises(DuplicateIdentityError):
+        await import_trunk_json_batch(
+            _batch_trunk_json(),
+            "tenant-a",
+            "pbx-1",
+            condominium_names=CONDOMINIUM_NAMES,
+            condominium_ids={"Parque Portugal": "condo-1", "Camboriu": "condo-2"},
+            dry_run=False,
+            trunk_service=service,
+        )
+
+    # Assert
+    service.upsert_imported.assert_not_awaited()
+    assert service.validate_importable.await_count == 2
 
 
 @pytest.mark.asyncio

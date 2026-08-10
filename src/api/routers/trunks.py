@@ -120,6 +120,8 @@ def _map_service_error(error: Exception):
         raise HTTPException(404, detail={"code": str(error)}) from error
     if isinstance(error, DuplicateIdentityError):
         raise HTTPException(409, detail={"code": str(error)}) from error
+    if isinstance(error, ValueError):
+        raise HTTPException(400, detail={"code": str(error)}) from error
     raise error
 
 
@@ -132,7 +134,7 @@ async def create_condominium(
     try:
         item = await service.create(payload["tenant_id"], data.pbx_id, data.name, data.external_id, data.enabled)
         return _condominium_view(item)
-    except (ScopeValidationError, DuplicateIdentityError) as error:
+    except ValueError as error:
         _map_service_error(error)
 
 
@@ -154,7 +156,7 @@ async def create_trunk(
     try:
         item = await service.create(tenant_id=payload["tenant_id"], **data.model_dump())
         return _trunk_view(item)
-    except (ScopeValidationError, DuplicateIdentityError) as error:
+    except ValueError as error:
         _map_service_error(error)
 
 

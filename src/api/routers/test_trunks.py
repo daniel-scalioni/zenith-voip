@@ -61,6 +61,36 @@ def test_trunk_admin_rejects_non_admin_role():
     assert response.status_code == 403
 
 
+def test_trunk_create_maps_plain_value_error_to_400():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.api.routers.trunks import get_trunk_service
+
+    service = AsyncMock()
+    service.create.side_effect = ValueError("invalid_sip_configuration")
+    token = create_access_token("admin-1", tenant_id="tenant-a", role="tenant_admin")
+    app.dependency_overrides[get_trunk_service] = lambda: service
+
+    try:
+        # Act
+        response = TestClient(app).post(
+            "/api/v1/admin/trunks",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "pbx_id": "pbx-1", "condominium_id": "condo-1",
+                "auth_username": "ata-1", "password": "secret",
+                "sip_profile": "internal",
+            },
+        )
+    finally:
+        app.dependency_overrides.pop(get_trunk_service, None)
+
+    # Assert
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "invalid_sip_configuration"
+
+
 def test_trunk_admin_tenant_scope_comes_only_from_token():
     # Arrange
     from unittest.mock import AsyncMock
