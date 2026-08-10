@@ -57,6 +57,52 @@ def test_parse_csv_rejects_missing_credential_headers_without_echoing_content():
     assert canary not in str(error.value)
 
 
+def test_parse_csv_rejects_content_exceeding_size_limit():
+    # Arrange
+    parse_trunk_csv, _, CSVSchemaError = _importer()
+    content = b"technology,device_user,device_password\nsip,ata-1,fixture-secret\n"
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="csv_too_large"):
+        parse_trunk_csv(content, max_bytes=10)
+
+
+def test_parse_csv_rejects_undecodable_content():
+    # Arrange
+    parse_trunk_csv, _, CSVSchemaError = _importer()
+    content = b"\xff\xfe\x00\x81technology,device_user,device_password"
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="csv_encoding_invalid"):
+        parse_trunk_csv(content)
+
+
+def test_parse_csv_ignores_unrecognized_technology_without_erroring():
+    # Arrange
+    parse_trunk_csv, _, _ = _importer()
+    content = (
+        "technology,device_user,device_password\n"
+        "analog,ata-1,fixture-secret\n"
+    ).encode()
+
+    # Act
+    result = parse_trunk_csv(content)
+
+    # Assert
+    assert result.rows == []
+    assert result.ignored == 1
+
+
+def test_parse_csv_rejects_row_missing_username_or_password():
+    # Arrange
+    parse_trunk_csv, _, CSVSchemaError = _importer()
+    content = "technology,device_user,device_password\nsip,,fixture-secret\n".encode()
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="csv_row_invalid"):
+        parse_trunk_csv(content)
+
+
 def test_parse_csv_enforces_row_limit():
     # Arrange
     parse_trunk_csv, _, CSVSchemaError = _importer()
@@ -107,6 +153,23 @@ async def test_import_csv_repeated_rows_delegate_to_idempotent_upsert():
     assert first.created == 1
     assert second.unchanged == 1
     assert service.upsert_imported.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_import_csv_counts_updated_outcome():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    _, import_trunk_csv, _ = _importer()
+    service = AsyncMock()
+    service.upsert_imported.return_value = "updated"
+    content = b"technology,device_user,device_password\nsip,ata-1,fixture-secret\n"
+
+    # Act
+    result = await import_trunk_csv(content, "tenant-a", "pbx-1", dry_run=False, trunk_service=service)
+
+    # Assert
+    assert result.updated == 1
 
 
 @pytest.mark.asyncio
@@ -214,6 +277,83 @@ def test_parse_private_json_maps_7060_without_inventing_prefix():
     assert "fixture-secret" not in repr(row)
 
 
+def test_parse_private_json_rejects_oversized_content():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_too_large"):
+        parse_trunk_json(_private_trunk_json(), condominium_name="Parque Portugal", max_bytes=10)
+
+
+def test_parse_private_json_rejects_invalid_json():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_invalid"):
+        parse_trunk_json(b"{not valid json", condominium_name="Parque Portugal")
+
+
+def test_parse_private_json_rejects_empty_condominium_name():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_schema_invalid"):
+        parse_trunk_json(_private_trunk_json(), condominium_name="   ")
+
+
+def test_parse_private_json_rejects_missing_configuration_sections():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json
+
+    content = json.dumps({"configuracoes_gerais": {"tecnologia": "PJSIP"}}).encode()
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_schema_invalid"):
+        parse_trunk_json(content, condominium_name="Parque Portugal")
+
+
+def test_normalize_trunk_entry_rejects_non_numeric_port():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json
+
+    content = _private_trunk_json()
+    document = json.loads(content)
+    document["general_configurations"]["porta"] = "nao-numerico"
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_sip_configuration_invalid"):
+        parse_trunk_json(json.dumps(document).encode(), condominium_name="Parque Portugal")
+
+
+def test_normalize_trunk_entry_rejects_missing_remote_username():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json
+
+    content = _private_trunk_json()
+    document = json.loads(content)
+    document["general_configurations"]["nome_de_usuario_remoto"] = ""
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_username_missing"):
+        parse_trunk_json(json.dumps(document).encode(), condominium_name="Parque Portugal")
+
+
+def test_normalize_trunk_entry_rejects_missing_remote_secret():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json
+
+    content = _private_trunk_json()
+    document = json.loads(content)
+    document["general_configurations"]["segredo_remoto"] = ""
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_secret_missing"):
+        parse_trunk_json(json.dumps(document).encode(), condominium_name="Parque Portugal")
+
+
 def test_parse_private_json_rejects_secret_mismatch_without_leaking_values():
     # Arrange
     from src.services.trunk_import import CSVSchemaError, parse_trunk_json
@@ -260,6 +400,72 @@ async def test_import_private_json_dry_run_never_persists_or_encrypts():
     service.upsert_imported.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_import_private_json_requires_condominium_id_before_persisting():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import CSVSchemaError, import_trunk_json
+
+    service = AsyncMock()
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_condominium_missing"):
+        await import_trunk_json(
+            _private_trunk_json(), "tenant-a", "pbx-1",
+            condominium_name="Parque Portugal", condominium_id=None,
+            dry_run=False, trunk_service=service,
+        )
+
+    # Assert
+    service.upsert_imported.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_import_private_json_persists_created_trunk():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import import_trunk_json
+
+    service = AsyncMock()
+    service.upsert_imported.return_value = "created"
+
+    # Act
+    result = await import_trunk_json(
+        _private_trunk_json(), "tenant-a", "pbx-1",
+        condominium_name="Parque Portugal", condominium_id="condo-1",
+        dry_run=False, trunk_service=service,
+    )
+
+    # Assert
+    assert result.created == 1
+    persisted_row = service.upsert_imported.await_args.kwargs["row"]
+    assert persisted_row.condominium_id == "condo-1"
+
+
+@pytest.mark.asyncio
+async def test_import_private_json_counts_updated_and_unchanged_outcomes():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import import_trunk_json
+
+    for outcome, field in (("updated", "updated"), ("unchanged", "unchanged")):
+        service = AsyncMock()
+        service.upsert_imported.return_value = outcome
+
+        # Act
+        result = await import_trunk_json(
+            _private_trunk_json(), "tenant-a", "pbx-1",
+            condominium_name="Parque Portugal", condominium_id="condo-1",
+            dry_run=False, trunk_service=service,
+        )
+
+        # Assert
+        assert getattr(result, field) == 1
+
+
 def _batch_trunk_entry(
     numero="1020",
     descricao="1020 - Parque Portugal",
@@ -295,6 +501,57 @@ def _batch_trunk_json(entries=None):
 
 
 CONDOMINIUM_NAMES = {"1020": "Parque Portugal", "1780": "Camboriu"}
+
+
+def test_parse_batch_json_rejects_oversized_content():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_too_large"):
+        parse_trunk_json_batch(_batch_trunk_json(), condominium_names=CONDOMINIUM_NAMES, max_bytes=10)
+
+
+def test_parse_batch_json_rejects_invalid_json():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_invalid"):
+        parse_trunk_json_batch(b"{not valid json", condominium_names=CONDOMINIUM_NAMES)
+
+
+def test_parse_batch_json_rejects_non_dict_document():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_schema_invalid"):
+        parse_trunk_json_batch(json.dumps([1, 2]).encode(), condominium_names=CONDOMINIUM_NAMES)
+
+
+def test_parse_batch_json_rejects_non_dict_entry():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    content = json.dumps({"ramais": ["not-a-dict"]}).encode()
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_schema_invalid"):
+        parse_trunk_json_batch(content, condominium_names=CONDOMINIUM_NAMES)
+
+
+def test_parse_batch_json_rejects_non_dict_connection():
+    # Arrange
+    from src.services.trunk_import import CSVSchemaError, parse_trunk_json_batch
+
+    entry = _batch_trunk_entry()
+    entry["configuracoes"]["autenticacao_e_rede"] = "not-a-dict"
+    content = json.dumps({"ramais": [entry]}).encode()
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_schema_invalid"):
+        parse_trunk_json_batch(content, condominium_names=CONDOMINIUM_NAMES)
 
 
 def test_parse_batch_json_maps_every_trunk_with_explicit_condominium():
@@ -440,6 +697,58 @@ async def test_import_batch_json_dry_run_never_persists_or_encrypts():
     assert result.dry_run is True
     assert result.rows == 2
     service.upsert_imported.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_import_batch_json_rejects_when_condominium_mapping_missing_before_encrypting():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import CSVSchemaError, import_trunk_json_batch
+
+    service = AsyncMock()
+
+    # Act
+    with pytest.raises(CSVSchemaError, match="trunk_json_condominium_missing"):
+        await import_trunk_json_batch(
+            _batch_trunk_json(),
+            "tenant-a",
+            "pbx-1",
+            condominium_names=CONDOMINIUM_NAMES,
+            condominium_ids={"Parque Portugal": "condo-1"},
+            dry_run=False,
+            trunk_service=service,
+        )
+
+    # Assert
+    service.validate_importable.assert_not_awaited()
+    service.upsert_imported.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_import_batch_json_counts_updated_and_unchanged_outcomes():
+    # Arrange
+    from unittest.mock import AsyncMock
+
+    from src.services.trunk_import import import_trunk_json_batch
+
+    service = AsyncMock()
+    service.upsert_imported.side_effect = ["updated", "unchanged"]
+
+    # Act
+    result = await import_trunk_json_batch(
+        _batch_trunk_json(),
+        "tenant-a",
+        "pbx-1",
+        condominium_names=CONDOMINIUM_NAMES,
+        condominium_ids={"Parque Portugal": "condo-1", "Camboriu": "condo-2"},
+        dry_run=False,
+        trunk_service=service,
+    )
+
+    # Assert
+    assert result.updated == 1
+    assert result.unchanged == 1
 
 
 @pytest.mark.asyncio

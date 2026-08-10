@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -125,6 +126,118 @@ def test_extract_lookup_prefers_canonical_fields_and_never_uses_domain_as_userna
     # Assert
     assert preferred == ("internal", "spike012")
     assert rejected is None
+
+
+def _lookup_service(trunk_service=None, legacy_provider=None, cipher=None):
+    from src.api.freeswitch_directory import DirectoryLookupService
+
+    return DirectoryLookupService(
+        trunk_service or AsyncMock(),
+        legacy_provider or MagicMock(),
+        cipher or MagicMock(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_lookup_service_returns_none_when_neither_source_matches():
+    # Arrange
+    trunk_service = AsyncMock()
+    trunk_service.lookup_directory_identity.return_value = None
+    legacy_provider = MagicMock()
+    legacy_provider.lookup.return_value = None
+    service = _lookup_service(trunk_service, legacy_provider)
+
+    # Act
+    result = await service.lookup("internal-7060", "ata-1140")
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_service_raises_ambiguous_when_both_sources_match():
+    # Arrange
+    from src.api.freeswitch_directory import AmbiguousDirectoryIdentityError
+
+    trunk_service = AsyncMock()
+    trunk_service.lookup_directory_identity.return_value = SimpleNamespace(id="trunk-1")
+    legacy_provider = MagicMock()
+    legacy_provider.lookup.return_value = SimpleNamespace(username="ata-1140")
+    service = _lookup_service(trunk_service, legacy_provider)
+
+    # Act / Assert
+    with pytest.raises(AmbiguousDirectoryIdentityError):
+        await service.lookup("internal-7060", "ata-1140")
+
+
+@pytest.mark.asyncio
+async def test_lookup_service_returns_trunk_payload_with_decrypted_password():
+    # Arrange
+    trunk = SimpleNamespace(
+        id="trunk-1", auth_username="ata-1140", encrypted_password="cipher-token",
+        tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1", prefix="1140",
+    )
+    trunk_service = AsyncMock()
+    trunk_service.lookup_directory_identity.return_value = trunk
+    legacy_provider = MagicMock()
+    legacy_provider.lookup.return_value = None
+    cipher = MagicMock()
+    cipher.decrypt.return_value = "plain-secret"
+    service = _lookup_service(trunk_service, legacy_provider, cipher)
+
+    # Act
+    result = await service.lookup("internal-7060", "ata-1140")
+
+    # Assert
+    assert result["auth_username"] == "ata-1140"
+    assert result["password"] == "plain-secret"
+    assert result["trunk_id"] == "trunk-1"
+    assert result["prefix"] == "1140"
+
+
+@pytest.mark.asyncio
+async def test_lookup_service_raises_credential_unavailable_when_decrypt_fails():
+    # Arrange
+    from src.api.freeswitch_directory import DirectoryCredentialUnavailableError
+    from src.services.trunk_credentials import CredentialTokenError
+
+    trunk = SimpleNamespace(
+        id="trunk-1", auth_username="ata-1140", encrypted_password="corrupted-token",
+        tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1", prefix=None,
+    )
+    trunk_service = AsyncMock()
+    trunk_service.lookup_directory_identity.return_value = trunk
+    legacy_provider = MagicMock()
+    legacy_provider.lookup.return_value = None
+    cipher = MagicMock()
+    cipher.decrypt.side_effect = CredentialTokenError("credential_token_invalid")
+    service = _lookup_service(trunk_service, legacy_provider, cipher)
+
+    # Act / Assert
+    with pytest.raises(DirectoryCredentialUnavailableError) as error:
+        await service.lookup("internal-7060", "ata-1140")
+    assert error.value.trunk_id == "trunk-1"
+
+
+@pytest.mark.asyncio
+async def test_lookup_service_returns_legacy_payload_when_only_legacy_matches():
+    # Arrange
+    trunk_service = AsyncMock()
+    trunk_service.lookup_directory_identity.return_value = None
+    legacy_user = SimpleNamespace(
+        username="1001", password="legacy-secret", params=(("password", "legacy-secret"),), variables=(),
+    )
+    legacy_provider = MagicMock()
+    legacy_provider.lookup.return_value = legacy_user
+    service = _lookup_service(trunk_service, legacy_provider)
+
+    # Act
+    result = await service.lookup("internal", "1001")
+
+    # Assert
+    assert result["auth_username"] == "1001"
+    assert result["password"] == "legacy-secret"
+    assert result["params"] == (("password", "legacy-secret"),)
 
 
 def _override_directory_service(service):

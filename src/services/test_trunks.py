@@ -65,6 +65,63 @@ async def test_create_trunk_rejects_identity_present_in_legacy_directory():
 
 
 @pytest.mark.asyncio
+async def test_create_trunk_rejects_malformed_prefix():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    with pytest.raises(ValueError, match="invalid_prefix"):
+        await service.create(
+            tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+            prefix="not-digits", auth_username="ata-1140", password="secret",
+            sip_profile="internal", enabled=False,
+        )
+
+    # Assert
+    repositories[0].create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_trunk_rejects_sip_profile_outside_allowlist():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    with pytest.raises(ValueError, match="invalid_sip_configuration"):
+        await service.create(
+            tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+            prefix=None, auth_username="ata-1140", password="secret",
+            sip_profile="internal-5062", enabled=False,
+        )
+
+    # Assert
+    repositories[0].create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_trunk_rejects_condominium_from_different_pbx_in_same_tenant():
+    # Arrange
+    TrunkService, ScopeValidationError, _ = _service()
+    repositories = _repositories()
+    repositories[1].get.return_value = SimpleNamespace(
+        id="condo-1", tenant_id="tenant-a", pbx_id="pbx-other", enabled=True,
+    )
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    with pytest.raises(ScopeValidationError, match="condominium_not_found"):
+        await service.create(
+            tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+            prefix=None, auth_username="ata-1140", password="secret",
+            sip_profile="internal", enabled=False,
+        )
+
+
+@pytest.mark.asyncio
 async def test_create_trunk_rejects_whitespace_only_password():
     # Arrange
     TrunkService, _, _ = _service()
@@ -226,6 +283,191 @@ async def test_update_trunk_translates_check_constraint_to_invalid_prefix():
     # Act
     with pytest.raises(ValueError, match="invalid_prefix"):
         await service.update("tenant-a", "trunk-1", prefix="not-digits")
+
+
+@pytest.mark.asyncio
+async def test_trunk_list_scopes_filters_to_tenant():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    repositories[0].find_by.return_value = [SimpleNamespace(id="trunk-1")]
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    result = await service.list("tenant-a", enabled=True, registration_status=None)
+
+    # Assert
+    assert result == [SimpleNamespace(id="trunk-1")]
+    repositories[0].find_by.assert_awaited_once_with(tenant_id="tenant-a", enabled=True)
+
+
+@pytest.mark.asyncio
+async def test_lookup_directory_identity_returns_none_when_trunk_missing():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    repositories[0].find_by.return_value = []
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    result = await service.lookup_directory_identity("internal-7060", "ata-1140")
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_directory_identity_returns_none_when_trunk_disabled():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    repositories[0].find_by.return_value = [SimpleNamespace(id="trunk-1", enabled=False)]
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    result = await service.lookup_directory_identity("internal-7060", "ata-1140")
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_directory_identity_returns_none_when_condominium_disabled():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    trunk = SimpleNamespace(
+        id="trunk-1", enabled=True, tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+    )
+    repositories[0].find_by.return_value = [trunk]
+    repositories[1].get.return_value = SimpleNamespace(
+        id="condo-1", enabled=False, tenant_id="tenant-a", pbx_id="pbx-1",
+    )
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    result = await service.lookup_directory_identity("internal-7060", "ata-1140")
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_directory_identity_returns_none_when_data_crosses_tenants():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    trunk = SimpleNamespace(
+        id="trunk-1", enabled=True, tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+    )
+    repositories[0].find_by.return_value = [trunk]
+    repositories[1].get.return_value = SimpleNamespace(
+        id="condo-1", enabled=True, tenant_id="tenant-b", pbx_id="pbx-1",
+    )
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+
+    # Act
+    result = await service.lookup_directory_identity("internal-7060", "ata-1140")
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_directory_identity_returns_none_when_tenant_inactive():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    trunk = SimpleNamespace(
+        id="trunk-1", enabled=True, tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+    )
+    repositories[0].find_by.return_value = [trunk]
+    repositories[1].get.return_value = SimpleNamespace(
+        id="condo-1", enabled=True, tenant_id="tenant-a", pbx_id="pbx-1",
+    )
+    tenant_repository = AsyncMock()
+    tenant_repository.get.return_value = SimpleNamespace(id="tenant-a", status="suspended")
+    service = TrunkService(
+        *repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock(),
+        tenant_repository=tenant_repository,
+    )
+
+    # Act
+    result = await service.lookup_directory_identity("internal-7060", "ata-1140")
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_directory_identity_returns_trunk_when_everything_matches():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    trunk = SimpleNamespace(
+        id="trunk-1", enabled=True, tenant_id="tenant-a", pbx_id="pbx-1", condominium_id="condo-1",
+    )
+    repositories[0].find_by.return_value = [trunk]
+    repositories[1].get.return_value = SimpleNamespace(
+        id="condo-1", enabled=True, tenant_id="tenant-a", pbx_id="pbx-1",
+    )
+    repositories[2].get.return_value = SimpleNamespace(id="pbx-1", tenant_id="tenant-a")
+    tenant_repository = AsyncMock()
+    tenant_repository.get.return_value = SimpleNamespace(id="tenant-a", status="active")
+    service = TrunkService(
+        *repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock(),
+        tenant_repository=tenant_repository,
+    )
+
+    # Act
+    result = await service.lookup_directory_identity("internal-7060", "ata-1140")
+
+    # Assert
+    assert result is trunk
+
+
+@pytest.mark.asyncio
+async def test_validate_importable_rejects_existing_identity_owned_by_another_tenant():
+    # Arrange
+    from src.services.trunk_import import TrunkCSVRow
+
+    TrunkService, ScopeValidationError, _ = _service()
+    repositories = _repositories()
+    repositories[0].find_by.return_value = [SimpleNamespace(id="foreign-trunk", tenant_id="tenant-b")]
+    service = TrunkService(*repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock())
+    row = TrunkCSVRow(
+        line=1, prefix=None, condominium_name="X", auth_username="1020",
+        password="fixture-secret", sip_profile="internal-7060", condominium_id="condo-1",
+    )
+
+    # Act
+    with pytest.raises(ScopeValidationError, match="trunk_not_found"):
+        await service.validate_importable(tenant_id="tenant-a", pbx_id="pbx-1", row=row)
+
+
+@pytest.mark.asyncio
+async def test_update_trunk_encrypts_and_marks_identity_changed_on_valid_password():
+    # Arrange
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    existing = SimpleNamespace(
+        id="trunk-1", tenant_id="tenant-a", pbx_id="pbx-1",
+        condominium_id="condo-1", encrypted_password="existing-token",
+        auth_username="ata-1140", sip_profile="internal",
+    )
+    repositories[0].get.return_value = existing
+    cipher = AsyncMock()
+    cipher.encrypt.return_value = "new-encrypted-token"
+    service = TrunkService(*repositories, credential_cipher=cipher, legacy_provider=AsyncMock())
+
+    # Act
+    await service.update("tenant-a", "trunk-1", password="new-secret")
+
+    # Assert
+    cipher.encrypt.assert_called_once_with("new-secret")
+    update_kwargs = repositories[0].update.await_args.kwargs
+    assert update_kwargs["encrypted_password"] == "new-encrypted-token"
+    assert update_kwargs["registration_status"] == "unknown"
 
 
 @pytest.mark.asyncio

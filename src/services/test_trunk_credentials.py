@@ -54,6 +54,30 @@ def test_cipher_rejects_missing_keys_without_leaking_secret():
     assert "password" not in str(error.value).lower()
 
 
+def test_cipher_rejects_empty_plaintext_without_persisting():
+    # Arrange
+    TrunkCredentialCipher, _, TokenError = _credentials()
+    cipher = TrunkCredentialCipher([Fernet.generate_key().decode()])
+
+    # Act
+    with pytest.raises(TokenError, match="credential_plaintext_invalid"):
+        cipher.encrypt("")
+
+
+def test_cipher_rejects_corrupted_token_on_rotate():
+    # Arrange
+    TrunkCredentialCipher, _, TokenError = _credentials()
+    cipher = TrunkCredentialCipher([Fernet.generate_key().decode()])
+    canary = "canary-corrupted-token"
+
+    # Act
+    with pytest.raises(TokenError) as error:
+        cipher.rotate(canary)
+
+    # Assert
+    assert canary not in str(error.value)
+
+
 def test_cipher_rejects_corrupted_token_with_sanitized_error():
     # Arrange
     TrunkCredentialCipher, _, TokenError = _credentials()

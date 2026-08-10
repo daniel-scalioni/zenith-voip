@@ -68,6 +68,40 @@ async def test_create_condominium_translates_concurrent_external_id_race():
 
 
 @pytest.mark.asyncio
+async def test_condominium_list_scopes_to_tenant_and_optional_pbx():
+    # Arrange
+    CondominiumService, _ = _service()
+    pbx_repository = AsyncMock()
+    condominium_repository = AsyncMock()
+    condominium_repository.find_by.return_value = [SimpleNamespace(id="condo-1")]
+    service = CondominiumService(condominium_repository, pbx_repository)
+
+    # Act
+    result = await service.list("tenant-a", pbx_id="pbx-1")
+
+    # Assert
+    assert result == [SimpleNamespace(id="condo-1")]
+    condominium_repository.find_by.assert_awaited_once_with(tenant_id="tenant-a", pbx_id="pbx-1")
+
+
+@pytest.mark.asyncio
+async def test_update_condominium_rejects_cross_tenant_target():
+    # Arrange
+    CondominiumService, ScopeValidationError = _service()
+    pbx_repository = AsyncMock()
+    condominium_repository = AsyncMock()
+    condominium_repository.get.return_value = SimpleNamespace(id="condo-1", tenant_id="tenant-b")
+    service = CondominiumService(condominium_repository, pbx_repository)
+
+    # Act
+    with pytest.raises(ScopeValidationError, match="condominium_not_found"):
+        await service.update("tenant-a", "condo-1", name="Novo Nome")
+
+    # Assert
+    condominium_repository.update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_update_condominium_translates_concurrent_external_id_race():
     # Arrange
     from src.services.base import IntegrityConstraintError

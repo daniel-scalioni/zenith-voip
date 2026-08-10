@@ -66,6 +66,45 @@ def test_legacy_provider_reports_membership_without_exposing_password(tmp_path):
     assert "canary-secret" not in repr(provider)
 
 
+def test_legacy_provider_rejects_duplicate_root_user_ids(tmp_path):
+    # Arrange
+    path = tmp_path / "extensions.xml"
+    path.write_text(
+        '<user id="1001"><params><param name="password" value="first"/></params></user>\n'
+        '<user id="1001"><params><param name="password" value="duplicate"/></params></user>',
+        encoding="utf-8",
+    )
+    provider, LegacyDirectoryError = _provider(path)
+
+    # Act
+    with pytest.raises(LegacyDirectoryError, match="legacy_directory_ambiguous_user"):
+        provider.lookup("1001")
+
+
+def test_legacy_provider_rejects_malformed_xml_even_after_wrapping(tmp_path):
+    # Arrange
+    path = tmp_path / "extensions.xml"
+    path.write_text("not xml <at all", encoding="utf-8")
+    provider, LegacyDirectoryError = _provider(path)
+
+    # Act
+    with pytest.raises(LegacyDirectoryError, match="legacy_directory_invalid"):
+        provider.lookup("1001")
+
+
+def test_legacy_provider_contains_rejects_profile_outside_allowlist(tmp_path):
+    # Arrange
+    path = tmp_path / "extensions.xml"
+    path.write_text('<user id="1001"><params><param name="password" value="first"/></params></user>', encoding="utf-8")
+    provider, _ = _provider(path)
+
+    # Act
+    result = provider.contains("external-pstn", "1001")
+
+    # Assert
+    assert result is False
+
+
 def test_legacy_provider_accepts_freeswitch_include_with_multiple_root_users(tmp_path):
     # Arrange
     path = tmp_path / "extensions.xml"
