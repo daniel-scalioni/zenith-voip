@@ -2,7 +2,7 @@
 
 > Data: `2026-08-03` (tabela de arquivos afetados e diff conceitual), atualizado em `2026-08-10` (fechamento)
 > Feature: `012-trunk-registration`
-> Execução: fechada — 51 de 51 ações reais concluídas (T004/T005/T042/T043/T044/T046 exigiam evidência de ambiente e todas foram cumpridas com evidência real, não por inferência; ver `progress.jsonl`)
+> Execução: fechada — 56 de 56 ações concluídas (T004/T005/T042/T043/T044/T046 exigiam evidência de ambiente e todas foram cumpridas com evidência real, não por inferência, exceto a cláusula de chamadas simultâneas/eventos duplicados do T046, coberta pela suíte automatizada por decisão do usuário, não por E2E real — ver `regression-watch.md`; demais evidências em `progress.jsonl`)
 > Âncora: `_reversa_sdd/architecture.md` + `_reversa_sdd/domain.md`
 
 ## Arquivos afetados

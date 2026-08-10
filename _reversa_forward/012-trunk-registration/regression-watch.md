@@ -1,7 +1,7 @@
 # Regression Watch: Registro de troncos ATA
 
 > Feature: `012-trunk-registration`
-> Execução: fechada, 51 de 51 ações reais concluídas
+> Execução: fechada, 56 de 56 ações concluídas concluídas
 
 ## Watch principal
 
