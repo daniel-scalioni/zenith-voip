@@ -1,8 +1,8 @@
 # Legacy Impact: Registro de troncos ATA
 
-> Data: `2026-08-03`
+> Data: `2026-08-03` (tabela de arquivos afetados e diff conceitual), atualizado em `2026-08-10` (fechamento)
 > Feature: `012-trunk-registration`
-> Execução: parcial, 45 de 55 ações concluídas após T042
+> Execução: fechada — 51 de 51 ações reais concluídas (T004/T005/T042/T043/T044/T046 exigiam evidência de ambiente e todas foram cumpridas com evidência real, não por inferência; ver `progress.jsonl`)
 > Âncora: `_reversa_sdd/architecture.md` + `_reversa_sdd/domain.md`
 
 ## Arquivos afetados
@@ -53,6 +53,43 @@ O XML com HTTP Basic é gerado fora do Git, modo 0600, e o endpoint é bloqueado
 
 - R54: o healthcheck continua exigindo `mod_audio_stream` e agora exige também `mod_xml_curl` antes de considerar o FreeSWITCH saudável.
 
-## Pendências desta execução parcial
+## Riscos e evidências no fechamento (T050)
 
-T043 foi concluída com configuração individual privada; exportação CSV de troncos deixou de ser pré-requisito. T055 ainda exige a comparação legada e T044-T046 exigem checkpoint humano e ATAs reais. T047-T051 permanecem bloqueadas por essas evidências e pelos gates globais.
+### Autenticação
+
+- `internal-7060` é o único profile com `auth-calls=true` ativado nesta feature; `internal` (5060) foi revertido para `false` após descobrir-se que hospeda troncos PSTN externos reais (W003, resolvido). Ativação real do 5060 fica para feature futura dedicada (`requirements.md §9`).
+- O binding `mod_xml_curl` é declarado por seção (`bindings="directory"`), não por profile: uma vez carregado, atende lookups de 5060, 7060 **e** 5062 ao mesmo tempo. O que isola cada profile é `auth-calls`, não o alcance do binding — ver W007 (observação) e onboarding.md §7.
+- `TrunkService` falha fechado (403, não erro explícito) quando `tenant.status != "active"` — comportamento correto de segurança, mas documentado como pitfall operacional em `regression-watch.md` para quem for provisionar tenants de teste.
+- Auditoria de vazamento de credencial (T047, canário real) não encontrou ocorrência em logs de app/FreeSWITCH/proxy/métricas no nível de log atual; ressalva registrada em `security-verdict.md`: `docker logs zenith-freeswitch` retém pouquíssimo, então "zero ocorrências" reflete retenção quase nula, não prova de robustez sob log verboso — se o loglevel do Sofia for elevado no futuro, reauditar.
+
+### Variáveis de ambiente novas
+
+| Variável | Arquivo | Função | Nota |
+|---|---|---|---|
+| `TRUNK_CREDENTIAL_KEYS` | `src/config.py`, `.env.example` | Uma ou mais chaves Fernet (CSV) para `TrunkCredentialCipher`/`MultiFernet` | Falha rápido na construção (`CredentialConfigurationError`) se vazia ou inválida — nunca falha silenciosamente no primeiro `encrypt`/`decrypt` |
+| `FREESWITCH_DIRECTORY_BASIC_USERNAME` / senha correspondente | `.env.example` | HTTP Basic exclusivo do binding `mod_xml_curl` | Distinto de `JWT_SECRET` e da senha ESL; nunca reaproveitar |
+| `FREESWITCH_ESL_PASSWORD` | `src/config.py` | Pré-existente (default `ClueCon`, já registrado em ADR-005 como to-do) | Não alterado por esta feature |
+
+### Porta 5062
+
+- `internal-5062.xml` permanece com `auth-calls=false` e não foi tocado por nenhuma ação desta feature — confirmado intacto ao longo de todo o ensaio de rollback (onboarding.md §"Ensaio de rollback") e do T046 (troncos duplicados).
+- Risco residual conhecido (não corrigido, é comportamento herdado do binding global): se `auth-calls` for setado `true` em 5062 por engano em qualquer mudança futura, o mesmo diretório dinâmico já responderá lookups nesse profile imediatamente, sem código adicional. Vale monitorar em qualquer PR futuro que toque `sip_profiles/`.
+
+### Segredo
+
+- Senhas SIP são cifradas com `MultiFernet` (`TrunkCredentialCipher`); chave nunca versionada, carregada só de `TRUNK_CREDENTIAL_KEYS`.
+- O XML com HTTP Basic do `mod_xml_curl` é renderizado fora do Git (`scripts/render_freeswitch_secrets.py`), modo `0600`, escrita atômica; `.gitignore` bloqueia o arquivo real, mantendo só `.example`.
+- Nenhuma senha SIP em claro observada em disco, log ou resposta de erro durante o canário do T047 (`security-verdict.md`).
+
+### Rollback
+
+Procedimento real, ensaiado e com um defeito próprio corrigido em 2026-08-06 (ver `onboarding.md §8` para o passo a passo completo — não duplicado aqui):
+
+1. Descarregar `mod_xml_curl` devolve o diretório estático a todos os profiles de uma vez (o binding não é por profile).
+2. Reverter **apenas o parâmetro `auth-calls`**, nunca `git checkout main -- freeswitch/conf/sip_profiles/` inteiro — a versão de `main` reintroduz GAP-NET-01 (W005) via `$${external_sip_ip}`/`$${external_rtp_ip}` sobrescritas pelo `zenith-ip-watcher`.
+3. Tabelas aditivas (`condominiums`, `ata_trunks`) permanecem no banco; não há downgrade de migration no rollback operacional.
+4. Comportamento operacional observado: após `403`, o ATA entra em backoff e não retenta sozinho — um rollback real exige forçar o registro no equipamento, não só desfazer a config.
+
+## Pendências desta execução
+
+Nenhuma. T043–T049 concluídas com evidência real (checkpoint humano T044 cumprido com ATA físico real no 7060). Gaps conhecidos e deliberadamente não corrigidos nesta rodada — `PATCH /trunks|condominiums` ausente (W006) e `active_calls`/`in_use` não populados em `GET/POST /trunks` (W007) — ficam registrados em `regression-watch.md` para decisão em feature futura, não bloqueiam o fechamento desta.

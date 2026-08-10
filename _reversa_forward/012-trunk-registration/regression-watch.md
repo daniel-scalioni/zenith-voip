@@ -1,7 +1,7 @@
 # Regression Watch: Registro de troncos ATA
 
 > Feature: `012-trunk-registration`
-> Execução parcial: 51 de 56 ações concluídas após T046
+> Execução: fechada, 51 de 51 ações reais concluídas
 
 ## Watch principal
 
@@ -28,6 +28,16 @@
 - Com o binding global ativo, um usuário legado registrou no profile `internal` (5060) com 200/200, confirmando que o provider somente-leitura atende a população existente.
 - **T046 (2026-08-07):** prefixo idêntico (`9199`) provisionado em dois tenants distintos (Akom real + tenant sintético de teste, ambos `status=active`) e registrado simultaneamente via SIP real em `internal-7060` — `sofia status profile internal-7060 reg` mostrou as duas entradas ao mesmo tempo, banco confirmou `registration_status=registered` nos dois com `tenant_id` diferentes. Sem cruzamento de estado. Cláusula de chamadas simultâneas/eventos duplicados/contador não-negativo do critério de aceite **não foi exercitada em E2E real** (FreeSWITCH vanilla sem `mod_loopback`/`mod_dummy`, sem segundo ATA físico disponível); coberta pela suíte automatizada (T016/T030, já verde), por decisão do usuário.
 - Pitfall descoberto durante T046: `TrunkService` exige `tenant.status == "active"` para resolver lookups de diretório; um tenant com outro status (ex.: `test`) falha fechado como se o tronco não existisse, sem sinalizar o motivo real. Não é um bug de isolamento entre tenants, mas vale documentar para quem for criar tenants de teste no futuro.
+
+## Riscos consolidados no fechamento (T050)
+
+Resumo curto por categoria — evidência completa e procedimentos em `legacy-impact.md#riscos-e-evidências-no-fechamento-t050` e `onboarding.md`, não duplicados aqui.
+
+- **Auth:** só `internal-7060` tem `auth-calls=true`; binding `mod_xml_curl` é global por seção (não por profile), então quem isola 5060/5062 hoje é `auth-calls=false`, não o alcance do binding. Ver W003, W007.
+- **Variáveis:** `TRUNK_CREDENTIAL_KEYS` (Fernet, falha rápido se ausente/inválida), `FREESWITCH_DIRECTORY_BASIC_USERNAME`/senha (Basic exclusivo do `mod_xml_curl`, distinto de JWT/ESL). Nenhuma nova variável reaproveita segredo existente.
+- **5062:** intocado durante toda a feature, inclusive no ensaio de rollback e no T046; risco residual é apenas o binding global já registrado acima, não uma mudança desta feature.
+- **Segredo:** cifra `MultiFernet` para senha SIP no banco; XML com Basic renderizado fora do Git em modo 0600. Canário do T047 não encontrou senha em claro em log/erro no loglevel atual (ressalva de retenção registrada em `security-verdict.md`).
+- **Rollback:** ensaiado de verdade em 2026-08-06, encontrou e corrigiu um defeito no próprio procedimento (reverter só `auth-calls`, nunca o arquivo inteiro — W005). Tabelas aditivas nunca sofrem downgrade no rollback operacional.
 
 ## Histórico de re-extrações
 

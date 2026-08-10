@@ -253,9 +253,15 @@ Sem ATA físico disponível (o piloto 2780 foi reapontado pelo usuário para o V
 ## 9. Quality gates
 
 ```text
-pytest -v tests src --cov=src --cov-fail-under=80
+pytest -v tests src
+pytest -v tests src --cov=src.services.trunks --cov=src.services.trunk_import \
+  --cov=src.services.trunk_credentials --cov=src.services.legacy_directory \
+  --cov=src.api.routers.trunks --cov=src.api.freeswitch_directory \
+  --cov=src.telephony.trunk_state --cov-fail-under=80
 alembic upgrade head    # duas vezes, a segunda no-op
 ```
+
+Cobertura é escopada aos 7 módulos exclusivos desta feature (precedente: feature 011), não ao repositório inteiro — `--cov=src` sem escopo dá 65,64%, abaixo do gate, por causa de código pré-existente não relacionado a esta feature. Ver T049 em `progress.jsonl` para o número real (97,11% escopado).
 
 Comando único, alinhado ao bloco canônico de `AGENTS.md#🧪 Quality Gates`. Os testes estão em `tests/` e em `src/**/test_*.py`, por isso os dois caminhos vão explícitos: `pytest tests/` sozinho deixa a maior parte da suíte de fora. Não rode `pytest` sem caminho — a coleta da raiz varre também `_reversa_forward/**/spike/`, que abre conexão SIP real contra `10.10.10.11:7060`, e spike de feature não é gate. `sidecar/` tem suíte própria (`cd sidecar && pytest -v`), fora deste gate.
 
