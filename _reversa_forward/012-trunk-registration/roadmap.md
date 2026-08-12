@@ -36,10 +36,11 @@ Não existe `.reversa/principles.md`. Foram aplicados os princípios confirmados
 | D-08 | Consumir `CUSTOM sofia::register`, `sofia::unregister` e `sofia::expire`, preservando temporariamente os eventos legados já assinados. | O catálogo oficial documenta esses eventos e cabeçalhos; `expire` cobre ausência de unregister explícito. | depender apenas de `SOFIA_REGISTER`; polling contínuo | 🟢 |
 | D-09 | Reconciliar registros e canais no boot e após reconexão ESL por comandos Sofia controlados, marcando `unknown` antes da reconciliação. | Evita falso `registered` após janelas sem eventos. | confiar no estado persistido; exigir novo REGISTER | 🟡 |
 | D-10 | Retornar variáveis `zenith_tenant_id`, `zenith_pbx_id`, `zenith_condominium_id` e `zenith_trunk_id` no usuário do diretório. | Remove a dependência de valores globais fixos e permite identificar eventos/canais. | inferir por prefixo; manter `vars.xml` fixo | 🟢 |
-| D-11 | Preservar o dialplan de números e a bridge upstream; alterar apenas a origem das variáveis de contexto. | O escopo aprovado proíbe manipulação de dígitos e fila no Zenith. | novo roteador de chamadas; fila por condomínio | 🟢 |
+| D-11 | Preservar o dialplan de números e a bridge upstream; alterar apenas a origem das variáveis de contexto. **Nota de correção (2026-08-12):** "alterar apenas a origem" pressupunha que o resultado (canal com `zenith_tenant_id`/`zenith_pbx_id` populados) continuaria valendo para todo o dialplan, não só para tronco. A T037 implementou a remoção do lado global sem guarda condicional, e o Red da T019 só provou a ausência do mecanismo antigo — nunca a presença de um substituto para ramal legado. Ver D-15. | O escopo aprovado proíbe manipulação de dígitos e fila no Zenith. | novo roteador de chamadas; fila por condomínio | 🟢 |
 | D-12 | Aceitar cadastro individual a partir de configuração privada e preservar o importador CSV opcional, ambos idempotentes pela identidade SIP quando não houver prefixo. | O VitalPBX não exporta troncos no ambiente real; exigir CSV bloquearia o rollout. | inferir prefixo; copiar segredo para XML; remover suporte CSV | 🟢 |
 | D-13 | Não expor operação de exclusão física na primeira versão; desabilitar é o mecanismo de retirada. | Preserva auditoria e evita apagar um tronco durante chamada ou registro ativo. | DELETE imediato; cascade automático | 🟢 |
 | D-14 | Implementar `LegacyDirectoryProvider` somente leitura, com parsing XML seguro, cache invalidado por `mtime` e resposta sem trunk metadata. | `mod_xml_curl` não faz fallback para arquivos; a camada preserva ramais existentes sem migrá-los nem alterar seu contrato. | ignorar usuários atuais; duplicar todos no banco nesta feature | 🟢 |
+| D-15 (emenda 2026-08-12) | Restaurar `zenith_tenant_id=$${tenant_id}`/`zenith_pbx_id=$${pbx_id}` no dialplan (`zenith_audio_fork`), mas condicionado à ausência prévia dessas variáveis no canal — nunca sobrescreve o valor já injetado pelo diretório (D-10) para um tronco. | D-11 já previa preservar o resultado para todo o dialplan; a atribuição incondicional antiga voltaria a quebrar o isolamento por tronco que D-02/D-10 entregam (todo canal reportaria `tenant_id=akom`). A guarda é a única forma de cumprir D-10 e D-11 ao mesmo tempo. | atribuição incondicional (reintroduz cruzamento de tenant); mover a fonte legada para `import_extensions.py`/`extensions.xml` (completaria D-10 de vez, mas é escopo maior, descartado pelo usuário em favor do fallback, menor risco) | 🟢 |
 
 ## 4. Premissas
 
@@ -88,8 +89,9 @@ Não há `[DÚVIDA]` pendente no `requirements.md`.
 7. Importar uma extração privada de troncos em rehearsal e comparar contagens/constraints sem exibir credenciais.
 8. Ativar diretório dinâmico primeiro no profile 7060, registrar um usuário legado e um ATA piloto, validar eventos, consulta e chamada.
 9. ~~Ativar no profile 5060 após o piloto, preservando 5062 e gateways upstream.~~ **Descoposto em 2026-08-07:** o profile 5060 hospeda troncos PSTN externos reais; ativação de ATA nesse profile fica para feature dedicada futura. Ver `requirements.md#9-esclarecimentos`.
-10. Remover o uso das variáveis globais de tenant/PBX somente após os metadados por tronco estarem comprovados em chamada E2E no profile 7060.
+10. Remover o uso das variáveis globais de tenant/PBX somente após os metadados por tronco estarem comprovados em chamada E2E no profile 7060. **Nota de correção (2026-08-12):** este item autorizava deixar de *depender* do global para identidade de tronco, comprovado o suficiente. A execução real (T037) removeu a atribuição do global para **todo** o dialplan, inclusive ramal legado — nunca coberto pelos metadados por tronco. Não havia decisão aprovada para remover o fallback do caminho legado. Ver D-15 e item 12.
 11. Manter rollback: restaurar profiles anteriores, remover o binding e recarregar XML; as tabelas novas podem permanecer inativas.
+12. **(emenda 2026-08-12)** Restaurar `zenith_tenant_id`/`zenith_pbx_id` no dialplan como fallback condicional (D-15), reescrever o Red da T019 para cobrir ambos os cenários (fallback aplicado / preservação do valor de tronco), e provar com teste de regressão que uma chamada de ramal legado volta a gerar linha `Call`.
 
 ## 9. Riscos e mitigações
 
@@ -125,6 +127,9 @@ Não há `[DÚVIDA]` pendente no `requirements.md`.
 - [ ] `cross-check.md` sem CRITICAL nem HIGH
 - [ ] `regression-watch.md` gerado
 - [ ] Adendo pós-coding gerado por `/reversa-sync`
+- [ ] **(emenda 2026-08-12)** Ramal legado sem variável de diretório volta a gerar linha `Call` (fallback do dialplan)
+- [ ] **(emenda 2026-08-12)** Tronco com identidade injetada pelo diretório preserva `tenant_id`/`pbx_id` reais, dialplan não sobrescreve
+- [ ] **(emenda 2026-08-12)** `regression-watch.md` ganha item de vigilância novo para a interação dialplan↔diretório
 
 ## 11. Histórico de alterações
 
@@ -132,3 +137,4 @@ Não há `[DÚVIDA]` pendente no `requirements.md`.
 |------|-----------|-------|
 | 2026-08-01 | Versão inicial gerada por `/reversa-plan` | reversa |
 | 2026-08-07 | Item 9 do plano de migração e critério de pronto ajustados: ativação real restrita ao profile 7060, 5060 descoposto (troncos PSTN externos reais descobertos no profile) | reversa |
+| 2026-08-12 | D-15 acrescentada; D-11 e item 10 do plano de migração anotados com a correção; novo item 12 e três itens no critério de pronto para a emenda RN-11/RF-13 (fallback condicional de `zenith_tenant_id`/`zenith_pbx_id` no dialplan) | reversa |

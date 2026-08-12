@@ -21,6 +21,18 @@
       <condition field="destination_number" expression="^(\d+)$">
         <action application="set" data="zenith_call_id=${uuid}"/>
         <action application="set" data="zenith_agent_extension=${sip_from_user}"/>
+      </condition>
+      <!-- Fallback de contexto (RN-11/D-15, 2026-08-12): zenith_tenant_id/zenith_pbx_id só são
+           setados aqui quando o canal ainda não os tem. Troncos ATA já chegam com essas variáveis
+           injetadas pelo diretório dinâmico (mod_xml_curl, ver src/api/freeswitch_directory.py) e
+           não podem ser sobrescritos. break="never" é obrigatório: sem ele, quando o tronco já
+           tem zenith_tenant_id (condição não casa "^$"), o FreeSWITCH aborta o resto da extensão
+           e a chamada nunca chega em answer/bridge. -->
+      <condition field="${zenith_tenant_id}" expression="^$" break="never">
+        <action application="set" data="zenith_tenant_id=$${tenant_id}"/>
+        <action application="set" data="zenith_pbx_id=$${pbx_id}"/>
+      </condition>
+      <condition field="destination_number" expression="^(\d+)$">
         <action application="answer"/>
         <action application="start_dtmf"/>
         <action application="bridge" data="sofia/gateway/upstream-${sip_from_user}/${destination_number}"/>

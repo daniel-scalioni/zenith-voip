@@ -1,8 +1,8 @@
 # Legacy Impact: Registro de troncos ATA
 
-> Data: `2026-08-03` (tabela de arquivos afetados e diff conceitual), atualizado em `2026-08-10` (fechamento)
+> Data: `2026-08-03` (tabela de arquivos afetados e diff conceitual), atualizado em `2026-08-10` (fechamento), `2026-08-12` (correção pós-fechamento, Fase 6)
 > Feature: `012-trunk-registration`
-> Execução: fechada — 56 de 56 ações concluídas (T004/T005/T042/T043/T044/T046 exigiam evidência de ambiente e todas foram cumpridas com evidência real, não por inferência, exceto a cláusula de chamadas simultâneas/eventos duplicados do T046, coberta pela suíte automatizada por decisão do usuário, não por E2E real — ver `regression-watch.md`; demais evidências em `progress.jsonl`)
+> Execução: fechada — 60 de 60 ações concluídas (T004/T005/T042/T043/T044/T046 exigiam evidência de ambiente e todas foram cumpridas com evidência real, não por inferência, exceto a cláusula de chamadas simultâneas/eventos duplicados do T046, coberta pela suíte automatizada por decisão do usuário, não por E2E real — ver `regression-watch.md`; demais evidências em `progress.jsonl`)
 > Âncora: `_reversa_sdd/architecture.md` + `_reversa_sdd/domain.md`
 
 ## Arquivos afetados
@@ -21,6 +21,8 @@
 | `src/utils/telemetry.py` | observability | regra-nova | MEDIUM | Acrescenta métricas agregadas sem labels sensíveis. |
 | `src/**/test_*.py`, `tests/test_trunk_*.py` | tests | regra-nova | MEDIUM | Cobre persistência, serviços, API, eventos, segredos e configuração. |
 | `_reversa_sdd/{api,database,telephony}/**`, `_reversa_forward/012-trunk-registration/**` | specs | regra-nova | LOW | Mantém contrato SDD e evidências sanitizadas antes do código e do rollout. |
+| `freeswitch/conf/dialplan/default.xml` (Fase 6, 2026-08-12) | telephony | regra-corrigida | CRITICAL | A T037 (2026-08-05) removeu `zenith_tenant_id`/`zenith_pbx_id` do dialplan sem substituto para ramal legado — toda chamada de ramal comum parou de gerar `Call` em produção. Corrigido com guarda condicional (`break="never"`) que preserva a identidade injetada pelo diretório para tronco e restaura o fallback global só quando ausente. |
+| `tests/test_trunk_dialplan.py`, `src/telephony/test_esl_client.py` (Fase 6) | tests | regra-nova | MEDIUM | Cobrem os dois cenários (fallback para ramal legado, preservação para tronco) que o Red original (T019) nunca provou. |
 
 ## Diff conceitual por componente
 
@@ -45,7 +47,7 @@ O XML com HTTP Basic é gerado fora do Git, modo 0600, e o endpoint é bloqueado
 - R05: PBX continua pertencendo ao tenant.
 - R07: portas/topologia 5060, 7060 e 5062 permanecem; 5062 não foi migrado.
 - R24/R25/R26: TTL SIP legado, linkage `*88` e reconexão ESL permanecem.
-- R46: chamada sem `tenant_id` continua sem persistência.
+- R46: chamada sem `tenant_id` continua sem persistência. **Nota (Fase 6, 2026-08-12):** a regra em si nunca mudou, mas entre 2026-08-05 (T037) e 2026-08-12 o *caminho de entrada* dela ficou errado — praticamente toda chamada de ramal legado passou a cair no ramo "sem `tenant_id`" por falta de fonte, não por ausência real de tenant. R46 continuou "preservada" no sentido estrito (regra íntegra), mas produzindo o efeito prático oposto ao pretendido para o caso de uso central do produto. Corrigido nesta mesma feature (RN-11/RF-13/D-15).
 - R52/R53: somente `INSTANCE_ID == 1` consome eventos e comandos usam socket separado.
 - R55/R56: recursos permanecem prefixados `zenith-` e API publicada apenas em loopback.
 
@@ -90,6 +92,24 @@ Procedimento real, ensaiado e com um defeito próprio corrigido em 2026-08-06 (v
 3. Tabelas aditivas (`condominiums`, `ata_trunks`) permanecem no banco; não há downgrade de migration no rollback operacional.
 4. Comportamento operacional observado: após `403`, o ATA entra em backoff e não retenta sozinho — um rollback real exige forçar o registro no equipamento, não só desfazer a config.
 
+## Correção pós-fechamento (Fase 6, 2026-08-12)
+
+### Causa raiz
+
+A T037 (`git show ca73f4e`, 2026-08-05) removeu de `zenith_audio_fork` as duas linhas `zenith_tenant_id=$${tenant_id}`/`zenith_pbx_id=$${pbx_id}`, única fonte dessas variáveis para chamadas de ramal legado. O Red correspondente (T019) só provou a ausência do mecanismo antigo, nunca a presença de um substituto para esse caminho — a injeção nova (`src/api/freeswitch_directory.py`) só cobre identidades resolvidas como tronco. Confirmado por busca exaustiva (`grep -rl "zenith_tenant_id" freeswitch/conf/`): nenhuma outra fonte preenchia a variável para ramal legado entre 2026-08-05 e 2026-08-12.
+
+### Efeito em produção
+
+Toda chamada por ramal comum deixou de gerar linha `Call` (guard `if tenant_id:` em `esl_client.py`, comportamento de R46 já documentado como risco em `_reversa_sdd/telephony/design.md#6`, GAP-RE-03) — sem erro visível. Por consequência, `Transcript`, `CallInsight`, upload de gravação e backup SMB (feature 011) também pararam de ser gerados para esse caminho. Só chamadas por tronco ATA continuaram funcionando.
+
+### Correção
+
+Dialplan (`freeswitch/conf/dialplan/default.xml`) dividido em três `<condition>`: (1) `zenith_call_id`/`zenith_agent_extension`, incondicional, como antes; (2) guarda `field="${zenith_tenant_id}" expression="^$" break="never"` — só aplica o fallback global quando o canal ainda não tem a variável, e o `break="never"` garante que a chamada sempre chega em `answer`/`bridge` mesmo quando a guarda não casa (tronco); (3) `answer`/`start_dtmf`/`bridge`, idênticos ao original. Testes: `tests/test_trunk_dialplan.py` (5 casos, estrutura do XML) e `src/telephony/test_esl_client.py` (3 casos novos, comportamento do `ESLClient` dado o evento). Suite global: 308 passed (era 301), mesma baseline de 10 failed/3 erros de coleta pré-existentes.
+
+### Pendência real desta correção
+
+Diferente do restante da feature 012 (T044 exigiu ATA físico real), esta correção **não foi validada com uma chamada real via ramal físico** através do dialplan corrigido — só com testes estruturais (XML) e de serviço (mocks). O histórico de `_reversa_sdd/telephony/design.md#5-6` (GAP-DIALPLAN-01 a 04) mostra que mudanças de dialplan já esconderam bugs reais que só apareceram em chamada real. Recomendado registrar chamada real de ramal comum e conferir a linha `Call` no banco antes de considerar o item "fechado" em produção — decisão do usuário quanto ao momento.
+
 ## Pendências desta execução
 
-Nenhuma. T043–T049 concluídas com evidência real (checkpoint humano T044 cumprido com ATA físico real no 7060). Gaps conhecidos e deliberadamente não corrigidos nesta rodada — `PATCH /trunks|condominiums` ausente (W006) e `active_calls`/`in_use` não populados em `GET/POST /trunks` (W007) — ficam registrados em `regression-watch.md` para decisão em feature futura, não bloqueiam o fechamento desta.
+Nenhuma pendência bloqueante das 60 ações. T043–T049 concluídas com evidência real (checkpoint humano T044 cumprido com ATA físico real no 7060). Gaps conhecidos e deliberadamente não corrigidos — `PATCH /trunks|condominiums` ausente (W006) e `active_calls`/`in_use` não populados em `GET/POST /trunks` (W007) — ficam registrados em `regression-watch.md` para decisão em feature futura. A Fase 6 (T057-T060, 2026-08-12) corrigiu a regressão da T037; a única pendência real é a validação com chamada física de ramal comum, descrita acima — não bloqueante, mas recomendada.

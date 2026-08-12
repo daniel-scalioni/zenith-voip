@@ -62,6 +62,9 @@ O escopo e as decisões funcionais abaixo foram aprovados pelo usuário em 2026-
 10. **RN-10:** Somente administradores do tenant poderão criar, importar, alterar, habilitar ou desabilitar troncos pertencentes ao próprio tenant. 🟢
     - Origem no legado: `_reversa_sdd/domain.md#API e Segurança`
     - Tipo: nova
+11. **RN-11 (emenda 2026-08-12):** O dialplan aplicará o fallback `zenith_tenant_id=$${tenant_id}`/`zenith_pbx_id=$${pbx_id}` somente quando o canal ainda não tiver essas variáveis definidas; identidade injetada pelo diretório dinâmico para um tronco nunca é sobrescrita pelo fallback global. 🟢
+    - Origem no legado: `_reversa_sdd/domain.md#R46` (linha `Call` depende de `tenant_id` populado no evento) e `roadmap.md#D-10/D-11` desta própria feature — D-11 já previa "alterar apenas a origem das variáveis de contexto", preservando o resultado para todo o dialplan, não só para tronco.
+    - Tipo: alterada. **Motivo da emenda:** T037 implementou a remoção da atribuição antiga (`zenith_tenant_id=$${tenant_id}`) do dialplan compartilhado sem prover substituto para identidades não resolvidas como tronco (ramal legado). Isso interrompeu, sem erro visível, a criação de `Call` para toda chamada de ramal comum desde 2026-08-05 — o caso de uso central do produto, validado pelas features 001-011. RN-11 restaura o comportamento com a condição de guarda que D-11 já pressupunha mas T019/T037 nunca testaram nem implementaram para esse caminho.
 
 ## 5. Requisitos Funcionais
 
@@ -79,6 +82,7 @@ O escopo e as decisões funcionais abaixo foram aprovados pelo usuário em 2026-
 | RF-10 | Preservar o número recebido e o destino já determinado pelo ATA ou VitalPBX. | Must | Uma chamada atravessa o FreeSWITCH sem regra adicional de remoção, adição ou substituição de dígitos e sem seleção de fila pelo Zenith. | 🟢 |
 | RF-11 | Reconciliar o estado operacional após inicialização ou reconexão do consumidor ESL. | Must | Após reconexão, o estado persistido converge com os registros e chamadas observáveis no FreeSWITCH sem exigir novo registro do ATA. | 🟡 |
 | RF-12 | Registrar o último erro operacional de forma sanitizada. | Should | Falhas de autenticação, profile ou transporte são distinguíveis para operação sem expor usuário completo, senha ou material de autenticação. | 🟢 |
+| RF-13 (emenda 2026-08-12) | O dialplan deve setar `zenith_tenant_id`/`zenith_pbx_id` a partir dos globais apenas quando o canal ainda não tiver essas variáveis definidas por outra fonte. | Must | Ramal legado sem injeção de diretório recebe o fallback global e volta a gerar linha `Call`; tronco com identidade já injetada pelo diretório preserva seu `tenant_id`/`pbx_id` real, nunca `akom`. | 🟢 |
 
 ## 6. Requisitos Não Funcionais
 
@@ -160,6 +164,19 @@ Cenário: Reconciliar depois de reconexão ESL
   Quando a conexão é restabelecida
   Então o Zenith reconcilia os estados com o FreeSWITCH
   E não mantém registered sem evidência operacional atual
+
+Cenário (emenda 2026-08-12): Ramal legado recupera o contexto de tenant via fallback
+  Dado um canal de chamada originado por um ramal legado, sem variáveis de diretório injetadas
+  Quando a extensão zenith_audio_fork do dialplan é executada
+  Então zenith_tenant_id e zenith_pbx_id do canal recebem os valores globais $${tenant_id}/$${pbx_id}
+  E o ESLClient cria a linha Call correspondente no schema do tenant
+
+Cenário (emenda 2026-08-12): Tronco ATA preserva o contexto injetado pelo diretório
+  Dado um canal de chamada cuja identidade foi resolvida como tronco pelo mod_xml_curl,
+    com zenith_tenant_id e zenith_pbx_id já definidos no canal antes de zenith_audio_fork
+  Quando a extensão zenith_audio_fork do dialplan é executada
+  Então zenith_tenant_id e zenith_pbx_id permanecem com os valores originais do tronco,
+    não são sobrescritos pelo fallback global
 ```
 
 ## 8. Prioridade MoSCoW
@@ -176,11 +193,14 @@ Cenário: Reconciliar depois de reconexão ESL
 
 > Decisões aprovadas em 2026-08-01 e refinadas em 2026-08-04: ATA inicia o registro; escopo limitado a troncos ATA; hierarquia Tenant → PBX → Condomínio → Tronco ATA; entradas UDP 5060/7060; sem manipulação de dígitos ou filas; prefixo opcional e único por tenant somente quando preenchido; identidade por profile/usuário; estado administrativo, registro e uso independentes.
 
+> **Correção pós-fechamento em 2026-08-12:** auditoria do estado do projeto (fora do ciclo desta feature) encontrou que a T037 removeu `zenith_tenant_id=$${tenant_id}`/`zenith_pbx_id=$${pbx_id}` do dialplan compartilhado (`freeswitch/conf/dialplan/default.xml`, extensão `zenith_audio_fork`) sem prover substituto para identidades não resolvidas como tronco. Confirmado por `git show ca73f4e` e por busca exaustiva em `freeswitch/conf/` (nenhuma outra atribuição de `zenith_tenant_id`/`zenith_pbx_id` existe para ramal legado). Efeito: toda chamada por ramal legado deixou de gerar linha `Call` desde 2026-08-05, sem erro visível (guard `if tenant_id:` em `esl_client.py`, já documentado como risco em `_reversa_sdd/telephony/design.md#6`, GAP-RE-03). Decisão de MASTER (2026-08-12): a correção é feita **dentro desta feature**, como emenda direta a `requirements.md`/`roadmap.md`/`actions.md` — não como feature nova nem como correção de bug fora do SDD — porque a causa raiz é a própria T037 ter implementado só metade de D-11 ("alterar apenas a origem", preservando o resultado). RN-11/RF-13 formalizam a correção: fallback condicional, aplicado apenas quando o canal ainda não tem `zenith_tenant_id`/`zenith_pbx_id` de outra fonte (tronco).
+
 > **Descoberta operacional em 2026-08-07 (durante preparo do gate T045):** o profile Sofia 5060 (`internal`), previsto como segunda entrada de ativação desta feature, já hospeda troncos PSTN externos reais — não ramais/ATAs de condomínio. Ativar `auth-calls=true` nesse profile sem antes isolar essas identidades arriscaria derrubar conectividade PSTN em produção. Decisão de MASTER: esta feature (`012-trunk-registration`) fica restrita à comprovação operacional no profile 7060; a ativação de troncos ATA no profile 5060 é descoposta para uma feature dedicada futura, que precisa primeiro mapear e isolar as identidades PSTN já registradas ali. RN-05 e RF-05 permanecem descrevendo o modelo de dados (ambos os profiles são entradas válidas), mas o gate real e os critérios de aceite desta feature (roadmap.md §10) foram ajustados para 7060 apenas.
 
 ## 10. Lacunas
 
 - Nenhuma lacuna funcional pendente. O formato exato do CSV, o mecanismo de proteção do segredo e a estratégia de reconciliação serão definidos no plano técnico sem alterar o contrato acima.
+- A sintaxe exata da condição de guarda no dialplan XML (RN-11/RF-13) é detalhe de implementação, não lacuna de requisito — decidida no `roadmap.md` desta mesma feature.
 
 ## 11. Histórico de alterações
 
@@ -189,3 +209,4 @@ Cenário: Reconciliar depois de reconexão ESL
 | 2026-08-01 | Versão inicial gerada por `/reversa-requirements` a partir do contrato aprovado em sessão anterior | reversa |
 | 2026-08-01 | Siglas e conceito de profile Sofia definidos após `/reversa-quality` | reversa |
 | 2026-08-07 | Escopo de ativação real restrito ao profile 7060; 5060 descoposto para feature dedicada futura (troncos PSTN reais descobertos no profile) | reversa |
+| 2026-08-12 | Emenda RN-11/RF-13: dialplan deixou de propagar `zenith_tenant_id`/`zenith_pbx_id` para ramal legado desde a T037 (regressão em produção); fallback condicional restaurado. Corrigida dentro da própria feature, sem abrir feature nova nem tratar como bug isolado, por decisão de MASTER | reversa |

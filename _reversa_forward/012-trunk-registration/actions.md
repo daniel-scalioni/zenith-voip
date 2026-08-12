@@ -8,7 +8,7 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Total de ações | 56 |
+| Total de ações | 60 |
 | Paralelizáveis (`[//]`) | 22 |
 | Maior cadeia de dependência | 15 |
 
@@ -93,6 +93,15 @@
 | T050 | Gerar `legacy-impact.md` e `regression-watch.md` com evidências reais, riscos de auth, variáveis, 5062, segredo e rollback | T049 | - | `_reversa_forward/012-trunk-registration/regression-watch.md` | 🟢 | [X] |
 | T051 | Preparar a convergência `/reversa-sync` somente após todas as ações e checkpoints reais estarem fechados | T050 | - | `_reversa_forward/012-trunk-registration/legacy-impact.md` | 🟢 | [X] |
 
+## Fase 6, Correção pós-fechamento (2026-08-12, RN-11/RF-13/D-15)
+
+| ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
+|----|-----------|--------------|-------------|--------------|-------------|--------|
+| T057 | Reescrever o Red de `test_trunk_dialplan.py`: (a) ramal legado sem variável de diretório recebe o fallback `zenith_tenant_id=$${tenant_id}`/`zenith_pbx_id=$${pbx_id}`; (b) canal com `zenith_tenant_id`/`zenith_pbx_id` já definidos (tronco) preserva o valor, dialplan não sobrescreve. O teste atual só prova ausência do mecanismo antigo (T019) | - | - | `tests/test_trunk_dialplan.py` | 🟢 | [X] |
+| T058 | Implementar a guarda condicional no dialplan (`zenith_audio_fork`): aplicar o fallback global somente quando `zenith_tenant_id` ainda não estiver definido no canal, para tornar T057 verde | T057 | - | `freeswitch/conf/dialplan/default.xml` | 🟢 | [X] |
+| T059 | Escrever/estender teste de regressão em nível de serviço provando o sintoma real: evento `CHANNEL_ANSWER` de ramal legado sem `variable_zenith_tenant_id` (pré-fix) não cria `Call`; com o fallback do dialplan (pós-fix, simulado no evento) cria `Call` no tenant correto; evento de tronco com `variable_zenith_tenant_id` já presente cria `Call` no tenant do tronco, não `akom` | T058 | - | `src/telephony/test_esl_client.py` | 🟢 | [X] |
+| T060 | Adicionar item de vigilância `W008` em `regression-watch.md` cobrindo a interação dialplan↔diretório: sinal de violação é o fallback voltando a rodar incondicionalmente (cruza tenant de tronco) ou o diretório parando de injetar `zenith_tenant_id`/`zenith_pbx_id` para tronco (perde a precedência que T057/T058 garantem) | T059 | - | `_reversa_forward/012-trunk-registration/regression-watch.md` | 🟢 | [X] |
+
 ## Notas de execução
 
 - T004, T005, T042, T043, T044 e T046 dependem de ambiente ou evidência real; nunca marcar por inferência.
@@ -116,3 +125,4 @@
 | 2026-08-10 | T049 corrigida pós-veredito obrigatório do advisor (anti-viés): teste de `list_trunks` deixou de assumir `active_calls=0/in_use=False` como spec correta (documentado como gap conhecido W007 — router nunca chama `TrunkStateService.active_calls`); dois testes de repositório com asserts idênticos passaram a verificar de fato qual timestamp (`last_registered_at`/`last_unregistered_at`) é setado; suite e cobertura reverificadas sem mudança nos números | reversa |
 | 2026-08-10 | T050 fechada: `legacy-impact.md` e `regression-watch.md` atualizados de "execução parcial" para fechamento, com seções consolidadas de risco (auth, variáveis `TRUNK_CREDENTIAL_KEYS`/`FREESWITCH_DIRECTORY_BASIC_*`, porta 5062, segredo, rollback) apontando para evidência real já produzida (security-verdict.md, onboarding.md §8); corrigida também a linha de gate de cobertura desatualizada em `onboarding.md §9` (estava `--cov=src` sem escopo) | reversa |
 | 2026-08-10 | T051 fechada: nenhuma ação `[ ]` restante em `actions.md` (56/56, incluindo T050/T051); pré-requisitos do `/reversa-sync` conferidos (`legacy-impact.md` presente e atualizado) e skill invocado para gerar o adendo de convergência | reversa |
+| 2026-08-12 | Feature reaberta: Fase 6 acrescentada com T057-T060 (56→60 ações) para corrigir a regressão da T037 (dialplan parou de propagar `zenith_tenant_id`/`zenith_pbx_id` para ramal legado desde 2026-08-05). Emenda RN-11/RF-13/D-15, decisão de MASTER de corrigir dentro da própria feature, sem abrir feature nova | reversa |
