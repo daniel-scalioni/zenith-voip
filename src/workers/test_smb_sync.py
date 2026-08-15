@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from arq.constants import default_queue_name
 
+from src.audio.recording_lifecycle import acquire_lease, release_lease
 from src.workers import smb_sync
 
 
@@ -23,8 +24,8 @@ def test_build_remote_name_sanitizes_and_uses_collision_suffix():
     )
 
     # Assert
-    assert base == "2026-07-28-13-05-09-abcdef-10_01-desconhecido.mp3"
-    assert collision == "2026-07-28-13-05-09-abcdef-10_01-desconhecido-1234.mp3"
+    assert base == "2026-07-28-13-05-09-abcdef-10_01-desconhecido.wav"
+    assert collision == "2026-07-28-13-05-09-abcdef-10_01-desconhecido-1234.wav"
 
 
 def test_build_remote_directory_is_tenant_and_date_scoped():
@@ -105,7 +106,7 @@ async def test_smb_strategy_publishes_under_base_path_and_confirms_checksum(
     tmp_path, monkeypatch
 ):
     # Arrange
-    local = tmp_path / "stereo.mp3"
+    local = tmp_path / "stereo.wav"
     local.write_bytes(b"stereo-audio")
 
     class Entry:
@@ -167,12 +168,12 @@ async def test_smb_strategy_publishes_under_base_path_and_confirms_checksum(
     result = await strategy.publish(
         local,
         "tenant/2026-07-28",
-        "base.mp3",
-        "base-1234.mp3",
+        "base.wav",
+        "base-1234.wav",
     )
 
     # Assert
-    remote = "Audios_Atendimento/tenant/2026-07-28/base.mp3"
+    remote = "Audios_Atendimento/tenant/2026-07-28/base.wav"
     assert connection.files[remote] == b"stereo-audio"
     assert result["sha256"] == hashlib.sha256(b"stereo-audio").hexdigest()
     assert connection.closed is True
@@ -201,7 +202,7 @@ async def test_corrupt_remote_temporary_is_deleted_before_rename():
             Connection(),
             "backup",
             "audio.tmp",
-            "audio.mp3",
+            "audio.wav",
             expected,
         )
     assert deleted == ["audio.tmp"]
@@ -228,15 +229,13 @@ def test_lease_validity_and_corruption(tmp_path, caplog):
 
 
 @pytest.mark.asyncio
-async def test_lease_renewal_failure_is_logged_and_retried(tmp_path, monkeypatch, caplog):
+async def test_lease_renewal_failure_is_logged_and_aborts_stage(tmp_path, monkeypatch, caplog):
     # Arrange
     calls = 0
 
     async def controlled_sleep(_seconds):
         nonlocal calls
         calls += 1
-        if calls > 1:
-            raise asyncio.CancelledError
 
     def fail_write(*_args, **_kwargs):
         raise OSError("disk full")
@@ -245,7 +244,7 @@ async def test_lease_renewal_failure_is_logged_and_retried(tmp_path, monkeypatch
     monkeypatch.setattr(smb_sync, "write_lease", fail_write)
 
     # Act / Assert
-    with pytest.raises(asyncio.CancelledError):
+    with pytest.raises(OSError):
         await smb_sync._renew_lease(tmp_path, "call")
     assert "renew" in caplog.text.lower()
 
@@ -277,8 +276,8 @@ async def test_cycle_lock_returns_already_running(monkeypatch):
 @pytest.mark.asyncio
 async def test_generate_stereo_publishes_only_after_success(tmp_path, monkeypatch):
     # Arrange
-    tx = tmp_path / "tx.mp3"
-    rx = tmp_path / "rx.mp3"
+    tx = tmp_path / "tx.wav"
+    rx = tmp_path / "rx.wav"
     tx.write_bytes(b"tx")
     rx.write_bytes(b"rx")
 
@@ -300,16 +299,16 @@ async def test_generate_stereo_publishes_only_after_success(tmp_path, monkeypatc
     result = await smb_sync.generate_stereo(tx, rx)
 
     # Assert
-    assert result == tmp_path / "stereo.mp3"
+    assert result == tmp_path / "stereo.wav"
     assert result.read_bytes() == b"stereo"
-    assert not (tmp_path / "stereo.tmp.mp3").exists()
+    assert not (tmp_path / "stereo.tmp.wav").exists()
 
 
 @pytest.mark.asyncio
 async def test_generate_stereo_terminates_ffmpeg_when_cancelled(tmp_path, monkeypatch):
     # Arrange
-    tx = tmp_path / "tx.mp3"
-    rx = tmp_path / "rx.mp3"
+    tx = tmp_path / "tx.wav"
+    rx = tmp_path / "rx.wav"
     tx.write_bytes(b"tx")
     rx.write_bytes(b"rx")
     communicating = asyncio.Event()
@@ -347,7 +346,7 @@ async def test_generate_stereo_terminates_ffmpeg_when_cancelled(tmp_path, monkey
         await task
     assert process.killed is True
     assert process.waited is True
-    assert not (tmp_path / "stereo.tmp.mp3").exists()
+    assert not (tmp_path / "stereo.tmp.wav").exists()
 
 
 @pytest.mark.asyncio
@@ -355,20 +354,37 @@ async def test_ensure_mono_pair_retries_raw_conversion(tmp_path, monkeypatch):
     # Arrange
     tx_raw = tmp_path / "tx.raw"
     tx_raw.write_bytes(b"raw")
-    (tmp_path / "rx.mp3").write_bytes(b"rx")
+    (tmp_path / "rx.wav").write_bytes(b"rx")
 
     async def convert(path):
-        result = Path(path).with_suffix(".mp3")
+        result = Path(path).with_suffix(".wav")
         result.write_bytes(b"tx")
         return str(result)
 
-    monkeypatch.setattr(smb_sync, "_convert_to_mp3", convert)
+    monkeypatch.setattr(smb_sync, "_convert_to_wav", convert)
 
     # Act
     pair = await smb_sync.ensure_mono_pair(tmp_path)
 
     # Assert
-    assert pair == (tmp_path / "tx.mp3", tmp_path / "rx.mp3")
+    assert pair == (tmp_path / "tx.wav", tmp_path / "rx.wav")
+
+
+@pytest.mark.asyncio
+async def test_ensure_mono_pair_does_not_race_active_uploader_conversion(tmp_path, monkeypatch):
+    # Arrange
+    (tmp_path / "tx.raw").write_bytes(b"raw")
+    lease = acquire_lease(tmp_path, "conversion", "call")
+    convert = AsyncMock()
+    monkeypatch.setattr(smb_sync, "_convert_to_wav", convert)
+
+    # Act
+    pair = await smb_sync.ensure_mono_pair(tmp_path)
+
+    # Assert
+    assert pair is None
+    convert.assert_not_awaited()
+    release_lease(tmp_path, "conversion", lease.owner)
 
 
 @pytest.mark.asyncio
@@ -408,8 +424,8 @@ def test_resolve_collision_never_overwrites_divergent_second_name():
     # Act
     with pytest.raises(smb_sync.RemoteCollisionError):
         smb_sync.resolve_remote_name(
-            "base.mp3",
-            "base-1234.mp3",
+            "base.wav",
+            "base-1234.wav",
             local_sha,
             remote_sha,
         )
@@ -432,10 +448,10 @@ def test_circuit_breaker_opens_after_five_failures_and_recovers():
 @pytest.mark.asyncio
 async def test_process_call_removes_stereo_only_after_checksum(tmp_path, monkeypatch):
     # Arrange
-    stereo = tmp_path / "stereo.mp3"
+    stereo = tmp_path / "stereo.wav"
     stereo.write_bytes(b"stereo")
-    (tmp_path / "tx.mp3").write_bytes(b"tx")
-    (tmp_path / "rx.mp3").write_bytes(b"rx")
+    (tmp_path / "tx.wav").write_bytes(b"tx")
+    (tmp_path / "rx.wav").write_bytes(b"rx")
     strategy = AsyncMock()
     strategy.publish.return_value = {"sha256": hashlib.sha256(b"stereo").hexdigest()}
     monkeypatch.setattr(smb_sync, "generate_stereo", AsyncMock(return_value=stereo))
@@ -452,15 +468,16 @@ async def test_process_call_removes_stereo_only_after_checksum(tmp_path, monkeyp
     # Assert
     assert result["status"] == "done"
     assert not stereo.exists()
+    assert (tmp_path / ".consumed-smb").exists()
 
 
 @pytest.mark.asyncio
 async def test_process_call_preserves_stereo_on_publish_failure(tmp_path, monkeypatch):
     # Arrange
-    stereo = tmp_path / "stereo.mp3"
+    stereo = tmp_path / "stereo.wav"
     stereo.write_bytes(b"stereo")
-    (tmp_path / "tx.mp3").write_bytes(b"tx")
-    (tmp_path / "rx.mp3").write_bytes(b"rx")
+    (tmp_path / "tx.wav").write_bytes(b"tx")
+    (tmp_path / "rx.wav").write_bytes(b"rx")
     strategy = AsyncMock()
     strategy.publish.side_effect = OSError("offline")
     monkeypatch.setattr(smb_sync, "generate_stereo", AsyncMock(return_value=stereo))
@@ -476,6 +493,158 @@ async def test_process_call_preserves_stereo_on_publish_failure(tmp_path, monkey
             metadata={},
         )
     assert stereo.exists()
+    assert not (tmp_path / ".consumed-smb").exists()
+
+
+@pytest.mark.asyncio
+async def test_remote_temporary_requires_two_observations(tmp_path, monkeypatch):
+    # Arrange
+    now = datetime(2026, 8, 14, tzinfo=timezone.utc)
+    deleted = []
+
+    class Item:
+        filename = "call.wav.tmp"
+
+    class Connection:
+        def listPath(self, *_args, **_kwargs):
+            return [Item()]
+
+        def deleteFiles(self, _share, path, *_args):
+            deleted.append(path)
+
+        def close(self):
+            pass
+
+    strategy = smb_sync.SMBBackupStrategy(connection_factory=lambda *_a, **_k: None)
+    monkeypatch.setattr(strategy, "_connect", lambda: Connection())
+
+    # Act
+    first = await strategy.cleanup_remote_temporaries("tenant/day", ["call.wav"], {}, now=now)
+    second = await strategy.cleanup_remote_temporaries(
+        "tenant/day", ["call.wav"], first,
+        now=now + timedelta(seconds=smb_sync.settings.RECORDING_CLEANUP_ROUND_SECONDS),
+    )
+
+    # Assert
+    assert first == {"call.wav.tmp": now.isoformat()}
+    assert second == {}
+    assert deleted == [strategy._join_path(smb_sync.settings.SMB_PATH, "tenant/day", "call.wav.tmp")]
+
+
+@pytest.mark.asyncio
+async def test_remote_temporary_scan_creates_first_backup_directory(monkeypatch):
+    # Arrange
+    events = []
+
+    class Connection:
+        def createDirectory(self, _share, path, **_kwargs):
+            events.append(("create", path))
+
+        def listPath(self, _share, path, **_kwargs):
+            events.append(("list", path))
+            return []
+
+        def close(self):
+            pass
+
+    strategy = smb_sync.SMBBackupStrategy(connection_factory=lambda *_a, **_k: None)
+    monkeypatch.setattr(strategy, "_connect", lambda: Connection())
+
+    # Act
+    candidates = await strategy.cleanup_remote_temporaries(
+        "new-tenant/2026-08-14", ["call.wav"], {}
+    )
+
+    # Assert
+    full_path = strategy._join_path(
+        smb_sync.settings.SMB_PATH, "new-tenant/2026-08-14"
+    )
+    assert candidates == {}
+    assert ("create", full_path) in events
+    assert events.index(("create", full_path)) < events.index(("list", full_path))
+
+
+@pytest.mark.asyncio
+async def test_remote_temporary_scan_accepts_existing_parent_directories(monkeypatch):
+    # Arrange
+    events = []
+    root = smb_sync.settings.SMB_PATH
+    tenant = f"{root}/known-tenant"
+    date = f"{tenant}/2026-08-14"
+
+    class Connection:
+        def createDirectory(self, _share, path, **_kwargs):
+            events.append(("create", path))
+            if path in {root, tenant}:
+                raise smb_sync.OperationFailure("already exists", [])
+
+        def listPath(self, _share, path, **_kwargs):
+            events.append(("list", path))
+            return []
+
+        def close(self):
+            pass
+
+    strategy = smb_sync.SMBBackupStrategy(connection_factory=lambda *_a, **_k: None)
+    monkeypatch.setattr(strategy, "_connect", lambda: Connection())
+
+    # Act
+    candidates = await strategy.cleanup_remote_temporaries(
+        "known-tenant/2026-08-14", ["call.wav"], {}
+    )
+
+    # Assert
+    assert candidates == {}
+    assert events[:5] == [
+        ("create", root),
+        ("list", root),
+        ("create", tenant),
+        ("list", tenant),
+        ("create", date),
+    ]
+    assert events[-1] == ("list", date)
+
+
+@pytest.mark.asyncio
+async def test_remote_directory_permission_failure_is_not_hidden(monkeypatch):
+    # Arrange
+    class Connection:
+        def createDirectory(self, *_args, **_kwargs):
+            raise smb_sync.OperationFailure("create denied", [])
+
+        def listPath(self, *_args, **_kwargs):
+            raise PermissionError("list denied")
+
+        def close(self):
+            pass
+
+    strategy = smb_sync.SMBBackupStrategy(connection_factory=lambda *_a, **_k: None)
+    monkeypatch.setattr(strategy, "_connect", lambda: Connection())
+
+    # Act / Assert
+    with pytest.raises(PermissionError, match="list denied"):
+        await strategy.cleanup_remote_temporaries(
+            "denied-tenant/2026-08-14", ["call.wav"], {}
+        )
+
+
+@pytest.mark.asyncio
+async def test_publish_failure_carries_remote_candidate_for_next_cycle(tmp_path, monkeypatch):
+    # Arrange
+    (tmp_path / "tx.wav").write_bytes(b"tx")
+    (tmp_path / "rx.wav").write_bytes(b"rx")
+    stereo = tmp_path / "stereo.wav"
+    stereo.write_bytes(b"stereo")
+    strategy = AsyncMock()
+    strategy.cleanup_remote_temporaries.return_value = {"call.wav.tmp": "2026-08-14T00:00:00+00:00"}
+    strategy.publish.side_effect = OSError("offline")
+    monkeypatch.setattr(smb_sync, "generate_stereo", AsyncMock(return_value=stereo))
+    monkeypatch.setattr(smb_sync, "RETRY_DELAYS_SECONDS", ())
+
+    # Act / Assert
+    with pytest.raises(OSError) as raised:
+        await smb_sync._process_call_unbounded(strategy, "tenant", "call", tmp_path, {})
+    assert raised.value.remote_tmp_candidates == {"call.wav.tmp": "2026-08-14T00:00:00+00:00"}
 
 
 @pytest.mark.asyncio
@@ -566,7 +735,7 @@ async def test_t080_missing_local_source_remains_pending_without_smb_copy(tmp_pa
     # Arrange
     call_dir = tmp_path / "tenant" / "call"
     call_dir.mkdir(parents=True)
-    (call_dir / "rx.mp3").write_bytes(b"rx-audio")
+    (call_dir / "rx.wav").write_bytes(b"rx-audio")
     smb_port = AsyncMock()
 
     # Act
@@ -593,10 +762,10 @@ async def test_t080_smb_operation_failure_is_sanitized_in_log_and_state(
     call_dir = tmp_path / "tenant" / "call"
     call_dir.mkdir(parents=True)
     for channel in ("tx", "rx"):
-        with wave.open(str(call_dir / f"{channel}.mp3"), "wb") as source:
+        with wave.open(str(call_dir / f"{channel}.wav"), "wb") as source:
             source.setnchannels(1)
             source.setsampwidth(2)
-            source.setframerate(8000)
+            source.setframerate(16000)
             source.writeframes(b"\x00\x00" * 800)
     log_path = tmp_path / "logs" / "smb_transfer_log.json"
     smb_port = AsyncMock()

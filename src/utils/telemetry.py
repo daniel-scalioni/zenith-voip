@@ -140,6 +140,31 @@ smb_conversion_pending = Gauge(
     "Number of calls waiting for audio conversion",
 )
 
+recording_storage_used_bytes = Gauge(
+    "recording_storage_used_bytes", "Bytes currently used in recording tmpfs"
+)
+recording_storage_total_bytes = Gauge(
+    "recording_storage_total_bytes", "Total bytes available in recording tmpfs"
+)
+recording_reserved_bytes = Gauge(
+    "recording_reserved_bytes", "Remaining bytes reserved for active recordings"
+)
+recording_degraded_mode = Gauge(
+    "recording_degraded_mode", "Whether admission of new recordings is suspended"
+)
+recording_refused_total = Counter(
+    "recording_refused_total", "Recordings refused by capacity admission"
+)
+recording_temp_candidates_total = Counter(
+    "recording_temp_candidates_total", "Temporary files observed as cleanup candidates"
+)
+recording_temp_deleted_total = Counter(
+    "recording_temp_deleted_total", "Orphan temporary files deleted after revalidation"
+)
+recording_lease_failures_total = Counter(
+    "recording_lease_failures_total", "Recording lease acquisition or renewal failures", ["stage"]
+)
+
 
 def record_cleanup_deleted(tenant_id: str, count: int, bytes_freed: int):
     audio_cleanup_files_deleted.labels(tenant_id=tenant_id).inc(count)
@@ -172,6 +197,26 @@ def set_smb_queue_size(count: int):
 
 def set_smb_conversion_pending(count: int):
     smb_conversion_pending.set(count)
+
+
+def set_recording_capacity(*, used_bytes: int, reserved_bytes: int, total_bytes: int, degraded: bool):
+    recording_storage_used_bytes.set(used_bytes)
+    recording_reserved_bytes.set(reserved_bytes)
+    recording_storage_total_bytes.set(total_bytes)
+    recording_degraded_mode.set(int(degraded))
+
+
+def record_recording_refused():
+    recording_refused_total.inc()
+
+
+def record_temporary_cleanup(*, candidates: int, deleted: int):
+    recording_temp_candidates_total.inc(candidates)
+    recording_temp_deleted_total.inc(deleted)
+
+
+def record_lease_failure(stage: str):
+    recording_lease_failures_total.labels(stage=stage).inc()
 
 
 async def metrics_endpoint():

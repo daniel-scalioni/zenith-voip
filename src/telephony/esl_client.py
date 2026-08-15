@@ -2,11 +2,9 @@ import asyncio
 import json
 import logging
 import re
-from collections import defaultdict
 from src.config import settings
 from src.events.redis_streams import event_bus
 from src.services.calls import create_call_record, finalize_call_record
-from src.workers.audio_uploader import enqueue_recording_upload
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +251,7 @@ class ESLClient:
     async def _start_audio_capture(self, call_id: str):
         ws_url = f"ws://{settings.AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id}"
         metadata = json.dumps({"call_id": call_id})
-        command = f"uuid_audio_stream {call_id} start {ws_url} stereo 8k {metadata}"
+        command = f"uuid_audio_stream {call_id} start {ws_url} stereo 16000 {metadata}"
         try:
             response = await self.send_bgapi(command)
         except (ConnectionError, asyncio.TimeoutError, OSError) as e:
@@ -275,15 +273,7 @@ class ESLClient:
             await finalize_call_record(tenant_id, call_id)
 
         from src.audio.ingestor import audio_ingestor
-        chunks = audio_ingestor.buffers.pop(call_id, [])
-        if not chunks:
-            return
-
-        by_channel: dict[str, bytearray] = defaultdict(bytearray)
-        for chunk in chunks:
-            by_channel[chunk.channel].extend(chunk.data)
-        recordings = [{"channel": channel, "data": bytes(data)} for channel, data in by_channel.items()]
-        await enqueue_recording_upload(tenant_id, call_id, recordings)
+        await audio_ingestor.finalize_stream(call_id)
 
     async def _handle_manual_linkage(self, event: dict):
         from_user = event.get("Caller-Caller-ID-Number", "") or event.get("sip_from_user", "")

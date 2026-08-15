@@ -140,7 +140,25 @@ Opus (dois processos escrevendo a mesma chamada se a invariante de instância ú
 tem correção proposta — é pré-existente ao `ESLClient` e está fora do escopo desta feature;
 registrado em `roadmap.md#9` por transparência.
 
-## 7. Fontes consultadas
+## 7. Revisão de temporários, capacidade e concorrência (2026-08-14)
+
+Após a decisão `.tmp.raw`, uma busca transversal mostrou que `audio_cleanup.py` não opera por
+nomes finais: percorre todo arquivo por `mtime` e protege somente `.smb-processing`. O roadmap
+anterior dizia o oposto em D-14. Nova consulta sequencial via `/brainstorming-multiagent` usou:
+
+| Modelo | CLI | Lente | Contribuição aceita |
+|---|---|---|---|
+| Claude Sonnet | Claude CLI | arquitetura/rastreabilidade | Identificou ausência de lease de captura, cleanup em duas rodadas, pressão runtime e mudança explícita para 2 GiB; destacou `_FFMPEG_INPUT_ARGS` ainda em 8 kHz |
+| Gemini 3 Flash | Gemini CLI | capacidade/rollout | Confirmou insuficiência de 512 MB, necessidade de histerese/telemetria e rollout coordenado do payload ARQ |
+| DeepSeek V4 Flash | OpenCode | races/crash | Identificou metadata perdida entre WS/hangup, jobs duplicados, cleanups concorrentes, falha de lease e órfão remoto |
+
+O julgamento rejeitou três extrapolações: Gemini contou cada WAV mono como se tivesse o tamanho
+do par e assumiu 30 mixagens SMB simultâneas, embora o loop seja sequencial; sua suspeita de
+metadata entre réplicas não se aplica porque `AUDIO_STREAM_CALLBACK_HOST` aponta diretamente para
+`fastapi-1`; DeepSeek tentou aplicar duas rodadas também a finais já consumidos, quando a decisão
+humana se restringe a temporários órfãos. A síntese adotada está em D-16 a D-24.
+
+## 8. Fontes consultadas
 
 - `_reversa_sdd/domain.md` (R39-R43)
 - `_reversa_sdd/code-analysis.md` (`#3-audio`, `#9-telephony`, `#10-workers`)

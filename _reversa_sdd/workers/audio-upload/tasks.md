@@ -1,6 +1,15 @@
-# Upload, Tarefas
+---
+spec:
+  component: audio-uploader
+  layer: workers
+  status: active
+  version: 2.0.0
+  language: python
+  updated_at: 2026-08-14
+---
 
-- [x] T-01: Implementar persistência local da gravação (substituiu S3 em 2026-06-22) 🟢
-  - `upload_audio_chunk`/`upload_recording_batch` já existiam mas nunca eram chamados (gap não documentado, ver GAP-12 em `gaps.md`); agora enfileirados via `enqueue_recording_upload` no hangup (`src/telephony/esl_client.py`) e processados pelo serviço `arq-uploader` (ver GAP-14)
-  - Path: `{RECORDINGS_PATH}/{tenant_id}/{call_id}/{channel}.raw`
-  - Testes: `tests/test_audio_uploader.py` (verde, escreve em `tmp_path`)
+# Upload de Áudio, Tarefas
+
+- [ ] Testar conversão WAV atômica, falha e preservação do raw.
+- [ ] Testar descoberta por path, payload antigo e job duplicado.
+- [ ] Implementar lease de conversão e enqueue determinístico.

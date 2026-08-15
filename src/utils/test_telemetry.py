@@ -1,21 +1,25 @@
 from src.utils import telemetry
 
 
-def test_smb_metric_helpers_update_without_call_id_label():
+def test_recording_telemetry_tracks_capacity_refusal_cleanup_and_lease_failure():
     # Arrange
-    before_success = telemetry.smb_backup_success_total._value.get()
-    before_failure = telemetry.smb_backup_failed_total._value.get()
+    refused_before = telemetry.recording_refused_total._value.get()
+    candidates_before = telemetry.recording_temp_candidates_total._value.get()
+    deleted_before = telemetry.recording_temp_deleted_total._value.get()
+    lease_before = telemetry.recording_lease_failures_total.labels(stage="capture")._value.get()
 
     # Act
-    telemetry.record_smb_success()
-    telemetry.record_smb_failure()
-    telemetry.observe_smb_latency(0.25)
-    telemetry.set_smb_queue_size(3)
-    telemetry.set_smb_conversion_pending(2)
+    telemetry.set_recording_capacity(used_bytes=100, reserved_bytes=200, total_bytes=1000, degraded=True)
+    telemetry.record_recording_refused()
+    telemetry.record_temporary_cleanup(candidates=2, deleted=1)
+    telemetry.record_lease_failure("capture")
 
     # Assert
-    assert telemetry.smb_backup_success_total._value.get() == before_success + 1
-    assert telemetry.smb_backup_failed_total._value.get() == before_failure + 1
-    assert telemetry.smb_backup_queue_size._value.get() == 3
-    assert telemetry.smb_conversion_pending._value.get() == 2
-    assert "call_id" not in telemetry.smb_backup_success_total._labelnames
+    assert telemetry.recording_storage_used_bytes._value.get() == 100
+    assert telemetry.recording_reserved_bytes._value.get() == 200
+    assert telemetry.recording_storage_total_bytes._value.get() == 1000
+    assert telemetry.recording_degraded_mode._value.get() == 1
+    assert telemetry.recording_refused_total._value.get() == refused_before + 1
+    assert telemetry.recording_temp_candidates_total._value.get() == candidates_before + 2
+    assert telemetry.recording_temp_deleted_total._value.get() == deleted_before + 1
+    assert telemetry.recording_lease_failures_total.labels(stage="capture")._value.get() == lease_before + 1

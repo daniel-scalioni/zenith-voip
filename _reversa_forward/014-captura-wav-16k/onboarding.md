@@ -11,7 +11,8 @@
   `AGENTS.md#Credenciais-e-Segurança`)
 - `ffprobe` disponível localmente (ou via `docker exec` num container que já tenha `ffmpeg`)
 - Um ramal de teste registrado (ex.: `1001`) capaz de originar/receber uma chamada real
-- Código desta feature já implantado nos containers `zenith-app`/`zenith-arq-uploader`
+- Código desta feature já implantado nos containers `zenith-api-1`, `zenith-api-2`,
+  `zenith-arq-uploader`, `zenith-arq-smb-sync` e `zenith-arq-cleanup`
 
 ## 1. Confirmar estado limpo antes de testar
 
@@ -154,21 +155,48 @@ comportamento final parece certo.
 4. Encerrar a chamada normalmente e confirmar que ela segue o fluxo normal dos passos 3-5 depois
    disso.
 
-## 9. Medir o pico de ocupação do tmpfs (risco de capacidade, `roadmap.md#9`)
+## 9. Validar capacidade de 2 GiB e 30 chamadas
 
-A aritmética em `data-delta.md#5.1` projeta um pico de ~460 MB para uma única chamada de 1h
-contra um tmpfs de 512 MB, sem nenhuma concorrência. Antes de considerar a feature pronta:
+1. Confirmar que o mount `zenith_recordings_tmpfs` reporta aproximadamente 2 GiB.
+2. Executar teste representativo com até 30 gravações simultâneas de até 5 minutos, sem usar
+   containers ou volumes de outros projetos.
+3. Observar ocupação durante captura, conversão e publicação SMB. Registrar o menor espaço livre.
+4. Esperado: ocupação nunca ultrapassa 80%; nenhuma escrita falha; backlog SMB não cresce de forma
+   sustentada. Resultado abaixo de 20% livre bloqueia o deploy — não autoriza alterar o tamanho
+   novamente sem nova decisão.
 
-1. Fazer uma chamada real de duração representativa do uso esperado (idealmente a mais longa
-   plausível no perfil do cliente).
-2. Rodar `df -h | grep recordings` (passo 1) duas vezes: uma logo após o hangup (janela de
-   conversão `.raw`+`.wav`), outra durante a publicação SMB (janela `.wav`+`stereo.wav`, entre o
-   passo 4 começar e `stereo.wav` ser removido).
-3. Registrar o pico observado. Se chegar perto do teto de 512 MB com uma única chamada, aumentar
-   o `zenith_recordings_tmpfs` é uma mudança de infra que precisa de aprovação explícita antes do
-   deploy — não é uma decisão que este roadmap toma sozinho.
+## 10. Validar temporário órfão em duas rodadas
 
-## 10. Checklist final
+1. Em diretório sintético isolado, criar um `tx.tmp.raw` sem lease válido.
+2. Rodar cleanup: esperado arquivo preservado e entrada em `.cleanup-candidates.json`.
+3. Simular uma rodada completa (configuração de teste) e rodar novamente: esperado temporário
+   removido sem criação de `tx.raw`/`tx.wav`.
+4. Repetir criando/renovando `.capture-processing` entre as rodadas: esperado candidatura
+   cancelada e temporário preservado.
+5. Validar também `tx.tmp.wav` e `stereo.tmp.wav`; o remoto `<final>.wav.tmp` é validado pelo
+   ciclo SMB, não pelo cleanup local.
+
+## 11. Validar modo degradado de gravação
+
+1. Em ambiente controlado, reduzir o espaço projetado disponível até que uma nova reserva deixe
+   menos de 20% livre.
+2. Originar uma nova chamada: esperado SIP normal, mas sem novo stream/arquivo de gravação; métrica
+   de recusa e alerta crítico incrementados uma vez.
+3. Confirmar que gravações anteriormente admitidas continuam crescendo.
+4. Liberar espaço até 30% projetados e originar nova chamada: esperado retorno da gravação e
+   transição observável de saída do modo degradado.
+
+## 12. Rollout e rollback coordenados
+
+1. Registrar revisões/imagens atuais dos serviços `zenith-*` afetados.
+2. Inspecionar e drenar `zenith:audio-upload`; não apagar jobs ou gravações sem evidência.
+3. Atualizar em uma janela coordenada API 1/2, uploader, SMB e cleanup. Não tocar em nenhum recurso
+   sem prefixo `zenith-`.
+4. Executar os passos 2 a 11 deste onboarding.
+5. Em falha, restaurar conjuntamente as revisões anteriores dos serviços afetados e confirmar
+   saúde SIP; não retomar a feature 013.
+
+## 13. Checklist final
 
 - [ ] `tx.wav`/`rx.wav` confirmados como PCM16 mono 16 kHz via `ffprobe`
 - [ ] `tx.tmp.raw`/`rx.tmp.raw` crescem em disco durante a chamada (antes do hangup)
@@ -179,5 +207,9 @@ contra um tmpfs de 512 MB, sem nenhuma concorrência. Antes de considerar a feat
 - [ ] Rede de segurança do TTL observada (sem confirmação)
 - [ ] Diretório com `.mp3` legado ignorado sem erro
 - [ ] `smb_sync` comprovadamente ignora uma chamada em andamento (passo 8)
-- [ ] Pico de ocupação do tmpfs medido e registrado (passo 9)
+- [ ] `zenith_recordings_tmpfs` confirmado em 2 GiB
+- [ ] 30 chamadas de até 5 min mantêm ao menos 20% livre (passo 9)
+- [ ] Temporário órfão descartado somente na segunda rodada; lease reaparecido cancela (passo 10)
+- [ ] Modo degradado preserva SIP/ativas e usa histerese 20%/30% (passo 11)
+- [ ] Rollout/rollback limitados a `zenith-*` e fila incompatível drenada (passo 12)
 - [ ] `pytest -v tests src` verde

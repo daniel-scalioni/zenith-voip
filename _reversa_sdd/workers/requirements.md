@@ -3,20 +3,20 @@ spec:
   component: workers
   layer: workers
   status: active
-  version: 2.1.0
+  version: 3.0.0
   language: python
   patterns: [singleton]
   inputs:
-    - {name: upload_recording_batch, type: arq job, from: telephony/esl_client}
+    - {name: upload_recording_batch, type: arq job, from: audio-ingestion}
     - {name: cron_trigger, type: schedule, from: arq}
   outputs:
-    - {name: recording_mp3, type: file, to: tmpfs RECORDINGS_PATH}
+    - {name: recording_wav, type: file, to: tmpfs RECORDINGS_PATH}
     - {name: transcripts, type: rows, to: database}
   dependencies:
     - {component: config, layer: root}
     - {component: database, layer: database}
   events_produced: [call:post]
-  updated_at: 2026-07-29
+  updated_at: 2026-08-14
 ---
 
 # Workers — Background Jobs
@@ -28,7 +28,7 @@ spec:
 
 ## Visão Geral
 
-Workers ARQ para processamento assíncrono: **gravação local de áudio com conversão para MP3**,
+Workers ARQ para processamento assíncrono: **gravação local de áudio com conversão para WAV**,
 limpeza por TTL, workflow pós-chamada e persistência de transcrições em lote.
 
 Os workers operacionais de áudio usam filas Redis exclusivas. Um worker nunca pode retirar da
@@ -37,10 +37,10 @@ uma otimização de deploy.
 
 ## Responsabilidades
 
-- Consumir o job `upload_recording_batch` enfileirado no `CHANNEL_HANGUP`
-- Gravar cada canal em `RECORDINGS_PATH/<tenant_id>/<call_id>/<channel>.raw` e convertê-lo
-  para MP3 mono 8 kHz via `ffmpeg`
-- Remover gravações cujo `mtime` ultrapassou `AUDIO_RETENTION_DAYS`
+- Consumir o job idempotente `upload_recording_batch` enfileirado na finalização da captura
+- Converter cada `.raw` final em WAV PCM16 mono 16 kHz, preservando o raw
+- Remover finais após confirmação dos consumidores ou pelo TTL de segurança
+- Coletar temporários locais órfãos somente após duas rodadas de 15 min
 - Executar workflow pós-chamada (sentimento, auditoria) — 🔴 continuam stubs
 - Persistir transcrições em lote no PostgreSQL
 - Rotear upload, cleanup e sincronização SMB para filas ARQ distintas
@@ -51,9 +51,12 @@ uma otimização de deploy.
 |---|---|
 | Cleanup roda a cada 15 minutos (`minute={0,15,30,45}`) | 🟢 |
 | Retenção em produção: ~1 hora (`AUDIO_RETENTION_DAYS=0.0417`); default do código: 90 dias | 🟢 |
-| Gravação vive em tmpfs de 512 MB (RAM), nunca em disco durável | 🟢 |
-| Cada canal vira um MP3 mono 8 kHz separado — nunca misturado nem estéreo | 🟢 |
+| Gravação vive em tmpfs de 2 GiB (RAM), nunca em disco durável | 🟢 decisão 2026-08-14 |
+| Cada canal vira WAV PCM16 mono 16 kHz separado; o SMB publica WAV estéreo | 🟢 |
 | Falha de conversão preserva o `.raw` (`uploaded_raw_only`) | 🟢 |
+| Consumidores exigidos vêm de `RECORDING_REQUIRED_CONSUMERS` (inicialmente `smb`) | 🟢 |
+| Leases duram 120 s, heartbeat 30 s; cleanup reobserva órfão após 900 s | 🟢 |
+| Admissão reserva chamada de 300 s e usa margens livres 20/30% + headroom | 🟢 |
 | Cleanup cede o event loop a cada 1000 arquivos removidos | 🟢 |
 | Uploader consome exclusivamente `zenith:audio-upload` | 🟢 decisão SDD 2026-07-29 |
 | Cleanup consome exclusivamente `zenith:audio-cleanup` | 🟢 decisão SDD 2026-07-29 |

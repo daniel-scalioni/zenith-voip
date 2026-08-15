@@ -40,6 +40,14 @@ class Settings(BaseSettings):
 
     AUDIO_RETENTION_DAYS: float = 90
     RECORDINGS_PATH: str = "/data/recordings"
+    RECORDING_REQUIRED_CONSUMERS: list[str] = ["smb"]
+    RECORDING_MAX_CALL_SECONDS: int = Field(default=300, gt=0)
+    RECORDING_MIN_FREE_PERCENT: float = Field(default=20, ge=0, lt=100)
+    RECORDING_RESUME_FREE_PERCENT: float = Field(default=30, gt=0, le=100)
+    RECORDING_PROCESSING_HEADROOM_BYTES: int = Field(default=134_217_728, ge=0)
+    RECORDING_LEASE_TTL_SECONDS: int = Field(default=120, gt=0)
+    RECORDING_LEASE_HEARTBEAT_SECONDS: int = Field(default=30, gt=0)
+    RECORDING_CLEANUP_ROUND_SECONDS: int = Field(default=900, gt=0)
 
     SMB_ENABLED: bool = False
     SMB_HOST: str = ""
@@ -62,6 +70,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_smb_configuration(self):
+        if self.RECORDING_RESUME_FREE_PERCENT <= self.RECORDING_MIN_FREE_PERCENT:
+            raise ValueError("A margem de retomada deve ser maior que a margem mínima")
         if not self.SMB_ENABLED:
             return self
         required = {

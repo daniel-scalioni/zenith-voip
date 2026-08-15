@@ -1,7 +1,24 @@
+---
+spec:
+  component: audio-cleanup
+  layer: workers
+  status: active
+  version: 2.0.0
+  language: python
+  patterns: [singleton-module]
+  inputs: [{name: recordings, type: filesystem, from: audio-uploader}]
+  outputs: [{name: cleanup_result, type: dict, to: arq}]
+  dependencies: [{component: recording-consumers, layer: workers}, {component: recording-lifecycle, layer: audio}]
+  events_produced: []
+  updated_at: 2026-08-14
+---
+
 # Cleanup de Áudio, Design
 
-**Interface:** `cleanup_tenant_bucket(ctx, tenant_id) → dict` (cron ARQ a cada 15 min — `minute={0,15,30,45}` — via `run_cleanup`; antes era 1x/dia às 03:00, mudou em 2026-07-10 pra respeitar retenção sub-diária)
-**Algoritmo:** `os.walk` em `{RECORDINGS_PATH}/{tenant_id}/` → deleta arquivos com `mtime` mais antigo que `AUDIO_RETENTION_DAYS` (substituiu paginação/delete em lote S3 em 2026-06-22). `AUDIO_RETENTION_DAYS` é `float` (não `int`) desde 2026-07-10 — permite retenção sub-diária (ex: `0.0417` ≈ 1h, valor efetivo do MVP Fase 1). É global (todos os tenants), não por-tenant.
-**Origem:** `src/workers/audio_cleanup.py` 🟢
+Cada diretório de chamada é processado isoladamente. Lease válido protege todo o diretório.
+`tx.wav`/`rx.wav` plenamente consumidos são removidos na rodada; arquivos finais mais antigos que
+o cutoff também são removidos. Temporários reconhecidos usam `.cleanup-candidates.json`, escrito
+atomicamente, contendo `first_seen` e `(inode,size,mtime_ns)`.
 
-**Nota (2026-07-10):** este worker nunca tinha rodado com sucesso como container antes do MVP Fase 1 — dois bugs reais impediam o boot (ver GAP-20 em `gaps.md`): `cron(..., run_on_startup=...)` usava kwarg inexistente (correto é `run_at_startup`), e `WorkerSettings.redis_settings` recebia a DSN do Redis como string crua em vez de `RedisSettings.from_dsn(...)`.
+O marcador é estado de observação, não prova de inatividade. A segunda rodada repete todas as
+checagens e usa exclusão idempotente. Controles nunca entram na política por TTL.

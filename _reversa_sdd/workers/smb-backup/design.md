@@ -3,14 +3,14 @@ spec:
   component: smb-backup
   layer: workers
   status: active
-  version: 1.2.0
+  version: 2.0.0
   language: python
   patterns: [strategy, singleton-module, observer]
   inputs:
-    - {name: recordings, type: "tx.mp3 + rx.mp3", from: audio-uploader}
+    - {name: recordings, type: "tx.wav + rx.wav", from: audio-uploader}
     - {name: call_metadata, type: Call, from: services-calls}
   outputs:
-    - {name: stereo_audio, type: "MP3 stereo", to: smb-storage}
+    - {name: stereo_audio, type: "PCM16 stereo WAV", to: smb-storage}
     - {name: transfer_state, type: JSON, to: smb-transfer-log}
   dependencies:
     - {component: audio-uploader, layer: workers}
@@ -18,19 +18,19 @@ spec:
     - {component: calls, layer: services}
     - {component: telemetry, layer: observability}
   events_produced: []
-  updated_at: 2026-08-01
+  updated_at: 2026-08-14
 ---
 
 # SMB Backup de Áudio
 
 ## Objetivo
 
-Publicar cada chamada concluída em storage SMB como um MP3 estéreo separável, com `tx` no canal
+Publicar cada chamada concluída em storage SMB como um WAV estéreo separável, com `tx` no canal
 esquerdo e `rx` no direito, sem bloquear a gravação e sem expor arquivo remoto parcial.
 
 ## Contrato de entrada
 
-- Layout: `/data/recordings/{tenant_id}/{call_id}/{tx,rx}.mp3`.
+- Layout: `/data/recordings/{tenant_id}/{call_id}/{tx,rx}.wav`.
 - Os monos finais existem somente depois de rename atômico pelo uploader.
 - Se um `.raw` persistir, a conversão é retentada antes da composição.
 - Metadados vêm de `Call.started_at`, `caller_number` e `callee_number`; ausência usa mtime e
@@ -40,13 +40,15 @@ esquerdo e `rx` no direito, sem bloquear a gravação e sem expor arquivo remoto
 
 ```text
 {SMB_PATH}/{tenant_id}/{YYYY-MM-DD}/
-  {YYYY-MM-DD}-{HH}-{MM}-{SS}-{call_id[0:6]}-{origem}-{destino}.mp3
+  {YYYY-MM-DD}-{HH}-{MM}-{SS}-{call_id[0:6]}-{origem}-{destino}.wav
 ```
 
-- MP3 com dois canais: left=`tx`, right=`rx`.
+- WAV PCM16 16 kHz com dois canais: left=`tx`, right=`rx`.
 - Colisão divergente tenta uma vez sufixo `call_id[6:10]`; nova colisão falha sem overwrite.
-- Publicação remota: `.tmp`, chunks de 512 KiB por `storeFileFromOffset`, rename e SHA256.
+- Publicação remota: `<final>.wav.tmp`, chunks de 512 KiB por `storeFileFromOffset`, rename e SHA256.
 - Primeiro chunk usa `offset=0, truncate=True`; demais usam offset crescente e `truncate=False`.
+- O primeiro backup de um tenant/data cria a hierarquia remota antes de listar temporários
+  órfãos; diretório ainda inexistente é um estado inicial válido, não uma falha da chamada.
 
 ## Estado e idempotência
 
@@ -67,8 +69,9 @@ esquerdo e `rx` no direito, sem bloquear a gravação e sem expor arquivo remoto
   30 s.
 - Cleanup ignora lease válido. Lease expirado, inválido ou corrompido é tratado como expirado e
   gera alerta.
-- `stereo.mp3` é removido somente após checksum remoto confirmado. Os monos permanecem até a
-  retenção local de aproximadamente duas horas.
+- `stereo.wav` é removido somente após checksum remoto confirmado. Após o checksum, o marcador
+  `.consumed-smb` autoriza o cleanup dos monos. Temporário remoto órfão requer duas observações
+  separadas por 900 s; upload ativo nunca é coletado.
 
 ## Resiliência
 

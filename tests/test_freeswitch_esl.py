@@ -1,5 +1,6 @@
 import asyncio
 import os
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -105,11 +106,12 @@ class _StallingESLServer:
 
 
 @pytest.mark.asyncio
-async def test_esl_connect_frames_auth_with_double_newline_and_reads_ok():
+async def test_esl_connect_frames_auth_with_double_newline_and_reads_ok(monkeypatch):
     # Arrange: servidor ESL local que exige receber "auth <senha>\n\n" exato
     fake_server = _FramingAuthESLServer(password=LOCAL_TEST_PASSWORD)
     host, port = await fake_server.start()
     client = ESLClient(host=host, port=port, password=LOCAL_TEST_PASSWORD)
+    monkeypatch.setattr(client, "_reconcile_trunks", AsyncMock())
 
     try:
         # Act: usa a API real do cliente (connect) contra o servidor local
