@@ -62,6 +62,25 @@ def test_renew_requires_owner_and_writes_valid_versioned_json(tmp_path):
     assert payload["owner"] == lease.owner
 
 
+def test_lease_excludes_different_owner_across_stages_and_allows_same_owner(tmp_path):
+    # Arrange
+    capture = lifecycle.acquire_lease(tmp_path, "capture", "call")
+
+    # Act / Assert
+    with pytest.raises(lifecycle.LeaseBusyError):
+        lifecycle.acquire_lease(tmp_path, "smb", "call")
+
+    nested = lifecycle.acquire_lease(
+        tmp_path,
+        "conversion",
+        "call",
+        owner=capture.owner,
+    )
+    assert nested.owner == capture.owner
+    assert lifecycle.release_lease(tmp_path, "conversion", capture.owner)
+    assert lifecycle.release_lease(tmp_path, "capture", capture.owner)
+
+
 @pytest.mark.asyncio
 async def test_heartbeat_stops_when_renewal_fails(tmp_path, monkeypatch):
     # Arrange

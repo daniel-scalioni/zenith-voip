@@ -3,7 +3,7 @@ spec:
   component: smb-backup
   layer: workers
   status: active
-  version: 2.0.0
+  version: 2.2.0
   language: python
   patterns: [strategy, singleton-module, observer]
   inputs:
@@ -18,7 +18,7 @@ spec:
     - {component: calls, layer: services}
     - {component: telemetry, layer: observability}
   events_produced: []
-  updated_at: 2026-08-14
+  updated_at: 2026-08-17
 ---
 
 # SMB Backup de Áudio
@@ -58,6 +58,13 @@ esquerdo e `rx` no direito, sem bloquear a gravação e sem expor arquivo remoto
 - Escrita local atômica por temporário no mesmo diretório e `os.replace`.
 - JSON vazio/corrompido é isolado para diagnóstico; o worker inicia estado seguro e alerta.
 - Entrada `done` é podada após sete dias; `failed` permanece sete dias.
+- Antes de resolver metadados ou adquirir `.smb-processing`, o ciclo exige ausência de qualquer
+  lease válido e um par estável `tx`/`rx`, aceitando `.raw` ou `.wav`. Diretórios apenas com
+  `.tmp.raw`, com um canal incompleto ou somente `.mp3` são invisíveis ao ciclo e ao log.
+- A aquisição de `.smb-processing` verifica todos os estágios sob o lock do diretório. Se captura,
+  conversão ou outro SMB adquirir antes, `already_processing` encerra o item sem entrada no log.
+  Depois da aquisição, o par é revalidado protegido pelo lease; `mono_pair_incomplete` também não
+  gera entrada. A conversão interna reutiliza o owner SMB para não conflitar consigo mesma.
 
 ## Concorrência e retenção
 

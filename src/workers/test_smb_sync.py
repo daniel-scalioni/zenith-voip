@@ -687,6 +687,8 @@ async def test_run_cycle_records_success(tmp_path, monkeypatch):
     # Arrange
     call_dir = tmp_path / "tenant" / "call"
     call_dir.mkdir(parents=True)
+    (call_dir / "tx.wav").write_bytes(b"tx")
+    (call_dir / "rx.wav").write_bytes(b"rx")
     log_path = tmp_path / "logs" / "smb_transfer_log.json"
     monkeypatch.setattr(smb_sync.settings, "SMB_ENABLED", True)
     monkeypatch.setattr(smb_sync.settings, "RECORDINGS_PATH", str(tmp_path))
@@ -717,6 +719,88 @@ async def test_run_cycle_records_success(tmp_path, monkeypatch):
     assert result["completed"] == 1
     state = json.loads(log_path.read_text(encoding="utf-8"))
     assert state["tenant/call"]["status"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_run_cycle_ignores_active_and_legacy_directories_without_log_entry(tmp_path, monkeypatch):
+    # Arrange
+    active_dir = tmp_path / "tenant" / "active-call"
+    active_dir.mkdir(parents=True)
+    (active_dir / "tx.raw").write_bytes(b"stable")
+    (active_dir / "rx.raw").write_bytes(b"stable")
+    capture = acquire_lease(active_dir, "capture", "active-call")
+    legacy_dir = tmp_path / "tenant" / "legacy-call"
+    legacy_dir.mkdir()
+    (legacy_dir / "tx.mp3").write_bytes(b"legacy")
+    (legacy_dir / "rx.mp3").write_bytes(b"legacy")
+    log_path = tmp_path / "logs" / "smb_transfer_log.json"
+    process = AsyncMock(return_value={"status": "done", "sha256": "unexpected"})
+    metadata = AsyncMock(return_value={
+        "started_at": datetime(2026, 8, 17, tzinfo=timezone.utc),
+        "caller_number": "1001",
+        "callee_number": "2001",
+    })
+    monkeypatch.setattr(smb_sync.settings, "SMB_ENABLED", True)
+    monkeypatch.setattr(smb_sync.settings, "RECORDINGS_PATH", str(tmp_path))
+    monkeypatch.setattr(smb_sync.settings, "SMB_TRANSFER_LOG_PATH", str(log_path))
+    monkeypatch.setattr(smb_sync, "SMBBackupStrategy", lambda: AsyncMock())
+    monkeypatch.setattr(smb_sync, "resolve_call_metadata", metadata)
+    monkeypatch.setattr(smb_sync, "process_call", process)
+    smb_sync._circuit_breaker.reset()
+
+    # Act
+    try:
+        result = await smb_sync._run_cycle({})
+    finally:
+        release_lease(active_dir, "capture", capture.owner)
+
+    # Assert
+    assert result == {"status": "completed", "calls_seen": 2, "completed": 0, "failed": 0}
+    assert not log_path.exists()
+    process.assert_not_awaited()
+    metadata.assert_not_awaited()
+    assert (active_dir / "tx.raw").read_bytes() == b"stable"
+    assert not (active_dir / ".smb-processing").exists()
+
+
+@pytest.mark.asyncio
+async def test_run_cycle_does_not_log_when_conversion_wins_after_discovery(tmp_path, monkeypatch):
+    # Arrange
+    call_dir = tmp_path / "tenant" / "racing-call"
+    call_dir.mkdir(parents=True)
+    (call_dir / "tx.raw").write_bytes(b"tx")
+    (call_dir / "rx.raw").write_bytes(b"rx")
+    log_path = tmp_path / "logs" / "smb_transfer_log.json"
+    conversion = None
+
+    async def metadata_with_racing_lease(_tenant_id, _call_id, _call_dir):
+        nonlocal conversion
+        conversion = acquire_lease(call_dir, "conversion", "racing-call")
+        return {
+            "started_at": datetime(2026, 8, 17, tzinfo=timezone.utc),
+            "caller_number": "1001",
+            "callee_number": "2001",
+        }
+
+    strategy = AsyncMock()
+    monkeypatch.setattr(smb_sync.settings, "SMB_ENABLED", True)
+    monkeypatch.setattr(smb_sync.settings, "RECORDINGS_PATH", str(tmp_path))
+    monkeypatch.setattr(smb_sync.settings, "SMB_TRANSFER_LOG_PATH", str(log_path))
+    monkeypatch.setattr(smb_sync, "SMBBackupStrategy", lambda: strategy)
+    monkeypatch.setattr(smb_sync, "resolve_call_metadata", metadata_with_racing_lease)
+    smb_sync._circuit_breaker.reset()
+
+    # Act
+    try:
+        result = await smb_sync._run_cycle({})
+    finally:
+        if conversion is not None:
+            release_lease(call_dir, "conversion", conversion.owner)
+
+    # Assert
+    assert result == {"status": "completed", "calls_seen": 1, "completed": 0, "failed": 0}
+    assert not log_path.exists()
+    strategy.publish.assert_not_awaited()
 
 
 def test_worker_settings_declares_exclusive_smb_queue():

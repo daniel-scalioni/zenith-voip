@@ -121,3 +121,10 @@ uso real e crescimento restante, headroom fixo de processamento, alerta e gate r
 `smb_transfer_log.json` passa a registrar a primeira observação de temporário remoto sem upload
 ativo. Na observação seguinte, após ao menos um intervalo de sincronização, o worker SMB remove o
 órfão. Um upload com `.smb-processing` válido nunca é coletado.
+
+## 7. Evidência do gate Alembic
+
+Em 2026-08-17, `alembic upgrade head` foi executado contra o PostgreSQL operacional do projeto
+por meio do container `zenith-api-1`. A revisão antes e depois do comando permaneceu
+`002_ata_trunks (head)`. Nenhuma migration nova foi aplicada, confirmando que o delta desta
+feature é restrito a filesystem, configuração e contratos de processamento.

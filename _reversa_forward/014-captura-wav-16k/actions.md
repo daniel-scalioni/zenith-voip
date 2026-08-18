@@ -97,7 +97,7 @@
 |----|-----------|--------------|-------------|--------------|-------------|--------|
 | T032 | Executar testes focados de ingestão, lifecycle, capacidade, ESL, uploader, consumidores, SMB, cleanup e telemetria | T022, T053, T054, T055, T056, T057, T058 | - | `_reversa_forward/014-captura-wav-16k/progress.jsonl` | 🟢 | `[X]` |
 | T033 | Executar o gate principal `pytest -v tests src` e registrar o resultado completo | T032 | - | `_reversa_forward/014-captura-wav-16k/progress.jsonl` | 🟢 | `[X]` |
-| T034 | Executar `alembic upgrade head` para confirmar que o delta exclusivamente em filesystem não exige migração nova | T033 | `[//]` | `_reversa_forward/014-captura-wav-16k/data-delta.md` | 🟢 | `[ ]` |
+| T034 | Executar `alembic upgrade head` para confirmar que o delta exclusivamente em filesystem não exige migração nova | T033 | `[//]` | `_reversa_forward/014-captura-wav-16k/data-delta.md` | 🟢 | `[X]` |
 | T035 | Executar cobertura com `pytest -v tests src --cov=src --cov-fail-under=80` e registrar o gate de 80% | T033 | - | `_reversa_forward/014-captura-wav-16k/progress.jsonl` | 🟢 | `[X]` |
 
 ## Fase 5, Polimento
@@ -105,17 +105,17 @@
 | ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
 |----|-----------|--------------|-------------|--------------|-------------|--------|
 | T036 | Chamar `advisor()` com código e testes da feature para avaliar bordas, caminhos infelizes, concorrência e viés de implementação; registrar o veredito | T035 | `[//]` | `_reversa_forward/014-captura-wav-16k/test-bias-verdict.md` | 🟢 | `[X]` |
-| T037 | Registrar rollback, inspecionar/drenar gravações e fila antiga e executar rollout coordenado somente dos containers `zenith-*` afetados | T034, T035, T058 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[ ]` |
-| T038 | Validar em chamada real de até 5 min vazão 16 kHz, `.tmp.raw`, lease, memória estável, rename, ffprobe e semântica tx/rx | T036, T037 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[ ]` |
-| T039 | Validar SMB/cleanup reais: WAV/checksum/log, consumo, final antecipado, temporário órfão em duas rodadas, lease reaparecido e remoto `.tmp` | T038 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[ ]` |
-| T040 | Executar gate com 30 chamadas simultâneas de até 5 min em tmpfs 2 GiB, provar ≥20% livre, fila sem crescimento sustentado e modo degradado 20/30 sem afetar SIP | T039 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[ ]` |
+| T037 | Registrar rollback, inspecionar/drenar gravações e fila antiga e executar rollout coordenado somente dos containers `zenith-*` afetados | T034, T035, T058 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[X]` |
+| T038 | Validar em chamada real de até 5 min vazão 16 kHz, `.tmp.raw`, lease, memória estável, rename, ffprobe e semântica tx/rx | T036, T037 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[X]` |
+| T039 | Validar SMB/cleanup reais: WAV/checksum/log, consumo, final antecipado, temporário órfão em duas rodadas, lease reaparecido e remoto `.tmp` | T038 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[X]` |
+| T040 | Executar gate com 30 chamadas simultâneas de até 5 min em tmpfs 2 GiB, provar ≥20% livre, fila sem crescimento sustentado e modo degradado 20/30 sem afetar SIP | T039 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[X]` |
 
 ### Adendo de integração pós-auditoria
 
 | ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
 |----|-----------|--------------|-------------|--------------|-------------|--------|
 | T059 | Criar/rodar teste de integração local que simula 30 reservas, conversões concorrentes padrão e backlog, verificando a projeção de 20% sem alocar 2 GiB reais | T032, T052, T058 | `[//]` | `tests/test_recording_capacity_integration.py` | 🟢 | `[X]` |
-| T060 | Atualizar checklist de rollout com evidências, revisão/imagem de rollback, containers tocados, métricas e resultados reais antes do sync (D-24) | T037, T038, T039, T040 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[ ]` |
+| T060 | Atualizar checklist de rollout com evidências, revisão/imagem de rollback, containers tocados, métricas e resultados reais antes do sync (D-24) | T037, T038, T039, T040 | - | `_reversa_forward/014-captura-wav-16k/onboarding.md` | 🟢 | `[X]` |
 
 ## Notas de execução
 

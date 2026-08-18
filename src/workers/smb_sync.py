@@ -443,6 +443,15 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _has_stable_mono_input(call_dir: str | Path) -> bool:
+    directory = Path(call_dir)
+    return all(
+        (directory / f"{channel}.wav").is_file()
+        or (directory / f"{channel}.raw").is_file()
+        for channel in ("tx", "rx")
+    )
+
+
 async def verify_remote_temporary_and_rename(
     connection,
     share: str,
@@ -471,7 +480,11 @@ async def verify_remote_temporary_and_rename(
     await asyncio.to_thread(connection.rename, share, temporary_path, final_path, 30)
 
 
-async def ensure_mono_pair(call_dir: str | Path) -> tuple[Path, Path] | None:
+async def ensure_mono_pair(
+    call_dir: str | Path,
+    *,
+    lease_owner: str | None = None,
+) -> tuple[Path, Path] | None:
     directory = Path(call_dir)
     needs_conversion = any(
         not (directory / f"{channel}.wav").exists()
@@ -480,7 +493,12 @@ async def ensure_mono_pair(call_dir: str | Path) -> tuple[Path, Path] | None:
     )
     if needs_conversion:
         try:
-            lease = acquire_lease(directory, "conversion", directory.name)
+            lease = acquire_lease(
+                directory,
+                "conversion",
+                directory.name,
+                owner=lease_owner,
+            )
         except LeaseBusyError:
             return None
         try:
@@ -592,8 +610,9 @@ async def _process_call_unbounded(
     call_id: str,
     call_dir: Path,
     metadata: dict,
+    lease_owner: str | None = None,
 ) -> dict:
-    pair = await ensure_mono_pair(call_dir)
+    pair = await ensure_mono_pair(call_dir, lease_owner=lease_owner)
     if pair is None:
         set_smb_conversion_pending(1)
         return {"status": "pending", "reason": "mono_pair_incomplete"}
@@ -650,7 +669,14 @@ async def process_call(
         return {"status": "pending", "reason": "already_processing"}
     renewer = asyncio.create_task(_renew_lease(directory, call_id, lease.owner))
     operation = asyncio.create_task(
-        _process_call_unbounded(strategy, tenant_id, call_id, directory, metadata)
+        _process_call_unbounded(
+            strategy,
+            tenant_id,
+            call_id,
+            directory,
+            metadata,
+            lease.owner,
+        )
     )
     try:
         done, _ = await asyncio.wait(
@@ -697,6 +723,8 @@ async def _run_cycle(_ctx) -> dict:
         key = f"{tenant_id}/{call_id}"
         if state.get(key, {}).get("status") == "done":
             continue
+        if lifecycle_has_valid_lease(call_dir) or not _has_stable_mono_input(call_dir):
+            continue
         previous = state.get(key, {})
         try:
             metadata = await resolve_call_metadata(tenant_id, call_id, call_dir)
@@ -708,6 +736,8 @@ async def _run_cycle(_ctx) -> dict:
                 call_dir=call_dir,
                 metadata=metadata,
             )
+            if result.get("reason") in {"already_processing", "mono_pair_incomplete"}:
+                continue
             status = result["status"]
             completed += status == "done"
             state[key] = {

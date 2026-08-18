@@ -1,7 +1,9 @@
 import asyncio
+import fcntl
 import json
 import os
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -10,6 +12,7 @@ from src.config import settings
 
 
 LEASE_STAGES = frozenset({"capture", "conversion", "smb"})
+LIFECYCLE_LOCK_FILE = ".recording-lifecycle.lock"
 
 
 class LeaseBusyError(RuntimeError):
@@ -22,6 +25,19 @@ class RecordingLease:
     call_id: str
     owner: str
     expires_at: datetime
+
+
+@contextmanager
+def locked_call_directory(call_dir: str | Path):
+    directory = Path(call_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(directory / LIFECYCLE_LOCK_FILE, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
 
 
 def _lease_path(call_dir: str | Path, stage: str) -> Path:
@@ -55,7 +71,7 @@ def _write_exclusive(path: Path, payload: dict) -> None:
         temp.unlink(missing_ok=True)
 
 
-def acquire_lease(
+def _acquire_lease_unlocked(
     call_dir: str | Path,
     stage: str,
     call_id: str,
@@ -65,6 +81,16 @@ def acquire_lease(
     ttl_seconds: int | None = None,
 ) -> RecordingLease:
     current = _now(now)
+    for active_stage in LEASE_STAGES:
+        active = _read(_lease_path(call_dir, active_stage), active_stage)
+        if (
+            active is not None
+            and active.expires_at > current
+            and (owner is None or active.owner != owner)
+        ):
+            raise LeaseBusyError(
+                f"Lease {active_stage} já está ativo por outra operação"
+            )
     path = _lease_path(call_dir, stage)
     existing = _read(path, stage)
     if existing and existing.expires_at > current:
@@ -93,6 +119,26 @@ def acquire_lease(
         except FileExistsError as exc:
             raise LeaseBusyError(f"Lease {stage} adquirido concorrentemente") from exc
     return lease
+
+
+def acquire_lease(
+    call_dir: str | Path,
+    stage: str,
+    call_id: str,
+    *,
+    owner: str | None = None,
+    now: datetime | None = None,
+    ttl_seconds: int | None = None,
+) -> RecordingLease:
+    with locked_call_directory(call_dir):
+        return _acquire_lease_unlocked(
+            call_dir,
+            stage,
+            call_id,
+            owner=owner,
+            now=now,
+            ttl_seconds=ttl_seconds,
+        )
 
 
 def _read(path: Path, expected_stage: str | None = None) -> RecordingLease | None:
@@ -134,31 +180,33 @@ def renew_lease(
     now: datetime | None = None,
     ttl_seconds: int | None = None,
 ) -> bool:
-    path = _lease_path(call_dir, stage)
-    lease = _read(path, stage)
-    if lease is None or lease.owner != owner:
-        return False
-    acquire_lease(
-        call_dir,
-        stage,
-        lease.call_id,
-        owner=owner,
-        now=now,
-        ttl_seconds=ttl_seconds,
-    )
-    return True
+    with locked_call_directory(call_dir):
+        path = _lease_path(call_dir, stage)
+        lease = _read(path, stage)
+        if lease is None or lease.owner != owner:
+            return False
+        _acquire_lease_unlocked(
+            call_dir,
+            stage,
+            lease.call_id,
+            owner=owner,
+            now=now,
+            ttl_seconds=ttl_seconds,
+        )
+        return True
 
 
 def release_lease(call_dir: str | Path, stage: str, owner: str) -> bool:
-    path = _lease_path(call_dir, stage)
-    lease = _read(path, stage)
-    if lease is None or lease.owner != owner:
-        return False
-    try:
-        path.unlink()
-        return True
-    except FileNotFoundError:
-        return False
+    with locked_call_directory(call_dir):
+        path = _lease_path(call_dir, stage)
+        lease = _read(path, stage)
+        if lease is None or lease.owner != owner:
+            return False
+        try:
+            path.unlink()
+            return True
+        except FileNotFoundError:
+            return False
 
 
 async def heartbeat_lease(

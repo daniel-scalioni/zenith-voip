@@ -12,7 +12,7 @@
 - `ffprobe` disponível localmente (ou via `docker exec` num container que já tenha `ffmpeg`)
 - Um ramal de teste registrado (ex.: `1001`) capaz de originar/receber uma chamada real
 - Código desta feature já implantado nos containers `zenith-api-1`, `zenith-api-2`,
-  `zenith-arq-uploader`, `zenith-arq-smb-sync` e `zenith-arq-cleanup`
+  `zenith-arq-uploader`, `zenith-smb-sync` e `zenith-arq-cleanup`
 
 ## 1. Confirmar estado limpo antes de testar
 
@@ -64,9 +64,9 @@ processadas por consumo/TTL). Se houver `.mp3` legado, isso é esperado ser igno
 ssh administrator@10.10.10.11 'ls -la /data/recordings/<tenant_id>/<call_id>/'
 ```
 
-Esperado: `tx.wav` e `rx.wav`. `tx.tmp.raw`/`rx.tmp.raw` não existem mais (viraram `tx.raw`/
-`rx.raw` na finalização e depois foram consumidos pela conversão); não deve sobrar `.raw`
-(sem `.tmp`) se a conversão terminou com sucesso.
+Esperado: `tx.wav` e `rx.wav`. `tx.tmp.raw`/`rx.tmp.raw` não existem mais: viraram
+`tx.raw`/`rx.raw` na finalização. Os `.raw` finais permanecem após a conversão bem-sucedida até
+a confirmação dos consumidores ou o TTL, conforme o contrato do componente `audio-upload`.
 
 ```bash
 ffprobe -hide_banner /data/recordings/<tenant_id>/<call_id>/tx.wav
@@ -83,7 +83,7 @@ Disparar o ciclo manualmente em vez de esperar o cron (`zenith:smb-sync`, a cada
 `SMB_SYNC_INTERVAL_MINUTES`):
 
 ```bash
-docker exec zenith-arq-smb-sync python -c "
+docker exec zenith-smb-sync python -c "
 import asyncio
 from src.workers.smb_sync import run_smb_sync
 asyncio.run(run_smb_sync(None))
@@ -123,7 +123,7 @@ o TTL, foi o gatilho.
 ## 6. Validar a rede de segurança do TTL (caminho sem confirmação)
 
 Repetir os passos 2-3 com o backup SMB **desabilitado** (`SMB_ENABLED=false` temporariamente, ou
-interrompendo o worker `zenith-arq-smb-sync`) para uma chamada de teste isolada:
+  interrompendo o worker `zenith-smb-sync`) para uma chamada de teste isolada:
 
 1. Confirmar que `tx.wav`/`rx.wav` existem e que nenhum `.consumed-*` é criado.
 2. Rodar o cleanup manualmente (passo 5) antes do TTL expirar — esperado: os arquivos
@@ -136,8 +136,8 @@ interrompendo o worker `zenith-arq-smb-sync`) para uma chamada de teste isolada:
 
 Criar manualmente um diretório de chamada com apenas `tx.mp3`/`rx.mp3` (sem `.raw`/`.wav`) dentro
 de `RECORDINGS_PATH` e rodar o ciclo de backup SMB (passo 4) apontando para esse diretório
-sintético. Esperado: o ciclo trata como par incompleto (`status: "pending", reason:
-"mono_pair_incomplete"`), sem exceção e sem publicar arquivo corrompido.
+sintético. Esperado: o ciclo ignora o diretório legado sem criar entrada no transfer log, sem
+exceção e sem publicar arquivo corrompido.
 
 ## 8. Validar que o `smb_sync` ignora uma chamada em andamento (D-14)
 
@@ -198,18 +198,160 @@ comportamento final parece certo.
 
 ## 13. Checklist final
 
-- [ ] `tx.wav`/`rx.wav` confirmados como PCM16 mono 16 kHz via `ffprobe`
-- [ ] `tx.tmp.raw`/`rx.tmp.raw` crescem em disco durante a chamada (antes do hangup)
-- [ ] Taxa efetiva confirmada por vazão (bytes/s), não só pelo rótulo do `.wav` final
-- [ ] `stereo.wav` publicado no SMB, checksum conferido, reproduzível
-- [ ] `.consumed-smb` criado após confirmação do backup
-- [ ] Exclusão antecipada por confirmação observada (antes do TTL)
-- [ ] Rede de segurança do TTL observada (sem confirmação)
-- [ ] Diretório com `.mp3` legado ignorado sem erro
-- [ ] `smb_sync` comprovadamente ignora uma chamada em andamento (passo 8)
-- [ ] `zenith_recordings_tmpfs` confirmado em 2 GiB
-- [ ] 30 chamadas de até 5 min mantêm ao menos 20% livre (passo 9)
-- [ ] Temporário órfão descartado somente na segunda rodada; lease reaparecido cancela (passo 10)
-- [ ] Modo degradado preserva SIP/ativas e usa histerese 20%/30% (passo 11)
-- [ ] Rollout/rollback limitados a `zenith-*` e fila incompatível drenada (passo 12)
-- [ ] `pytest -v tests src` verde
+- [x] `tx.wav`/`rx.wav` confirmados como PCM16 mono 16 kHz via `ffprobe`
+- [x] `tx.tmp.raw`/`rx.tmp.raw` crescem em disco durante a chamada (antes do hangup)
+- [x] Taxa efetiva confirmada por vazão (bytes/s), não só pelo rótulo do `.wav` final
+- [x] `stereo.wav` publicado no SMB, checksum conferido, reproduzível
+- [x] `.consumed-smb` criado após confirmação do backup
+- [x] Exclusão antecipada por confirmação observada (antes do TTL)
+- [x] Rede de segurança do TTL observada (sem confirmação)
+- [x] Diretório com `.mp3` legado ignorado sem erro
+- [x] `smb_sync` comprovadamente ignora uma chamada em andamento (passo 8)
+- [x] `zenith_recordings_tmpfs` confirmado em 2 GiB
+- [x] 30 chamadas de até 5 min mantêm ao menos 20% livre (passo 9)
+- [x] Temporário órfão descartado somente na segunda rodada; lease reaparecido cancela (passo 10)
+- [x] Modo degradado preserva SIP/ativas e usa histerese 20%/30% (passo 11)
+- [x] Rollout/rollback limitados a `zenith-*` e fila incompatível drenada (passo 12)
+- [x] `pytest -v tests src` verde
+
+## 14. Evidência de rollout — 2026-08-17
+
+### Baseline e rollback registrados
+
+- Revisão rastreável do host antes da validação: `6ff0ec792ad53d6cf2b35868b6d591c531d4a95c`
+  com a implementação da 014 presente como worktree controlada.
+- Backup anterior do compose: `.deploy-backups/feature014-20260814/docker-compose.app.yml`.
+- Imagens observadas antes da chamada de validação:
+  - `zenith-api-1`: `sha256:cda5790734c2b85dc2d42bc06ac2d6ee450503078a39d2fa7123ac239e44feed`
+  - `zenith-api-2`: `sha256:069983591c93ba68f86f837958ecd04f3d8e829ecb44a95566dec7df54a9e326`
+  - `zenith-arq-uploader`: `sha256:676eacfb6c80e7254256cd4d1bea06108827f44244409faee6d8f0b1357488e9`
+  - `zenith-smb-sync`: `sha256:2c90b44732e7ea17f0db7f982bc9f17a3c4ccb44970a6b8095c8c23300cebd26`
+  - `zenith-arq-cleanup`: `sha256:6a0178d3f7bdbc2b1490c93b36008cba1a1791937ec4f8db88e62864b17710e8`
+
+### Preflight e rollout coordenado comprovados
+
+- `zenith:audio-upload`: zero jobs (`LLEN=0`, `ZCARD=0`); nenhuma fila foi apagada.
+- `/data/recordings`: vazio; nenhuma gravação foi removida para preparar o teste.
+- `zenith_recordings_tmpfs`: 2,0 GiB, 0% usado, montado pelos serviços afetados.
+- Hashes de compose e dos dez módulos alterados coincidem entre workspace e host.
+- `zenith-api-1`, `zenith-api-2`, `zenith-arq-uploader` e `zenith-arq-cleanup` foram recriados
+  coordenadamente em `2026-08-14T14:41Z`; `zenith-smb-sync`, em `2026-08-14T15:18Z`.
+- APIs `healthy`; três workers `running`; zero reinícios e nenhum
+  `traceback/error/exception/critical` nos 30 minutos anteriores ao gate.
+- Contrato em runtime confirmado: `stereo 16000`, escrita `.tmp.raw`, `_convert_to_wav` e
+  `stereo.wav` estão carregados nos containers.
+- Nenhum recurso sem prefixo `zenith-` foi alterado.
+
+### Diagnóstico da feature 012 e chamadas reais
+
+- A indisponibilidade anterior foi causada pelo bloqueio do novo IP público `189.109.8.108` na
+  whitelist do VitalPBX remoto. Após a liberação, `upstream-1001` mudou de `DOWN/FAIL_WAIT` para
+  `REGED / UP (ping)` sem alteração de dialplan.
+- O profile local do ATA usa `10.10.10.11:7060`; o profile `upstream` usa o socket local
+  `10.10.10.11:5065` e registra no VitalPBX remoto em `177.71.153.68:7060`. Os sockets são
+  distintos e estavam simultaneamente ativos.
+- Os hashes dos três arquivos montados no container coincidem com o workspace:
+  `default.xml=f02d045d...`, `internal-7060.xml=c4390b78...` e `upstream.xml=c327192c...`.
+- A feature 012 removeu originalmente o fallback de `zenith_tenant_id`/`zenith_pbx_id` do
+  dialplan, mas a correção `6ff0ec7` o restaurou. Nas chamadas desta validação, os dois campos
+  chegaram preenchidos (`akom` e `c5bf3191-75b4-4a45-b5e1-c9b7942f8176`) e os registros de
+  chamada foram criados.
+- Duas chamadas reais foram completadas pelo ramal 1001: destino `1140100` (ATA) e destino
+  `3101001` (ramal simples). O segundo fluxo registrou `DIALSTATUS=SUCCESS`, resposta SIP 200,
+  ponte `sofia/gateway/upstream-1001/3101001`, RTP nos dois sentidos e
+  `NORMAL_CLEARING`; o primeiro também foi convertido e enviado pelo uploader sem erro.
+- Artefatos de `7d7236d0-7554-4743-88d0-3a0b4d8a6823`: `tx.wav` e `rx.wav`, PCM `s16le`,
+  16 kHz, mono, 5,78 s; cada `.raw` tem 184.960 bytes, vazão exata de 32.000 bytes/s.
+- Artefatos de `cbf74f2e-8346-4c56-80af-f2e0a14f7022`: `tx.wav` e `rx.wav`, PCM `s16le`,
+  16 kHz, mono, 3,64 s; cada `.raw` tem 116.480 bytes, vazão exata de 32.000 bytes/s.
+- A fila terminou vazia (`LLEN=0`, `ZCARD=0`) e os jobs dos dois pares retornaram
+  `status=uploaded`. Memória após as chamadas: API 86,14 MiB, FreeSWITCH 127,3 MiB, uploader
+  55,19 MiB e SMB 64,88 MiB.
+- Uma terceira chamada real (`1fb274ca-9207-4793-9b1e-91df44ae27e0`) foi mantida por 25,86 s.
+  O lease `.capture-processing` permaneceu ativo e `tx.tmp.raw`/`rx.tmp.raw` cresceram em
+  paralelo de 640 até 822.400 bytes antes do hangup. Após a finalização, não restou temporário;
+  cada raw final ficou com 827.520 bytes, exatamente 32.000 bytes/s.
+- Os dois WAVs finais são PCM `s16le`, 16 kHz, mono e 25,86 s. Ambos contêm sinal de áudio
+  distinto (`tx`: média -42,9 dB, pico -15,2 dB; `rx`: média -49,2 dB, pico -25,7 dB),
+  confirmando a separação dos sentidos; a chamada real teve mídia bidirecional normal.
+- Memória após a chamada longa permaneceu estável: API 87,73 MiB, FreeSWITCH 125,9 MiB e
+  uploader 56,78 MiB. O job terminou `uploaded` e a fila voltou a zero.
+
+### T039 — evidência parcial e falha reproduzida
+
+- O SMB real publicou o WAV estéreo da chamada longa com checksum
+  `b1e6008d4dab65bab13b444a5fc87afb3756d61dff85d3b845d271ad7396ed5c`, gravou
+  `status=done`, removeu `stereo.wav` local e criou `.consumed-smb`.
+- O cleanup antecipado removeu quatro finais consumíveis (`tx/rx.raw` e `tx/rx.wav`), liberando
+  3.310.236 bytes antes do TTL. Os arquivos locais dessa chamada de teste agora existem somente
+  no backup SMB; o marcador `.consumed-smb` permaneceu.
+- Um temporário sintético isolado foi preservado na primeira rodada e removido na segunda após
+  901 s simulados, sem promover `.raw`/`.wav`.
+- Falha: quando um lease reapareceu entre as duas rodadas, o cleanup protegeu o arquivo enquanto
+  o lease estava válido, mas não cancelou a candidatura antiga. Um ciclo imediatamente após a
+  liberação do lease removeu o temporário, contrariando D-18 e o requisito do componente
+  `audio-cleanup`.
+
+### T039 — correção e revalidação
+
+- Specs `recording-lifecycle` 1.1.0 e `audio-cleanup` 2.1.0 agora exigem lock advisory por
+  diretório entre mutações de lease e a decisão completa do cleanup.
+- TDD acrescentou cobertura para marcador estruturalmente inválido, dois cleanups com
+  interleaving real e aquisição de lease concorrendo com exclusão. Veredito independente: GO.
+- Gate relacionado: 58 testes aprovados. Gate principal: 383 aprovados e 29 pulados.
+- Rollout limitado a `zenith-api-1`, `zenith-api-2`, `zenith-arq-uploader`, `zenith-smb-sync` e
+  `zenith-arq-cleanup`; FreeSWITCH não foi reiniciado e `upstream-1001` permaneceu `REGED / UP`.
+  Backup: `.deploy-backups/feature014-t039-cleanup-lock/`.
+- No runtime corrigido, o lease reaparecido removeu a candidatura antiga; após a liberação, a
+  primeira rodada recriou `first_seen` e preservou o arquivo, e somente a segunda rodada, 900 s
+  depois, o removeu.
+- No SMB real, `orphan.wav.tmp` foi preservado na primeira observação e aos 899 s simulados; aos
+  901 s foi removido. O teste usou diretório remoto isolado e o removeu ao final.
+- T039 concluída. A linha anterior permanece como histórico da falha que originou a correção.
+
+### T040 — gate de capacidade no runtime
+
+- Um processo de validação dentro da imagem de produção atravessou o `AudioIngestor` e o
+  `RecordingCapacityGuard` reais sobre o tmpfs compartilhado. Foram admitidas 30 gravações
+  concorrentes, com 30 leases de captura e reserva restante de 575.994.030 bytes.
+- A margem projetada para o pior caso de 5 min foi 66,92% livre, acima do mínimo de 20%; a margem
+  física inicial era 99,99%.
+- Pressão controlada e isolada de 999.189.698 bytes fez a próxima gravação ser recusada com código
+  WebSocket 4403, `recording_degraded_mode=1` e incremento unitário de
+  `recording_refused_total`. As 30 gravações admitidas permaneceram ativas.
+- Durante a pressão, o tmpfs físico ficou em 47% usado, o FreeSWITCH manteve
+  `upstream-1001 REGED / UP`, não havia canal SIP derrubado e as filas de upload permaneceram
+  `LLEN=0`/`ZCARD=0`.
+- Com margem projetada de 25%, uma nova reserva continuou recusada. Depois de remover a pressão e
+  recuperar mais de 30%, uma nova gravação foi admitida, o modo degradado voltou a zero e a margem
+  projetada ficou em 66,03%.
+- Todos os leases/reservas e o diretório sintético foram removidos ao final. O tmpfs retornou a
+  0% usado, filas a zero e os cinco serviços permaneceram com zero reinícios.
+
+### T060 — fechamento do rollout e das corridas de lifecycle
+
+- A revisão final identificou e reproduziu uma janela entre a descoberta SMB e a aquisição do
+  lease. As specs foram elevadas para `recording-lifecycle` 1.2.0 e `smb-backup` 2.2.0: owners
+  distintos agora se excluem entre estágios; SMB e sua conversão interna reutilizam o mesmo
+  owner. Chamada ocupada ou par que ficou incompleto não cria entrada nova no transfer log.
+- TDD cobriu separadamente chamada ativa com raws estáveis e lease, além de lease de conversão
+  surgindo durante a resolução de metadados. Gate focado: 55 testes aprovados. Revisão
+  independente: GO, 65 testes focados e probes adicionais de renew/release, conversão aninhada e
+  cleanup concorrente.
+- Backup recuperável antes do deploy:
+  `.deploy-backups/feature014-t060-smb-cross-stage/`. Foram recriados somente
+  `zenith-api-1`, `zenith-api-2`, `zenith-arq-uploader`, `zenith-arq-cleanup` e
+  `zenith-smb-sync`; FreeSWITCH não foi reiniciado.
+- Imagens implantadas: API 1 `sha256:99055a814f...`, API 2 `sha256:eacc8376d970...`, uploader
+  `sha256:f09c50016e6b...`, cleanup `sha256:22aab7e7d388...` e SMB
+  `sha256:a7aa6ec00577...`. Todos ficaram com zero reinícios; APIs healthy e nenhum sinal de
+  traceback/error/exception/critical nos dez minutos do gate.
+- Na imagem de produção, um ciclo isolado viu dois diretórios e processou zero: chamada ativa
+  com `tx.raw`/`rx.raw` estáveis e `.capture-processing` permaneceu intacta, sem lease SMB e sem
+  log; diretório somente `tx.mp3`/`rx.mp3` também permaneceu intacto e invisível ao log.
+- A rede de segurança TTL foi exercitada sem marcador `.consumed-*`: antes do cutoff, dois WAVs
+  foram preservados; após envelhecimento controlado além do TTL, os dois foram removidos,
+  liberando quatro bytes no cenário sintético.
+- Gate principal final: 386 aprovados, 29 pulados. Cobertura final: 89,86%, acima do mínimo de
+  80%. Filas consultadas ficaram zeradas, tmpfs em 0%, e `upstream-1001` permaneceu
+  `REGED / UP (ping)`.

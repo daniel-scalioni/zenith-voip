@@ -9,7 +9,7 @@ from pathlib import Path
 from arq import cron
 from arq.connections import RedisSettings
 
-from src.audio.recording_lifecycle import has_valid_lease
+from src.audio.recording_lifecycle import has_valid_lease, locked_call_directory
 from src.config import settings
 from src.utils.telemetry import (
     observe_cleanup_duration,
@@ -68,7 +68,14 @@ def _delete(path: Path) -> tuple[bool, int]:
 
 
 def _cleanup_call_directory(call_dir: Path, cutoff: float, now: datetime) -> tuple[int, int, int, int]:
+    with locked_call_directory(call_dir):
+        return _cleanup_locked_call_directory(call_dir, cutoff, now)
+
+
+def _cleanup_locked_call_directory(call_dir: Path, cutoff: float, now: datetime) -> tuple[int, int, int, int]:
     if has_valid_lease(call_dir, now=now):
+        # Um lease reaparecido invalida observações feitas antes da atividade atual.
+        (call_dir / CANDIDATES_FILE).unlink(missing_ok=True)
         return 0, 0, 0, 0
     deleted = 0
     bytes_freed = 0
@@ -88,6 +95,8 @@ def _cleanup_call_directory(call_dir: Path, cutoff: float, now: datetime) -> tup
             except FileNotFoundError:
                 continue
             previous = candidates.get(path.name, {})
+            if not isinstance(previous, dict):
+                previous = {}
             first_seen = previous.get("first_seen")
             same = previous.get("fingerprint") == fingerprint
             try:
