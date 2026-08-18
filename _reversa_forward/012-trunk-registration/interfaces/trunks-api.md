@@ -76,6 +76,15 @@ Cada item contém:
 
 Campos alteráveis: `condominium_id`, `prefix`, `auth_username`, `password`, `sip_profile`, `enabled`. Senha ausente significa preservar; senha vazia é rejeitada. Mudanças de identidade invalidam caches e forçam `registration_status=unknown` até reconciliação.
 
+Quando a identidade ou senha mudar, a mesma escrita limpa `last_registered_at` e
+`last_unregistered_at`. As respostas de `POST`, `PATCH` e `GET` consultam a cardinalidade Redis
+do tronco e derivam `in_use` de `active_calls > 0`.
+
+`condominium_id` novo deve permanecer no tenant/PBX do tronco. `null` explícito é aceito somente
+para limpar `prefix`; nos demais campos de tronco retorna `422`. Se Redis estiver indisponível após
+POST/PATCH, a mutação continua bem-sucedida e a view degrada `active_calls` para `0`, com falha
+registrada no log para reconciliação operacional.
+
 ### `POST /trunks/import?pbx_id=<uuid>&dry_run=true|false`
 
 - Content-Type: `multipart/form-data`, campo `file`.

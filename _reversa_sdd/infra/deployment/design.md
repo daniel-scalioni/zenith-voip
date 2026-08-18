@@ -1,10 +1,24 @@
 # Deploy, Design
 
-**Stack:** 15 containers Docker (incluindo `arq-uploader`, novo), BunkerWeb proxy, FreeSWITCH host network
+## PostgreSQL promovido (2026-08-18)
+
+O serviço Compose permanece nomeado `postgres`, pois esse nome é o contrato DNS da aplicação,
+mas passa a administrar `zenith-postgres-candidate` e montar como volume externo
+`zenith-postgres-candidate-data`. Infra e aplicação usam o mesmo usuário/banco promovido;
+`ZENITH_CANDIDATE_POSTGRES_PASSWORD` alimenta o container e `DATABASE_URL` fornece aos consumidores
+a URL completa com senha codificada. Executar o Compose não pode recolocar o banco legado no alias.
+
+> **Atualização 2026-08-17:** o estado corrente usa tmpfs de 2 GiB, workers separados de uploader,
+> cleanup e SMB, e `mod_xml_curl` implementado. Os relatos datados abaixo permanecem como histórico
+> operacional e não descrevem a configuração ativa quando conflitarem com esta atualização. 🟢
+
+**Stack:** containers Docker com BunkerWeb, FreeSWITCH host network, uploader, cleanup e SMB sync
 **HA:** 2 instâncias FastAPI com sticky session via X-Call-ID
 **GPU:** Reservada para Ollama via docker-compose device mapping
 **Deploy:** deploy.sh com backup + health check + rollback; `scripts/setup-recording-mvp.sh` para provisionar a infra do MVP de gravação (build do FreeSWITCH custom, migrations, workers)
-**Storage de gravação:** volume `recordings_tmpfs` (RAM, `driver_opts: type=tmpfs, size=512m`, montado em `fastapi-1`/`fastapi-2`/`arq-uploader`/`arq-cleanup`) — decisão de produto em 2026-06-22 (substitui S3, nunca chegou a ser provisionado: `S3_ENDPOINT` vazio nos `.env.*.example`, sem MinIO no compose); trocado de bind mount em disco (`./data/recordings`) para tmpfs em 2026-07-10 (MVP Fase 1 — gravação de chamada não deve ocupar o HD do sistema, combina com a retenção curta de ~1h). Auditoria manual via `docker exec <container> ls/cat` ou `docker cp` (tmpfs não aparece como pasta no filesystem do host)
+**Storage de gravação:** `zenith_recordings_tmpfs` em RAM, 2 GiB, compartilhado entre APIs,
+uploader, cleanup e SMB sync; raw/WAV permanecem locais até consumo ou retenção de segurança (~2 h).
+O log SMB usa volume persistente separado `zenith_smb_logs`. 🟢
 **Origem:** `docker-compose.app.yml`, `deploy.sh`, `scripts/setup-recording-mvp.sh` 🟢
 
 ## Risco em resolução (2026-06-22, atualizado 2026-06-24)
@@ -31,7 +45,8 @@ GAP-17 resolvido em 2026-06-26: `internal.xml` corrigido (TLS desativado, porta 
   - `freeswitch/conf/directory/extensions.xml` — usuários para autenticação local dos interfones
   - `freeswitch/conf/sip_profiles/upstream/*.xml` — um gateway por ramal para registro upstream no VitalPBX
 - **Segurança**: arquivos gerados com senhas em texto (`extensions.xml`, `upstream/*.xml`, `specs/export_extensions.csv`) são gitignored; apenas estrutura sem credenciais está no repositório.
-- **Futuro**: substituir arquivos estáticos por `mod_xml_curl` → FastAPI → PostgreSQL (`SIPExtension`) quando o ciclo de provisionamento dinâmico for implementado (GAP-PROV-01).
+- **Atual**: `mod_xml_curl` resolve `ATATrunk` público e faz fallback somente leitura para
+  `extensions.xml`; `SIPExtension` não integra o modelo implementado. 🟢
 
 ## Status do deploy B2BUA (2026-06-29)
 

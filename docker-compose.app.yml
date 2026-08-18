@@ -87,7 +87,7 @@ services:
     environment:
       - INSTANCE_ID=1
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - FREESWITCH_ESL_HOST=172.21.0.1
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
@@ -129,7 +129,7 @@ services:
     environment:
       - INSTANCE_ID=2
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - FREESWITCH_ESL_HOST=172.21.0.1
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
@@ -167,7 +167,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - RECORDINGS_PATH=/data/recordings
       - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}
       - RECORDING_LEASE_HEARTBEAT_SECONDS=${RECORDING_LEASE_HEARTBEAT_SECONDS:-30}
@@ -192,7 +192,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       # ~2 horas para cobrir retries do backup SMB.
       - AUDIO_RETENTION_DAYS=${AUDIO_RETENTION_DAYS:-0.0833}
       - RECORDINGS_PATH=/data/recordings
@@ -220,7 +220,7 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - RECORDINGS_PATH=/data/recordings
       - RECORDING_CLEANUP_ROUND_SECONDS=${RECORDING_CLEANUP_ROUND_SECONDS:-900}
       - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}

@@ -3,17 +3,29 @@ spec:
   component: trunk-registry
   layer: database
   status: active
-  version: 1.2.0
+  version: 1.3.0
   language: python
   patterns: [repository]
   inputs: [{name: trunk_configuration, type: validated_command, from: trunk-admin}]
   outputs: [{name: persisted_trunk, type: ATATrunk, to: trunk-registration}]
   dependencies: [{component: tenants-pbxs, layer: database}]
   events_produced: []
-  updated_at: 2026-08-10
+  updated_at: 2026-08-18
 ---
 
 # Trunk Registry — Design
+
+## Correção 1.3.0
+
+`TrunkService.update` trata mudança de username, profile ou senha como invalidação única: cifra a
+senha quando aplicável e envia ao Repository, na mesma chamada, `registration_status=unknown`,
+`last_registered_at=None` e `last_unregistered_at=None`. Assim não há estado intermediário nem
+timestamp antigo apresentado como evidência atual.
+
+Se `condominium_id` estiver no patch e for diferente do atual, o service chama `_validate_scope`
+com o tenant autenticado e o PBX imutável do tronco antes de montar a atualização.
+Mudança de `auth_username` ou `sip_profile` consulta a identidade proposta no Repository e no
+`LegacyDirectoryProvider`, ignorando somente o próprio registro atual.
 
 ## Responsabilidade
 

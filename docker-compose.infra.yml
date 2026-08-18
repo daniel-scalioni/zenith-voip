@@ -6,7 +6,9 @@ networks:
         - subnet: 172.21.0.0/16
 
 volumes:
-  zenith_postgres_data:
+  zenith_postgres_candidate_data:
+    name: zenith-postgres-candidate-data
+    external: true
   zenith_redis_data:
   zenith_prometheus_data:
   zenith_grafana_data:
@@ -15,19 +17,19 @@ volumes:
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: zenith-postgres
+    container_name: zenith-postgres-candidate
     networks:
       - ai-hub-net
     ports:
       - "5433:5432"
     volumes:
-      - zenith_postgres_data:/var/lib/postgresql/data
+      - zenith_postgres_candidate_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=zenith
-      - POSTGRES_PASSWORD=zenith
-      - POSTGRES_DB=zenith
+      - POSTGRES_USER=zenith_candidate
+      - POSTGRES_PASSWORD=${ZENITH_CANDIDATE_POSTGRES_PASSWORD:?defina ZENITH_CANDIDATE_POSTGRES_PASSWORD}
+      - POSTGRES_DB=zenith_candidate
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zenith"]
+      test: ["CMD-SHELL", "pg_isready -U zenith_candidate -d zenith_candidate"]
       interval: 10s
       timeout: 5s
       retries: 5

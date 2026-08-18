@@ -129,3 +129,16 @@ Spec-first: o contrato "constraint violation nunca escapa crua, é traduzida na 
 ### Veredito
 
 Os cinco bloqueios reais do Claude, mais o gap do lote JSON encontrado numa segunda passada do advisor, convergiram para código+spec+teste corrigidos. As divergências do OpenCode foram resolvidas por evidência direta no código ou por decisão explícita de escopo, documentada acima. T048 fecha a feature 012 para o T049 (suíte global + cobertura + Alembic).
+
+## Reavaliação independente — Fase 7 (2026-08-18)
+
+A primeira revisão da correção W002/W004/W006/W007 foi **NO-GO** e reproduziu três HIGH:
+movimentação de tronco cross-tenant/PBX, colisão de identidade com o diretório legado e erro Redis
+propagado depois do commit de POST/PATCH. Também apontou payloads vazios/nulos e leitura Redis
+sequencial. Todos ganharam contrato e testes antes da correção.
+
+A segunda revisão, sobre o código corrigido, foi **GO**, sem CRITICAL/HIGH/MEDIUM. O revisor rodou
+92 testes focados e probes próprios para os dois tipos de cross-scope, mudança isolada de profile,
+RedisError em POST/PATCH/GET, clears anuláveis, reimportação e Compose/env. Ressalvas LOW: cutover
+runtime não executável sem Docker neste ambiente e possibilidade de fan-out/log por item em listas
+muito grandes; não bloqueiam o contrato atual.

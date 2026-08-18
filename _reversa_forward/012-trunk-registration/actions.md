@@ -8,8 +8,8 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Total de ações | 60 |
-| Paralelizáveis (`[//]`) | 22 |
+| Total de ações | 70 |
+| Paralelizáveis (`[//]`) | 27 |
 | Maior cadeia de dependência | 15 |
 
 ## Fase 1, Preparação
@@ -102,6 +102,21 @@
 | T059 | Escrever/estender teste de regressão em nível de serviço provando o sintoma real: evento `CHANNEL_ANSWER` de ramal legado sem `variable_zenith_tenant_id` (pré-fix) não cria `Call`; com o fallback do dialplan (pós-fix, simulado no evento) cria `Call` no tenant correto; evento de tronco com `variable_zenith_tenant_id` já presente cria `Call` no tenant do tronco, não `akom` | T058 | - | `src/telephony/test_esl_client.py` | 🟢 | [X] |
 | T060 | Adicionar item de vigilância `W008` em `regression-watch.md` cobrindo a interação dialplan↔diretório: sinal de violação é o fallback voltando a rodar incondicionalmente (cruza tenant de tronco) ou o diretório parando de injetar `zenith_tenant_id`/`zenith_pbx_id` para tronco (perde a precedência que T057/T058 garantem) | T059 | - | `_reversa_forward/012-trunk-registration/regression-watch.md` | 🟢 | [X] |
 
+## Fase 7, Correções da re-extração (2026-08-18, W002/W004/W006/W007)
+
+| ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
+|----|-----------|--------------|-------------|--------------|-------------|--------|
+| T061 | Atualizar requirements, SDD e interfaces com os quatro contratos corretivos antes do código | - | `[//]` | `_reversa_forward/012-trunk-registration/`, `_reversa_sdd/` | 🟢 | [X] |
+| T062 | Escrever teste Red do Compose canônico preservando container, volume, alias e credenciais do PostgreSQL promovido | T061 | `[//]` | `tests/test_postgres_cutover_compose.py` | 🟢 | `[X]` |
+| T063 | Escrever teste Red de invalidação operacional limpando ambos os timestamps | T061 | `[//]` | `src/services/test_trunks.py` | 🟢 | `[X]` |
+| T064 | Escrever testes Red dos PATCHs tenant-scoped de condomínio e tronco | T061 | `[//]` | `src/api/routers/test_trunks.py` | 🟢 | `[X]` |
+| T065 | Escrever testes Red de `active_calls` real em create, patch e list | T061 | `[//]` | `src/api/routers/test_trunks.py` | 🟢 | `[X]` |
+| T066 | Promover declarativamente o PostgreSQL candidato no Compose canônico | T062 | - | `docker-compose.infra.yml`, `docker-compose.app.yml` | 🟢 | `[X]` |
+| T067 | Tornar a invalidação de identidade/senha atômica com a limpeza de timestamps | T063 | - | `src/services/trunks.py` | 🟢 | `[X]` |
+| T068 | Implementar DTOs e rotas PATCH delegando aos services existentes | T064 | - | `src/api/routers/trunks.py` | 🟢 | `[X]` |
+| T069 | Injetar `TrunkStateService` no router e preencher uso real em todas as views | T065, T068 | - | `src/api/routers/trunks.py` | 🟢 | `[X]` |
+| T070 | Rodar testes focados, gates canônicos, revisão independente e atualizar progress/watch | T066, T067, T068, T069 | - | `progress.jsonl`, `regression-watch.md` | 🟢 | `[X]` |
+
 ## Notas de execução
 
 - T004, T005, T042, T043, T044 e T046 dependem de ambiente ou evidência real; nunca marcar por inferência.
@@ -126,3 +141,4 @@
 | 2026-08-10 | T050 fechada: `legacy-impact.md` e `regression-watch.md` atualizados de "execução parcial" para fechamento, com seções consolidadas de risco (auth, variáveis `TRUNK_CREDENTIAL_KEYS`/`FREESWITCH_DIRECTORY_BASIC_*`, porta 5062, segredo, rollback) apontando para evidência real já produzida (security-verdict.md, onboarding.md §8); corrigida também a linha de gate de cobertura desatualizada em `onboarding.md §9` (estava `--cov=src` sem escopo) | reversa |
 | 2026-08-10 | T051 fechada: nenhuma ação `[ ]` restante em `actions.md` (56/56, incluindo T050/T051); pré-requisitos do `/reversa-sync` conferidos (`legacy-impact.md` presente e atualizado) e skill invocado para gerar o adendo de convergência | reversa |
 | 2026-08-12 | Feature reaberta: Fase 6 acrescentada com T057-T060 (56→60 ações) para corrigir a regressão da T037 (dialplan parou de propagar `zenith_tenant_id`/`zenith_pbx_id` para ramal legado desde 2026-08-05). Emenda RN-11/RF-13/D-15, decisão de MASTER de corrigir dentro da própria feature, sem abrir feature nova | reversa |
+| 2026-08-18 | Feature reaberta: T061-T070 acrescentadas para fechar W002, W004, W006 e W007 confirmados pela re-extração | reversa |
