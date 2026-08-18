@@ -23,3 +23,16 @@ def test_recording_telemetry_tracks_capacity_refusal_cleanup_and_lease_failure()
     assert telemetry.recording_temp_candidates_total._value.get() == candidates_before + 2
     assert telemetry.recording_temp_deleted_total._value.get() == deleted_before + 1
     assert telemetry.recording_lease_failures_total.labels(stage="capture")._value.get() == lease_before + 1
+
+
+def test_transcript_telemetry_tracks_backlog_shed_by_capacity():
+    # Arrange
+    before = telemetry.transcript_backlog_dropped_total.labels(tenant_id="tenant-a")._value.get()
+
+    # Act
+    telemetry.record_transcript_backlog_dropped("tenant-a")
+
+    # Assert
+    assert telemetry.transcript_backlog_dropped_total.labels(
+        tenant_id="tenant-a"
+    )._value.get() == before + 1

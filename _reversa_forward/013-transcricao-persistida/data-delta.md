@@ -16,7 +16,7 @@ que o schema existe, linhas são de fato inseridas nessa tabela.
 
 | Coluna | Tipo | Uso nesta feature |
 |--------|------|----------------------|
-| `call_id` | UUID (FK → `calls.id`) | Chave de agrupamento e de idempotência (D-03: `EXISTS` por `call_id` decide se a chamada já foi transcrita) |
+| `call_id` | UUID (FK → `calls.id`) | Chave de agrupamento e escrita idempotente; a descoberta só pula quando banco **e** `.md` remoto confirmam conclusão |
 | `channel` | String(16) | `"tx"` ou `"rx"`, conforme o de-interleaving já feito na captura (GAP-01) |
 | `speaker` | String(64) | Mapeado a partir de `channel` conforme RN-01: `tx`→`"atendente"`, `rx`→`"cliente"` |
 | `text` | Text | Texto transcrito do segmento/janela |
@@ -33,6 +33,13 @@ suporta o novo comportamento.
 ## Idempotência (D-03, D-07)
 
 Reprocessamento do mesmo `call_id` substitui as linhas existentes de forma transacional
-(delete+insert ou upsert, a decidir em `/reversa-to-do`), sem depender de coluna nova nem de
-tabela de controle separada — a própria existência de linhas `Transcript` para o `call_id` é o
-sinal de "já processado" usado pelo worker de descoberta (D-01/D-03).
+(delete+insert sob advisory lock), sem tabela de controle separada. A descoberta usa dois sinais:
+linhas `Transcript` no schema do tenant e nome do `.md` presente na listagem do diretório SMB. O
+nome exato pertence ao item `done` da chamada no transfer log já existente do SMB. Para áudio
+sem fala, o `.md` e `.consumed-transcription` formam o resultado terminal válido com zero linhas.
+
+## Configuração nova
+
+| Variável | Default | Uso |
+|----------|---------|-----|
+| `TRANSCRIPT_CYCLE_TIMEOUT_SECONDS` | `86400` | Limite do ciclo completo, separado do timeout de 3600 s por chamada |

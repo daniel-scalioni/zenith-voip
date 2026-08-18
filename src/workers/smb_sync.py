@@ -328,6 +328,15 @@ class SMBBackupStrategy:
         )
         return hashlib.sha256(target.getvalue()).hexdigest()
 
+    async def list_names(self, remote_dir: str) -> set[str]:
+        connection = await asyncio.to_thread(self._connect)
+        try:
+            full_remote_dir = self._join_path(settings.SMB_PATH, remote_dir)
+            await asyncio.to_thread(self._ensure_directories, connection, full_remote_dir)
+            return await asyncio.to_thread(self._list_names, connection, full_remote_dir)
+        finally:
+            await asyncio.to_thread(connection.close)
+
     async def publish(
         self,
         local_path: Path,

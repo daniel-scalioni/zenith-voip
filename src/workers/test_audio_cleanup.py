@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import threading
 from datetime import datetime, timedelta, timezone
 
@@ -52,6 +53,59 @@ async def test_cleanup_preserves_unconsumed_final_until_ttl_then_removes(tmp_pat
     assert first["deleted"] == 0
     assert second["deleted"] == 1
     assert not audio.exists()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_never_expires_wav_in_transcription_backlog(tmp_path, monkeypatch):
+    # Arrange
+    call_dir = tmp_path / "tenant" / "call"
+    call_dir.mkdir(parents=True)
+    for name in ("tx.wav", "rx.wav"):
+        (call_dir / name).write_bytes(b"audio")
+    mark_consumed(call_dir, "smb")
+    monkeypatch.setattr(audio_cleanup.settings, "RECORDINGS_PATH", str(tmp_path))
+    monkeypatch.setattr(audio_cleanup.settings, "RECORDING_REQUIRED_CONSUMERS", ["smb", "transcription"])
+    monkeypatch.setattr(audio_cleanup.settings, "AUDIO_RETENTION_DAYS", 0)
+
+    # Act
+    pending = await audio_cleanup.cleanup_tenant_bucket({}, "tenant")
+    mark_consumed(call_dir, "transcription")
+    consumed = await audio_cleanup.cleanup_tenant_bucket({}, "tenant")
+
+    # Assert
+    assert pending["deleted"] == 0
+    assert consumed["deleted"] == 2
+
+
+@pytest.mark.asyncio
+async def test_cleanup_sheds_expired_transcription_backlog_under_capacity_pressure(
+    tmp_path, monkeypatch
+):
+    # Arrange
+    call_dir = tmp_path / "tenant" / "call"
+    call_dir.mkdir(parents=True)
+    for name in ("tx.wav", "rx.wav"):
+        (call_dir / name).write_bytes(b"audio")
+    mark_consumed(call_dir, "smb")
+    monkeypatch.setattr(audio_cleanup.settings, "RECORDINGS_PATH", str(tmp_path))
+    monkeypatch.setattr(audio_cleanup.settings, "RECORDING_REQUIRED_CONSUMERS", ["smb", "transcription"])
+    monkeypatch.setattr(audio_cleanup.settings, "AUDIO_RETENTION_DAYS", 0)
+    monkeypatch.setattr(
+        audio_cleanup.shutil,
+        "disk_usage",
+        lambda _path: shutil._ntuple_diskusage(total=100, used=90, free=10),
+    )
+    dropped = []
+    monkeypatch.setattr(
+        audio_cleanup, "record_transcript_backlog_dropped", lambda tenant_id: dropped.append(tenant_id)
+    )
+
+    # Act
+    result = await audio_cleanup.cleanup_tenant_bucket({}, "tenant")
+
+    # Assert
+    assert result["deleted"] == 2
+    assert dropped == ["tenant"]
 
 
 @pytest.mark.asyncio

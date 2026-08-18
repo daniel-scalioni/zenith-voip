@@ -10,7 +10,7 @@
 Cria o consumidor que falta na cadeia áudio → STT → transcrição: consome os canais de áudio já
 capturados e separados pelo B2BUA (`tx`=atendente, `rx`=cliente), transcreve de forma assíncrona
 e pós-chamada via Whisper.cpp local (sem GPU), persiste os segmentos em `Transcript` e publica um
-`.md` consolidado no SMB, ao lado do `stereo.mp3` já existente da mesma chamada. É a primeira
+`.md` consolidado no SMB, ao lado do `stereo.wav` já existente da mesma chamada. É a primeira
 feature do Épico 2 (Qualidade do Atendimento) e não faz nenhuma análise de qualidade — sentimento,
 auditoria de POP e anomalia ficam para F3-F5 (`_reversa_sdd/ai/epico-2-qualidade-atendimento.md`).
 
@@ -24,7 +24,7 @@ auditoria de POP e anomalia ficam para F3-F5 (`_reversa_sdd/ai/epico-2-qualidade
 | `_reversa_sdd/code-analysis.md#3-audio` | `AudioIngestor` faz de-interleaving PCM16 estéreo e publica um evento por canal no Redis Stream — não há consumidor desses eventos hoje | 🟢 |
 | `_reversa_sdd/code-analysis.md#8-services` | Strategy Pattern (`STTStrategy`) já implementa `WhisperCppSTT` e `AutoFallbackSTT` (Deepgram→Whisper); nenhum dos dois é chamado em produção | 🟢 |
 | `_reversa_sdd/code-analysis.md#10-workers` | Buffer de transcrições no Redis com flush batch (`TranscriptPersister`) já existe, nunca é chamado | 🟢 |
-| `_reversa_sdd/addenda/011-smb-audio-backup.md` | `tx.mp3`/`rx.mp3` são as fontes mono; `stereo.mp3` é derivado via `generate_stereo()` e publicado no SMB em `{tenant}/{YYYY-MM-DD}/{prefix}-{call_id[:6]}-{caller}-{callee}.mp3` (`build_remote_directory`/`build_remote_name`, `src/workers/smb_sync.py`); indisponibilidade do SMB nunca pode interromper a gravação local — mesmo princípio se aplica aqui para a transcrição | 🟢 |
+| `_reversa_forward/014-captura-wav-16k/interfaces/recording-audio-files.md` | `tx.wav`/`rx.wav` são as fontes mono PCM16 16 kHz; `stereo.wav` é derivado e publicado no SMB em `{tenant}/{YYYY-MM-DD}/{prefix}-{call_id[:6]}-{caller}-{callee}.wav`; o lifecycle compartilhado protege os consumidores contra cleanup concorrente | 🟢 |
 | `_reversa_forward/001-ai-audio-hub/requirements.md#3` | Persona "Gestor / Auditor: garantir a qualidade do atendimento" já estabelecida no PRD original | 🟢 |
 | `.agents/skills/audio-transcript-long/SKILL.md` | Skill do projeto (não faz parte da extração reversa, é artefato do harness) para transcrição de áudio longo: chunking via `ffmpeg`, escrita incremental com timestamp por segmento, fallback de OOM. Referência de formato para o `.md` desta feature (RF-03) — não necessariamente reaproveitada linha a linha, já que o motor lá é `faster-whisper`/`openai-whisper` e o formato de saída é `.srt`, enquanto aqui o motor é `WhisperCppSTT` (já decidido) e a saída é `.md` | 🟢 |
 
@@ -43,39 +43,45 @@ auditoria de POP e anomalia ficam para F3-F5 (`_reversa_sdd/ai/epico-2-qualidade
    - Origem no legado: `_reversa_sdd/domain.md#R43`
    - Tipo: nova aplicação de regra já confirmada
 2. **RN-02:** A transcrição desta feature é assíncrona e pós-chamada, processada em **lote a
-   partir dos arquivos `tx.mp3`/`rx.mp3` já persistidos localmente em disco** (mesma fonte que a
-   feature `011-smb-audio-backup` usa para gerar o `stereo.mp3`) — não consome os eventos de
+   partir dos arquivos `tx.wav`/`rx.wav` PCM16 mono 16 kHz já persistidos localmente em disco**
+   (mesma fonte que o backup SMB usa para gerar o `stereo.wav`) — não consome os eventos de
    chunk de áudio ao vivo publicados por `AudioIngestor` durante a chamada. O motor Deepgram fica
    reservado para a análise em tempo real (F6, fora de escopo) e não deve ser usado aqui. 🟢
    - Tipo: nova
    - Resolvida em `/reversa-clarify`, ver seção 9
 3. **RN-03:** O arquivo `.md` da transcrição usa a mesma base de nome e o mesmo diretório do
-   `stereo.mp3` já publicado no SMB pela feature `011-smb-audio-backup`
+   `stereo.wav` já publicado no SMB
    (`{tenant}/{YYYY-MM-DD}/{prefix}-{call_id[:6]}-{caller}-{callee}`), trocando apenas a
-   extensão. Decisão confirmada com o usuário nesta sessão (o pipeline não usa `.mp4` em nenhum
-   ponto — o áudio real persistido é `stereo.mp3`). 🟢
+   extensão. O contrato WAV 16 kHz foi entregue e validado pela feature 014. 🟢
    - Tipo: nova
 4. **RN-04:** Falha na transcrição ou na publicação do `.md` nunca pode interromper ou atrasar a
-   gravação de áudio nem o backup SMB do `.mp3` — mesmo princípio best-effort já aplicado ao
+   gravação de áudio nem o backup SMB do `.wav` — mesmo princípio best-effort já aplicado ao
    backup SMB. 🟢
    - Origem no legado: `_reversa_sdd/addenda/011-smb-audio-backup.md#Impactos que devem
      permanecer visíveis`
    - Tipo: nova aplicação de regra já confirmada
-5. **RN-05:** A transcrição deve ocorrer enquanto `tx.mp3`/`rx.mp3` ainda existem localmente em
+5. **RN-05:** A transcrição deve ocorrer enquanto `tx.wav`/`rx.wav` ainda existem localmente em
    disco — antes do ciclo de limpeza (`audio_cleanup`) removê-los. O disparo deve acontecer logo
    após o fim da chamada, na mesma janela em que o backup SMB (feature `011`) já é disparado, não
    em horário arbitrário posterior. 🟢
    - Tipo: nova
    - Resolvida em `/reversa-clarify`, ver seção 9
+6. **RN-06:** O worker só inicia quando os dois canais finais `tx.wav` e `rx.wav` existem; canal
+   ausente, vazio ou arquivo `.tmp` mantém a chamada pendente. Os dois canais usam tempo relativo
+   ao início da chamada (offset zero) e os segmentos somam o offset da janela para permitir a
+   intercalação temporal. 🟢
+7. **RN-07:** Durante o processamento o worker mantém lease `transcription` exclusivo e renovado.
+   O marcador `.consumed-transcription` só é gravado depois de banco e `.md` SMB concluírem; uma
+   falha deixa a chamada elegível para retry no próximo ciclo. 🟢
 
 ## 5. Requisitos Funcionais
 
 | ID | Requisito | Prioridade | Critério de aceite | Confidência |
 |----|-----------|------------|---------------------|-------------|
-| RF-01 | Transcrever os canais `tx`/`rx` de uma chamada a partir dos arquivos `tx.mp3`/`rx.mp3` já persistidos localmente (RN-02), dividindo cada arquivo em janelas/segmentos para o `WhisperCppSTT` (Strategy já implementado) processar, sem depender de GPU. | Must | Uma chamada real gerada em produção tem seus dois canais transcritos sem erro, com texto não vazio para áudio com fala. | 🟢 |
+| RF-01 | Transcrever os canais `tx`/`rx` a partir de `tx.wav`/`rx.wav` PCM16 mono 16 kHz (RN-02), dividindo cada arquivo em janelas sem reamostragem antes de chamar `WhisperCppSTT`, sem depender de GPU. O adapter deve localizar o binário no `$PATH`, ler o JSON sidecar completo gerado por `-ojf` e obter confidence pela média de `tokens[].p`, com `exp(avg_logprob)` como fallback, sempre em `[0,1]`. | Must | Uma chamada real tem os dois canais transcritos, o JSON é lido corretamente e toda confidence está em `[0,1]`. | 🟢 |
 | RF-02 | Persistir cada segmento transcrito diretamente em `Transcript` (Postgres), em transação única por chamada, com `speaker` mapeado para "atendente" (`tx`) / "cliente" (`rx`) conforme RN-01, usando o atributo `extra_metadata` do model (não `metadata`, reservado pelo SQLAlchemy declarative). Não reutiliza a indireção via Redis List de `TranscriptPersister.buffer_transcript`/`flush_batch` — sem valor de proteção real num processamento em lote sobre arquivo já em disco (RN-02), e o `LRANGE`/commit/`DEL` daquele fluxo tem janela real de duplicação em retry. | Must | Consulta ao banco após uma chamada real mostra linhas `Transcript` com `channel`/`speaker`/`text`/`extra_metadata` preenchidos e `call_id` correto, sem passar por `transcripts:batch:*` no Redis. | 🟢 |
-| RF-03 | Gerar um `.md` consolidado com a transcrição completa da chamada — cada segmento rotulado por falante (atendente/cliente) com timestamp de início/fim e confidence, no mesmo espírito incremental/timestampado da skill `audio-transcript-long` já presente no projeto (`.agents/skills/audio-transcript-long/`) — e publicá-lo no SMB, mesma base de nome e diretório do `stereo.mp3` correspondente (RN-03). | Must | Após uma chamada real com backup SMB concluído, existe um `.md` no mesmo diretório do `.mp3`, com nome-base idêntico, e cada linha de fala traz falante + timestamp + confidence. | 🟢 |
-| RF-04 | Disparar a transcrição de forma assíncrona, sem bloquear ou atrasar a gravação, o upload ou o backup SMB do áudio (RN-04), e antes do ciclo de limpeza remover `tx.mp3`/`rx.mp3` (RN-05). | Must | Uma falha simulada no Whisper.cpp não impede a gravação nem o backup SMB de completarem normalmente; a transcrição roda antes da janela de retenção/limpeza expirar. | 🟢 |
+| RF-03 | Gerar um `.md` consolidado com segmentos rotulados, timestamps relativos e confidence, e publicá-lo no SMB com a mesma base/diretório do `stereo.wav` correspondente (RN-03). | Must | Existe um `.md` ao lado do `.wav`, com nome-base idêntico e cada fala traz falante + timestamp + confidence. | 🟢 |
+| RF-04 | Executar em worker/fila exclusivos, com concorrência 1, timeout por chamada e retry por polling, sem bloquear gravação/upload/backup; participar do lifecycle conforme RN-07. | Must | Falhas de Whisper/SMB não afetam outros workers, lease impede cleanup durante STT e chamadas incompletas/falhas voltam a ser elegíveis. | 🟢 |
 | RF-05 | Reprocessar uma chamada já transcrita não deve duplicar segmentos no banco: `Transcript` é substituído de forma idempotente por `call_id` (delete+insert ou upsert transacional) e o `.md` final fica consistente com o último reprocessamento. | Should | Executar o job de transcrição duas vezes para o mesmo `call_id` resulta no mesmo conjunto de segmentos (sem duplicatas) e no mesmo `.md` final. | 🟢 |
 
 ## 6. Requisitos Não Funcionais
@@ -90,15 +96,15 @@ auditoria de POP e anomalia ficam para F3-F5 (`_reversa_sdd/ai/epico-2-qualidade
 
 ```gherkin
 Cenário: Transcrição de chamada real gera .md ao lado do áudio no SMB
-  Dado que uma chamada real foi gravada e seu stereo.mp3 já foi publicado no SMB
+  Dado que uma chamada real foi gravada e seu stereo.wav já foi publicado no SMB
   Quando o processamento assíncrono de transcrição é executado para essa chamada
-  Então um arquivo .md com o mesmo nome-base do stereo.mp3 aparece no mesmo diretório do SMB
+  Então um arquivo .md com o mesmo nome-base do stereo.wav aparece no mesmo diretório do SMB
   E o conteúdo do .md distingue claramente as falas do atendente e do cliente
 
 Cenário: Falha no Whisper.cpp não impacta a gravação nem o backup de áudio
   Dado que o binário whisper-cpp está indisponível ou falha durante o processamento
   Quando o job de transcrição é executado para uma chamada
-  Então a gravação e o backup SMB do .mp3 dessa chamada continuam completando normalmente
+  Então a gravação e o backup SMB do .wav dessa chamada continuam completando normalmente
   E a falha de transcrição é registrada em log estruturado, sem interromper outros jobs
 
 Cenário: Reprocessar uma chamada já transcrita não duplica dados
@@ -119,6 +125,10 @@ Cenário: Reprocessar uma chamada já transcrita não duplica dados
 ## 9. Esclarecimentos
 
 ### Sessão 2026-08-12
+
+> Registro histórico: as respostas abaixo usavam MP3 antes da feature 014. A decisão posterior do
+> usuário substituiu esse formato por `tx.wav`/`rx.wav` e `stereo.wav` PCM16 16 kHz; RN-02/RF-01
+> e o roadmap atual são o contrato vigente.
 
 - **Q:** Fonte do áudio para transcrição — chunks ao vivo do `AudioIngestor` (Redis) ou arquivos
   `tx.mp3`/`rx.mp3` já persistidos localmente após o fim da chamada?
@@ -154,3 +164,4 @@ em `/reversa-clarify` (ver seção 9).
 |------|-----------|-------|
 | 2026-08-12 | Versão inicial gerada por `/reversa-requirements` | reversa |
 | 2026-08-12 | 3 dúvidas resolvidas via `/reversa-clarify` (fonte do áudio, formato do `.md`, correção do `TranscriptPersister`); RN-02/RN-05 e RF-01/RF-02/RF-03/RF-04/RF-05 atualizados | reversa |
+| 2026-08-18 | Contrato atualizado após fechamento da 014: WAV PCM16 16 kHz, lifecycle `transcription`, prontidão dos dois canais, timestamps e adapter whisper.cpp completo | reversa-coding |

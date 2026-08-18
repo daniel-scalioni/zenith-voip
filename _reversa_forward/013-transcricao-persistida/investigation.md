@@ -42,7 +42,26 @@ Fontes consultadas nesta sessão:
 - **Reaproveitar `TranscriptPersister` (buffer Redis + flush batch) só corrigindo o bug de
   kwarg**: descartado após consulta `/brainstorming-multiagent` — ver `requirements.md#9` e
   `roadmap.md#D-07` para o racional completo.
-- **Container dedicado só para STT**: avaliado e adiado — a imagem da aplicação já tem `ffmpeg`
-  instalado e o padrão de workers ARQ do projeto reaproveita a mesma imagem para todos os
-  serviços de background; separar exigiria justificativa mais forte do que o observado nesta
-  feature (ver `roadmap.md#9`, risco de tamanho de imagem).
+- **Reaproveitar a imagem da API para STT**: descartado. O worker usa imagem dedicada para manter
+  binário/modelo e limites de CPU/memória fora do caminho crítico de telefonia/API (D-06).
+
+## Host de produção — baseline 2026-08-18 (T004)
+
+- Kernel Linux 6.8 x86_64; Docker com `overlayfs`.
+- 6 vCPUs (`nproc` e `docker info`).
+- 16.769.347.584 bytes de RAM; 12.387.897.344 bytes disponíveis no momento da leitura.
+- A coleta foi somente leitura e filtrou containers pelo prefixo `zenith-`.
+
+## Benchmark whisper.cpp — 2026-08-18 (T005/T006)
+
+Imagem `zenith-transcript:013-candidate`, whisper.cpp v1.8.6, modelo `base` multilíngue e WAV
+PCM16 mono 16 kHz sintético de 30 s, no host real:
+
+| Configuração | Wall | CPU | Pico de memória |
+|-------------|------|-----|-----------------|
+| 1 thread, cap 1,5 CPU/768 MiB | 107,887 s | 107,310 s | 294.146.048 bytes |
+| default 4 threads, mesmo cap | 126,708 s | 189,870 s | 296.878.080 bytes |
+
+Decisão: janela 30 s, um thread, cap 1,5 CPU/768 MiB, concorrência 1 e timeout por chamada de
+3.600 s. O teste de um thread foi mais eficiente sob cgroup; o pico observado cabe com margem de
+mais de 2,5×. O benchmark mede custo computacional; precisão pt-BR será validada na chamada real.

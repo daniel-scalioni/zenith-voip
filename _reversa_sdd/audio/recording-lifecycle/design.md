@@ -3,14 +3,14 @@ spec:
   component: recording-lifecycle
   layer: audio
   status: active
-  version: 1.2.0
+  version: 1.3.0
   language: python
   patterns: []
   inputs: [{name: stage, type: string, from: audio-workers}]
   outputs: [{name: lease, type: JSON file, to: recording-directory}]
   dependencies: []
   events_produced: []
-  updated_at: 2026-08-17
+  updated_at: 2026-08-18
 ---
 
 # Lifecycle de Gravação, Design
@@ -29,3 +29,9 @@ válido de outro owner causa `LeaseBusyError`; leases de estágios distintos com
 permitidos para uma operação composta. Assim, adquirir `.smb-processing` também reivindica o
 diretório contra captura/conversão concorrentes, enquanto a conversão interna do SMB reutiliza o
 owner já adquirido.
+
+O estágio `transcription` usa a mesma exclusão cross-stage durante STT, persistência e publicação.
+Quando banco e destino remoto já comprovam conclusão mas o marcador local não existe, o worker
+entra em `locked_call_directory`, revalida a presença do diretório e grava
+`.consumed-transcription`. Esse reparo fecha a janela de falha entre publicação e marcação sem
+duplicar transcrições.

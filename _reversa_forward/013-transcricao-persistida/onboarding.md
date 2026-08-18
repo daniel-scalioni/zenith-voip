@@ -5,8 +5,8 @@
 ## 1. Pré-requisitos
 
 1. Estar no branch `feature/013-transcricao-persistida`.
-2. Confirmar que a imagem da aplicação foi rebuildada com o binário `whisper-cpp` e o modelo
-   (D-06) — `docker compose exec zenith-api-1 whisper-cpp --help` (ou caminho equivalente do
+2. Confirmar que a imagem dedicada foi rebuildada com o binário `whisper-cpp` e o modelo
+   (D-06) — `docker compose exec arq-transcript whisper-cpp --help` (ou caminho equivalente do
    binário) deve responder, não `command not found`.
 3. Usar exclusivamente PostgreSQL, Redis e diretório de gravações de teste com prefixo `zenith-`;
    nunca tocar recursos externos ao projeto.
@@ -26,13 +26,13 @@
 
 ## 4. Teste do chunking (D-04)
 
-1. Gerar (ou usar fixture) um `tx.mp3`/`rx.mp3` de teste com duração conhecida.
+1. Gerar (ou usar fixture) um `tx.wav`/`rx.wav` PCM16 mono 16 kHz de teste com duração conhecida.
 2. Rodar a etapa de chunking isoladamente e confirmar que o número de janelas geradas bate com a
    duração/parâmetro configurado, sem perda de áudio nas bordas dos cortes.
 
 ## 5. Teste do worker `arq-transcript` com dados fictícios
 
-1. Colocar um par `tx.mp3`/`rx.mp3` de teste em `RECORDINGS_PATH/{tenant-teste}/{call-id-teste}/`.
+1. Colocar um par `tx.wav`/`rx.wav` de teste em `RECORDINGS_PATH/{tenant-teste}/{call-id-teste}/`.
 2. Disparar manualmente o job (ou aguardar o ciclo de cron) e confirmar:
    2.1. Linhas `Transcript` aparecem no schema do tenant de teste, com `speaker` correto
         (`tx`→atendente, `rx`→cliente) e `extra_metadata` sem erro de kwarg (D-07).
@@ -43,9 +43,9 @@
 ## 6. Teste do upload SMB do `.md`
 
 1. Confirmar que o `.md` foi publicado no SMB de teste, mesmo diretório e nome-base do
-   `stereo.mp3` correspondente (reaproveitando a config `SMB_*` já documentada em
+   `stereo.wav` correspondente (reaproveitando a config `SMB_*` já documentada em
    `011-smb-audio-backup/interfaces/smb.md`).
-2. Simular falha do SMB (indisponibilidade) e confirmar que a gravação e o backup do `.mp3`
+2. Simular falha do SMB (indisponibilidade) e confirmar que a gravação e o backup do `.wav`
    continuam completando normalmente (RN-04) — a falha do `.md` fica isolada, retentada no
    próximo ciclo.
 
@@ -56,5 +56,5 @@
 2. Aguardar o backup SMB (`011`) concluir para essa chamada.
 3. Aguardar o ciclo do worker `arq-transcript` processá-la.
 4. Confirmar no SMB de produção (ou staging, conforme política do usuário) que o `.md` existe ao
-   lado do `.mp3`, com conteúdo legível e falantes corretamente rotulados.
+   lado do `.wav`, com conteúdo legível e falantes corretamente rotulados.
 5. Confirmar no banco que `Transcript` tem as linhas correspondentes.

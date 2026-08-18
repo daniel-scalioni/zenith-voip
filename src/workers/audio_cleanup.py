@@ -1,6 +1,8 @@
 import asyncio
 import json
+import logging
 import os
+import shutil
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -15,6 +17,7 @@ from src.utils.telemetry import (
     observe_cleanup_duration,
     record_cleanup_deleted,
     record_cleanup_error,
+    record_transcript_backlog_dropped,
     record_temporary_cleanup,
 )
 from src.workers.recording_consumers import is_fully_consumed
@@ -26,6 +29,7 @@ LOCAL_TEMPORARIES = frozenset({
 })
 CANDIDATES_FILE = ".cleanup-candidates.json"
 CONSUMABLE_FILES = frozenset({"tx.wav", "rx.wav", "tx.raw", "rx.raw"})
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -80,10 +84,20 @@ def _cleanup_locked_call_directory(call_dir: Path, cutoff: float, now: datetime)
     deleted = 0
     bytes_freed = 0
     fully_consumed = is_fully_consumed(call_dir, settings.RECORDING_REQUIRED_CONSUMERS)
+    transcription_pending = (
+        "transcription" in settings.RECORDING_REQUIRED_CONSUMERS
+        and not is_fully_consumed(call_dir, ["transcription"])
+    )
+    usage = shutil.disk_usage(call_dir)
+    free_percent = (usage.free / usage.total * 100) if usage.total else 0
+    preserve_transcription_backlog = (
+        transcription_pending and free_percent >= settings.RECORDING_RESUME_FREE_PERCENT
+    )
     candidates = _load_candidates(call_dir)
     next_candidates = {}
     temporary_candidates = 0
     temporary_deleted = 0
+    backlog_drop_recorded = False
 
     for path in list(call_dir.iterdir()):
         if not path.is_file() or path.name == CANDIDATES_FILE:
@@ -122,10 +136,28 @@ def _cleanup_locked_call_directory(call_dir: Path, cutoff: float, now: datetime)
             expired = path.stat().st_mtime < cutoff
         except FileNotFoundError:
             continue
-        if (fully_consumed and path.name in CONSUMABLE_FILES) or expired:
+        protected_backlog_wav = (
+            preserve_transcription_backlog and path.name in {"tx.wav", "rx.wav"}
+        )
+        if (fully_consumed and path.name in CONSUMABLE_FILES) or (expired and not protected_backlog_wav):
             was_deleted, size = _delete(path)
             bytes_freed += size
             deleted += was_deleted
+            dropping_transcript_backlog = (
+                was_deleted
+                and transcription_pending
+                and not preserve_transcription_backlog
+                and expired
+                and path.name in {"tx.wav", "rx.wav"}
+            )
+            if dropping_transcript_backlog and not backlog_drop_recorded:
+                backlog_drop_recorded = True
+                record_transcript_backlog_dropped(call_dir.parent.name)
+                logger.warning(
+                    "transcription_backlog_dropped_capacity tenant_id=%s call_id=%s",
+                    call_dir.parent.name,
+                    call_dir.name,
+                )
 
     _save_candidates(call_dir, next_candidates)
     return deleted, bytes_freed, temporary_candidates, temporary_deleted

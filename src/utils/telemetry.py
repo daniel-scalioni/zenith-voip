@@ -164,6 +164,24 @@ recording_temp_deleted_total = Counter(
 recording_lease_failures_total = Counter(
     "recording_lease_failures_total", "Recording lease acquisition or renewal failures", ["stage"]
 )
+transcript_success_total = Counter(
+    "transcript_success_total", "Total calls transcribed and published"
+)
+transcript_failed_total = Counter(
+    "transcript_failed_total", "Total transcript attempts that remain pending", ["reason"]
+)
+transcript_queue_size = Gauge(
+    "transcript_queue_size", "Number of call directories observed by transcript worker"
+)
+transcript_backlog_dropped_total = Counter(
+    "transcript_backlog_dropped_total",
+    "Calls whose expired transcript backlog was shed to preserve recording capacity",
+    ["tenant_id"],
+)
+transcript_latency_seconds = Histogram(
+    "transcript_latency_seconds", "Duration of transcript worker cycles",
+    buckets=[1, 5, 15, 30, 60, 120, 300, 900],
+)
 
 
 def record_cleanup_deleted(tenant_id: str, count: int, bytes_freed: int):
@@ -217,6 +235,26 @@ def record_temporary_cleanup(*, candidates: int, deleted: int):
 
 def record_lease_failure(stage: str):
     recording_lease_failures_total.labels(stage=stage).inc()
+
+
+def record_transcript_success():
+    transcript_success_total.inc()
+
+
+def record_transcript_failure(reason: str):
+    transcript_failed_total.labels(reason=reason).inc()
+
+
+def record_transcript_backlog_dropped(tenant_id: str):
+    transcript_backlog_dropped_total.labels(tenant_id=tenant_id).inc()
+
+
+def set_transcript_queue_size(count: int):
+    transcript_queue_size.set(count)
+
+
+def observe_transcript_latency(seconds: float):
+    transcript_latency_seconds.observe(seconds)
 
 
 async def metrics_endpoint():

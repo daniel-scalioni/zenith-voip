@@ -11,7 +11,7 @@ from pathlib import Path
 from src.config import settings
 
 
-LEASE_STAGES = frozenset({"capture", "conversion", "smb"})
+LEASE_STAGES = frozenset({"capture", "conversion", "smb", "transcription"})
 LIFECYCLE_LOCK_FILE = ".recording-lifecycle.lock"
 
 

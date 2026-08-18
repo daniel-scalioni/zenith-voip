@@ -3,14 +3,14 @@ spec:
   component: smb-backup
   layer: workers
   status: active
-  version: 2.2.0
+  version: 2.3.0
   language: python
   patterns: [strategy, singleton-module]
   inputs: [{name: recordings, type: "tx.wav + rx.wav", from: audio-uploader}]
   outputs: [{name: stereo_audio, type: "PCM16 stereo WAV", to: smb-storage}]
   dependencies: [{component: recording-consumers, layer: workers}, {component: recording-lifecycle, layer: audio}]
   events_produced: []
-  updated_at: 2026-08-17
+  updated_at: 2026-08-18
 ---
 
 # Backup SMB de Áudio
@@ -26,3 +26,5 @@ spec:
   de rename/checksum.
 - Marcar `.consumed-smb` somente após checksum final bem-sucedido.
 - Remover temporário remoto órfão apenas após duas observações separadas por 900 s.
+- Expor listagem assíncrona dos nomes de um diretório remoto para consumidores cooperantes
+  verificarem presença sem baixar o arquivo; a transcrição usa esse port para confirmar `.md`.

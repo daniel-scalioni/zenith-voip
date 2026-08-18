@@ -66,6 +66,16 @@ class Settings(BaseSettings):
     SMB_TRANSFER_LOG_PATH: str = "/data/smb_logs/smb_transfer_log.json"
     SMB_SYNC_INTERVAL_MINUTES: int = Field(default=5, ge=1, le=59)
 
+    TRANSCRIPT_ENABLED: bool = False
+    TRANSCRIPT_CHUNK_SECONDS: int = Field(default=30, ge=5, le=300)
+    TRANSCRIPT_CALL_TIMEOUT_SECONDS: int = Field(default=3600, ge=30, le=7200)
+    TRANSCRIPT_CYCLE_TIMEOUT_SECONDS: int = Field(default=86_400, ge=3600, le=172_800)
+    TRANSCRIPT_SYNC_INTERVAL_MINUTES: int = Field(default=2, ge=1, le=59)
+    WHISPER_CPP_BINARY: str = "whisper-cpp"
+    WHISPER_CPP_MODEL_PATH: str = "/models/ggml-base.bin"
+    WHISPER_CPP_LANGUAGE: str = "pt"
+    WHISPER_CPP_THREADS: int = Field(default=1, ge=1, le=8)
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     @model_validator(mode="after")
