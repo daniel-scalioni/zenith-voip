@@ -38,39 +38,38 @@ O VitalPBX e seus sistemas satélite (portaria, integrações externas) dependem
 
 ## 2. Provisionamento Dinâmico — mod_xml_curl
 
-Com centenas a milhares de ramais por tenant, gerenciar arquivos XML por ramal é inviável. A solução é **`mod_xml_curl`**: o FreeSWITCH consulta a API do Zenith para obter configurações de diretório e gateways sob demanda.
+O **`mod_xml_curl`** consulta a API interna para resolver a seção `directory` sob demanda. O
+binding é exclusivo, autenticado por Basic e usa POST com timeout de 2 s. 🟢
 
 ```
-FreeSWITCH precisa de info sobre ramal 1001
-    │ GET /freeswitch/directory?user=1001&domain=tenant.local
+FreeSWITCH precisa autenticar profile + sip_auth_username
+    │ POST /internal/freeswitch/directory (form + Basic Auth)
     ▼
 FastAPI Zenith
-    │ SELECT * FROM sip_extensions WHERE extension='1001' AND tenant_id=X
+    ├── lookup ATATrunk público habilitado
+    └── fallback LegacyDirectoryProvider (extensions.xml somente leitura)
     ▼
-PostgreSQL (schema do tenant)
-    │ Retorna: usuário, senha, gateway upstream, variáveis de canal
+Resposta XML escapada, no-store, limitada a 64 KiB
+    │ senha + variáveis tenant/PBX/condomínio/trunk
     ▼
-FreeSWITCH: sem restart, sem arquivo novo — usa as credenciais imediatamente
+FreeSWITCH autentica o REGISTER e injeta metadados no canal
 ```
 
 **Consequências:**
-- Novo ramal no GPhone → cadastrar no admin Zenith → FreeSWITCH enxerga na próxima requisição
-- Para 1000 ramais iniciais: importação em lote (CSV exportado do VitalPBX)
-- A tabela `SIPExtension` no banco Zenith é a **fonte de verdade** dos ramais
+- Troncos ATA importados/cadastrados ficam em `public.ata_trunks`; condomínio e PBX definem escopo.
+- Usuários anteriores continuam no arquivo privado, sem reescrita ou ID de tronco inventado.
+- Identidade presente nas duas fontes falha fechada; não existe precedência silenciosa.
+- Credencial do banco é decriptada somente no instante de serializar o diretório.
 
-**Modelo de dados (schema por tenant):**
+**Modelo público atual:**
 ```
-sip_extensions
-  id            UUID PK
-  extension     VARCHAR (ex: "1001")
-  sip_password  VARCHAR (armazenada cifrada)
-  display_name  VARCHAR
-  pbx_id        FK → public.pbxs
-  active        BOOLEAN
-  created_at    TIMESTAMP
+condominiums(id, tenant_id, pbx_id, name, external_id, enabled)
+ata_trunks(id, tenant_id, pbx_id, condominium_id, prefix?, sip_profile,
+           auth_username, encrypted_password, enabled, registration_status)
 ```
 
-A senha SIP é armazenada cifrada no banco e nunca exposta em logs ou arquivos de configuração. O endpoint `/freeswitch/directory` é acessível apenas internamente (rede Docker, sem exposição externa).
+A senha SIP é armazenada por MultiFernet e nunca aparece em DTOs/logs. A configuração real do
+binding é gerada atomicamente com modo 0600; o proxy público bloqueia `/internal/`. 🟢
 
 ---
 
@@ -83,7 +82,10 @@ A senha SIP é armazenada cifrada no banco e nunca exposta em logs ou arquivos d
 | `internal-5062` | 5062 | Recebe REGISTERs de ramais cadastrados em `sip`/5062 na VitalPBX, mesmo padrão de `internal-7060` (feature `006-registro-porta-vitalpbx`) 🟡 — sem ramal real validado ainda nesta porta |
 | `upstream` | 5065 | Gateways de saída para o VitalPBX do cliente |
 
-Os profiles de entrada (`internal`, `internal-7060`, `internal-5062`) e o de saída (`upstream`) são separados propositalmente: um rescan de gateways no `upstream` não afeta os REGISTERs estabelecidos em qualquer profile de entrada. Os três profiles de entrada compartilham o mesmo diretório de usuários (`directory/extensions.xml`, global) e a mesma lógica de resolução de domínio (`force-register-domain=$${domain}` — necessário porque softphones como o 3CX usam o próprio endereço/porta do servidor como domínio do REGISTER, não um campo de domínio separado). Os três devem ser atualizados em conjunto quando essa lógica mudar (ver `_reversa_forward/006-registro-porta-vitalpbx/regression-watch.md#W002`).
+Os profiles de entrada e o de saída são separados propositalmente: um rescan do `upstream` não
+afeta REGISTERs de entrada. `internal-7060` exige autenticação ATA; `internal`/5060 mantém
+`auth-calls=false` por coexistir com troncos PSTN e `internal-5062` permanece fora desta mudança.
+Todos preservam a lógica de domínio `force-register-domain=$${domain}`. 🟢
 
 ### Porta de destino no VitalPBX (por tecnologia)
 
@@ -126,7 +128,64 @@ do dict de extensão para determinar a porta de destino.
 1. `connect()` estabelece conexão ESL com FreeSWITCH — `src/telephony/esl_client.py:30-45`
 2. Se conexão cair, auto-reconnect com backoff de 2s — `src/telephony/esl_client.py:86-88`
 3. Eventos ESL recebidos: CHANNEL_CREATE → CHANNEL_ANSWER → CHANNEL_HANGUP
-4. No CHANNEL_ANSWER, extrai IP do agente e mapeia no Redis — `src/telephony/esl_client.py:139-149`
+   - **CHANNEL_CREATE** (fix GAP-RE-02, 2026-08-21): cria a linha `Call` em `ringing`
+     (`services/calls.py::create_ringing_call_record`) **somente quando
+     `variable_zenith_tenant_id` já vem no próprio evento** — hoje só acontece para tronco ATA,
+     injetado pelo diretório dinâmico (`mod_xml_curl`). `agent_extension` vem de
+     `variable_zenith_agent_extension` ou, na ausência, de `variable_sip_from_user` (nativo do
+     canal). `*88` (manual linkage) é excluído — não gera linha. Ver `state-machines.md` para a
+     máquina de estados completa.
+     >
+     > ⚠️ **Dois achados de segurança (2026-08-21, antes do merge, com evento real do
+     > FreeSWITCH capturado em produção) que restringiram o escopo original:**
+     >
+     > 1. **Guard `Call-Direction == "inbound"`.** CHANNEL_CREATE dispara para as **duas
+     > pernas** de toda chamada bridgeada (GAP-ESL-08 já documentava isso para CHANNEL_ANSWER —
+     > vale igual aqui). A perna B, criada pelo FreeSWITCH ao originar o `bridge` (upstream em
+     > `zenith_audio_fork`, ou `user/$1@domain` em `local_extension`), tem
+     > `Call-Direction: outbound` e **nunca** carrega `zenith_tenant_id`, nem no próprio
+     > CHANNEL_ANSWER (confirmado: `Unique-ID` da perna B, `Other-Leg-Unique-ID` apontando pra
+     > perna A, `variable_zenith_tenant_id` ausente nos dois eventos). `_handle_channel_create`
+     > retorna cedo quando `event.get("Call-Direction") != "inbound"`.
+     >
+     > 2. **Sem fallback via `global_getvar` para ramal local.** A primeira versão deste fix
+     > tentava resolver `tenant_id` também via `global_getvar tenant_id`/`pbx_id` (constantes de
+     > `vars.xml`) quando o evento não trazia a variável — cobrindo ramal local também. Isso foi
+     > **removido**: `local_extension` (`^1\d{3}$`) e `echo_test` (`9196`) nunca setam
+     > `zenith_*` em **nenhum** evento do ciclo de vida (nem CREATE, nem ANSWER, nem HANGUP) —
+     > só `zenith_audio_fork` seta. Uma linha `ringing` criada por fallback no CREATE para esses
+     > casos nunca seria encontrada de volta por `mark_call_in_progress`/`finalize_call_record`
+     > (que exigem a mesma variável), ficando **órfã para sempre** — o próprio bug que o
+     > GAP-RE-02 deveria fechar, recriado por um caminho diferente. Fechar `ringing` para ramal
+     > local exigiria resolver a causa-raiz do GAP-RE-03 primeiro (tenant_id antes do dialplan
+     > rodar) — fica como residual, não fechado aqui.
+   - **CHANNEL_HANGUP**: extrai `Hangup-Cause` do evento e repassa para `finalize_call_record`,
+     que classifica `completed` (causas de encerramento normal) vs `failed` (todo o resto,
+     incluindo causa ausente).
+4. No CHANNEL_ANSWER, extrai IP do agente e mapeia no Redis — `src/telephony/esl_client.py:139-149`.
+   Também promove a linha `ringing` criada no CREATE para `in_progress`
+   (`services/calls.py::mark_call_in_progress`); se nenhuma linha `ringing` existir (tenant não
+   resolvido no CREATE), cria diretamente em `in_progress` — fallback que preserva o comportamento
+   anterior à correção. `mark_call_in_progress` também **reseta `started_at`** para o instante do
+   ANSWER — sem isso, `duration_seconds` calculado no hangup passaria a incluir o tempo de toque
+   (entre CREATE e ANSWER), mudando a semântica de "duração da conversa" que o campo tinha antes
+   deste fix. Uma chamada nunca atendida (permanece `ringing` até o hangup) continua medindo tempo
+   de toque, não de conversa — não há `started_at` para resetar nesse caso.
+   >
+   > **Métrica de descarte (fix GAP-RE-03, 2026-08-21):** quando `tenant_id` está ausente no
+   > CHANNEL_ANSWER, `call_dropped_no_tenant_total` (Prometheus) incrementa e um
+   > `logger.warning` dispara — mas **somente quando `Call-Direction == "inbound"`**. Sem esse
+   > filtro, a perna B de toda chamada bridgeada (que nunca tem `tenant_id`, por design — ver
+   > nota de GAP-ESL-08 abaixo) contaria como "descarte", inflando a métrica em 100% das
+   > chamadas bridgeadas. `Call-Direction` agora sustenta duas lógicas distintas neste mesmo
+   > handler: o guard de `_start_audio_capture` (dentro de `if tenant_id:`, evita captura dupla
+   > por chamada — GAP-ESL-08) e este filtro de métrica. Os dois dependem da mesma premissa —
+   > perna B nunca tem `tenant_id` — verificada com evento real do FreeSWITCH para o caminho de
+   > tronco (`zenith_audio_fork`). 🟡 **Não verificado com evento real** para `local_extension`
+   > (ramal↔ramal, `^1\d{3}$`): por semântica de plataforma do FreeSWITCH, `Call-Direction` é
+   > propriedade do canal (inbound = recebeu o INVITE original) e não depende de qual extensão
+   > do dialplan casa depois — deveria valer igual, mas não foi capturado ao vivo como o caminho
+   > de tronco foi.
 5. `zenith:sip:ip_to_extension:{ip}` e `zenith:sip:extension_to_ip:{ext}` criados com TTL 3600s — `src/telephony/esl_client.py:179-184`
 6. Código `*88` detectado → cria sessão "awaiting_linkage" — `src/telephony/esl_client.py:136-137`
 7. Whisper mode: `whisper_to_agent()` envia TTS para canal do agente — `src/telephony/whisper_mode.py:15-30`
@@ -223,7 +282,7 @@ correspondente (`_handle_channel_create`, `_handle_channel_answer`, `_handle_cha
 `set` de variáveis de canal (`variable_zenith_*`) que o ESLClient lê de volta pelo evento.
 
 No caso de `uuid_audio_stream`: `_handle_channel_answer` dispara
-`uuid_audio_stream {call_id} start ws://{AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id} stereo 8k {...}`
+`uuid_audio_stream {call_id} start ws://{AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id} stereo 16000 {...}`
 via `send_bgapi`, usando `Caller-Unique-ID` e as variáveis `variable_zenith_tenant_id`/
 `variable_zenith_pbx_id`/`variable_zenith_agent_extension` que já chegam nesse mesmo evento. Falha
 nessa chamada é logada (WARNING estruturado) mas não interrompe a chamada — gravação é best-effort,
@@ -239,9 +298,9 @@ não pode derrubar o atendimento. Detalhe completo em
 | GAP-ESL-01 | 🟡 | ESL Client não tem heartbeat explícito — reconexão só detectada após falha de comando |
 | GAP-ESL-02 | 🔴 | FreeSWITCH em `network_mode: host` — sem isolamento de rede Docker |
 | GAP-ESL-03 | ✅ | ~~CHANNEL_HANGUP não tem handler explícito~~ — resolvido (2026-07-12, feature `010`): `_handle_channel_hangup` finaliza a linha `Call` (`finalize_call_record`), agrupa os `AudioChunk` do buffer por canal e enfileira `upload_recording_batch`. Confirmado na re-extração de 2026-07-27 |
-| GAP-RE-03 | 🔴 | Chamada sem `tenant_id` populado não gera linha `Call` nenhuma (guard `if tenant_id:`), sem métrica nem log de contagem do descarte — perda silenciosa |
+| GAP-RE-03 | 🟡 | Chamada sem `tenant_id` populado não gera linha `Call` nenhuma (guard `if tenant_id:`) — causa-raiz segue aberta. **Mitigado em 2026-08-21**: a parte "sem métrica nem log" foi fechada — `call_dropped_no_tenant_total` (Prometheus) incrementa e um `logger.warning` dispara em `_handle_channel_answer` quando a perna A (`Call-Direction == "inbound"`) chega sem `tenant_id`. Filtrado por direção para não contar a perna B (que nunca tem `tenant_id`, por design — GAP-ESL-08) como falso positivo. |
 | GAP-RE-01 | 🔴 | Só `INSTANCE_ID == 1` consome o event stream; se `fastapi-1` cair, nenhuma chamada é gravada e `fastapi-2` segue "saudável" |
-| GAP-PROV-01 | 🔴 | `mod_xml_curl` não implementado ainda — provisionamento dinâmico pendente (ciclo futuro: `SIPExtension` + FastAPI) |
+| GAP-PROV-01 | ✅ | `mod_xml_curl` implementado para ATATrunk + diretório legado; `SIPExtension` não integra o modelo atual |
 | GAP-PROV-02 | ✅ | Estratégia de importação em lote definida (2026-06-26): `scripts/import_extensions.py` lê CSV exportado do VitalPBX, gera `directory/extensions.xml` + `sip_profiles/upstream/*.xml`. Dedup: pjsip > sip. Credenciais nunca commitadas (gitignored). |
 | GAP-17 | ✅ | `sip_profiles/internal.xml` corrigido (2026-06-26): TLS desativado (sem certs), `sip-port` duplicado removido (porta 5060 apenas). |
 | GAP-AUDIO-01 | ✅ | Substituído `mod_audio_fork` por `mod_audio_stream` (feature `007-audio-stream-migration`) — o repositório de origem do `mod_audio_fork` foi descontinuado, não era mais questão de token. Módulo novo confirmado carregado em produção; validação end-to-end de payload pendente (ver GAP-11 em `_reversa_sdd/gaps.md`) |

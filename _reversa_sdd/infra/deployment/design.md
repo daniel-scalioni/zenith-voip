@@ -3,10 +3,28 @@
 ## PostgreSQL promovido (2026-08-18)
 
 O serviço Compose permanece nomeado `postgres`, pois esse nome é o contrato DNS da aplicação,
-mas passa a administrar `zenith-postgres-candidate` e montar como volume externo
-`zenith-postgres-candidate-data`. Infra e aplicação usam o mesmo usuário/banco promovido;
+e administra o container `zenith-postgres` (renomeado de `zenith-postgres-candidate` via
+[ADR-012](../../adrs/012-promover-nome-canonico-zenith-postgres.md), 2026-08-20), montado sobre
+o volume externo `zenith-postgres-data`. Infra e aplicação usam o mesmo usuário/banco promovido
+(`zenith_candidate`/`zenith_candidate` — a credencial não foi renomeada, só o container/volume);
 `ZENITH_CANDIDATE_POSTGRES_PASSWORD` alimenta o container e `DATABASE_URL` fornece aos consumidores
-a URL completa com senha codificada. Executar o Compose não pode recolocar o banco legado no alias.
+a URL completa com senha codificada.
+
+> **Atualização 2026-08-19 (GAP-27):** `docker-compose.candidate.yml` (rehearsal isolado do gate de
+> qualidade, projeto Compose separado `zenith-candidate`) reusava por acidente o mesmo
+> `container_name`/nome de volume deste serviço promovido. Como nome de volume colide de forma
+> silenciosa no Docker (anexa, não recusa), isso era um risco real de o rehearsal montar o disco
+> de produção caso o nome do container de produção fosse liberado no futuro. Corrigido isolando o
+> rehearsal com nomes próprios (`zenith-postgres-quality-candidate` /
+> `zenith-postgres-quality-candidate-data`).
+
+> **Atualização 2026-08-20 (ADR-012):** o container e o volume legados `zenith-postgres` (a base
+> pré-cutover) não existiam mais — o serviço já tinha sido removido do Compose e só sobrava um
+> volume Docker órfão, confirmado sem nenhuma chamada/transcrição (só `public.tenants`/
+> `public.pbxs` de antes do schema-per-tenant) e removido nesta sessão. Sem o serviço legado no
+> Compose, não há mais como um `docker compose up` reintroduzir um `zenith-postgres` divergente —
+> a proteção que justificava manter o sufixo `-candidate` em produção deixou de ter objeto.
+> Produção renomeada para `zenith-postgres`/`zenith-postgres-data`.
 
 > **Atualização 2026-08-17:** o estado corrente usa tmpfs de 2 GiB, workers separados de uploader,
 > cleanup e SMB, e `mod_xml_curl` implementado. Os relatos datados abaixo permanecem como histórico

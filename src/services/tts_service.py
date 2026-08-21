@@ -15,7 +15,7 @@ class PiperTTS:
     def __init__(self, model_path: str = settings.PIPER_VOICE_PATH):
         self.model_path = model_path
 
-    async def synthesize(self, text: str, voice: str = "pt_BR", speaker_id: int = 0) -> bytes:
+    async def synthesize(self, text: str, **kwargs) -> bytes:
         return await asyncio.to_thread(self._synthesize_sync, text)
 
     def _synthesize_sync(self, text: str) -> bytes:

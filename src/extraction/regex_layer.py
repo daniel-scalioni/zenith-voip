@@ -2,6 +2,23 @@ import re
 from typing import Any
 
 
+def _is_valid_cpf(raw_value: str) -> bool:
+    """Valida o dígito verificador do CPF (módulo 11). Sem a lib python-brasilcpf
+    (removida no GAP-18), o regex sozinho aceitava qualquer sequência de 11 dígitos."""
+    digits = re.sub(r"\D", "", raw_value)
+    if len(digits) != 11 or digits == digits[0] * 11:
+        return False
+
+    def check_digit(base: str) -> int:
+        total = sum(int(d) * w for d, w in zip(base, range(len(base) + 1, 1, -1)))
+        remainder = total % 11
+        return 0 if remainder < 2 else 11 - remainder
+
+    first = check_digit(digits[:9])
+    second = check_digit(digits[:9] + str(first))
+    return digits[9] == str(first) and digits[10] == str(second)
+
+
 class RegexExtractor:
     PATTERNS = {
         "cpf": re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b"),
@@ -13,12 +30,16 @@ class RegexExtractor:
     }
 
     SENSITIVE_PATTERNS = ["credit_card"]
+    VALIDATORS = {"cpf": _is_valid_cpf}
 
     async def extract(self, text: str) -> dict[str, list[dict[str, Any]]]:
         results: dict[str, list[dict[str, Any]]] = {}
         for label, pattern in self.PATTERNS.items():
+            validator = self.VALIDATORS.get(label)
             matches = []
             for match in pattern.finditer(text):
+                if validator and not validator(match.group()):
+                    continue
                 matches.append({
                     "value": match.group(),
                     "start": match.start(),
@@ -31,6 +52,8 @@ class RegexExtractor:
 
     async def has_suspicion(self, text: str) -> bool:
         for label in ("cpf", "rg", "plate", "credit_card"):
-            if self.PATTERNS[label].search(text):
-                return True
+            validator = self.VALIDATORS.get(label)
+            for match in self.PATTERNS[label].finditer(text):
+                if not validator or validator(match.group()):
+                    return True
         return False

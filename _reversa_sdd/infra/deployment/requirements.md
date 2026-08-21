@@ -23,8 +23,11 @@ spec:
 
 - O serviço canônico continua se chamando `postgres` na rede da aplicação para preservar o DNS
   consumido por todos os serviços. 🟢
-- O container promovido é `zenith-postgres-candidate` e usa o volume persistente existente
-  `zenith-postgres-candidate-data`; o Compose não pode reintroduzir `zenith-postgres` nesse alias. 🟢
+- O container promovido é `zenith-postgres` (renomeado de `zenith-postgres-candidate` via
+  [ADR-012](../../adrs/012-promover-nome-canonico-zenith-postgres.md), 2026-08-20, após o
+  serviço legado `zenith-postgres` ter sido removido do Compose e seu volume órfão apagado —
+  a proteção original contra reintrodução acidental deixou de ter objeto) e usa o volume
+  persistente `zenith-postgres-data`. 🟢
 - Usuário, banco e senha do PostgreSQL promovido devem coincidir com `DATABASE_URL`; a senha do
   container é obrigatória via `ZENITH_CANDIDATE_POSTGRES_PASSWORD`, e a URL completa, com senha
   URL-encoded, é obrigatória via `DATABASE_URL`. Nenhuma recebe default versionado. 🟢
