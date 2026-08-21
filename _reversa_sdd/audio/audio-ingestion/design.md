@@ -1,8 +1,27 @@
+---
+spec:
+  component: audio-ingestion
+  layer: audio
+  status: active
+  version: 2.0.0
+  language: python
+  patterns: [singleton-module, observer]
+  inputs: [{name: stereo_pcm16, type: bytes, from: mod-audio-stream}]
+  outputs: [{name: finalized_recording, type: paths, to: audio-uploader}]
+  dependencies: [{component: recording-lifecycle, layer: audio}, {component: recording-capacity, layer: audio}]
+  events_produced: [audio_chunk]
+  updated_at: 2026-08-14
+---
+
 # Ingestão de Áudio, Design
 
-**Interface:** `handle_forked_stream(call_id, websocket) → None`
-**Payload:** AudioChunk {call_id, channel, data(bytes), timestamp}
-**Fluxo:** handle_forked_stream → **valida `call_id` contra `stream_metadata` (ver Segurança abaixo)** → register metadata → loop receive → de-interleaving tx/rx (validado, feature `007-audio-stream-migration`) → publish Redis
-**Origem:** `src/audio/ingestor.py` 🟢
+`AudioIngestor` mantém estado por chamada com metadata, handles, owner do lease e reserva. O
+callback WebSocket valida/admite antes de `accept()`, cria o lease e abre arquivos sob demanda.
+Não há `await` entre reivindicar o estado e escrever um chunk.
 
-**Segurança (2026-07-12, GAP-22):** `handle_forked_stream` recusa a conexão (`websocket.close(code=4401)`, antes de `accept()`) se `call_id` não estiver em `self.stream_metadata` — ou seja, só aceita streams para chamadas cujo `CHANNEL_ANSWER` real já foi processado pelo `esl_client` (`register_stream_metadata()`). Antes disso, qualquer `call_id` (inclusive inventado) era aceito e bufferizado sem nenhuma verificação de origem.
+`finalize_stream(call_id)` reivindica o estado por `pop` antes de qualquer `await`, tornando
+hangup/finally idempotentes. Cada handle é fechado e cada `.tmp.raw` íntegro é publicado como
+`.raw`; o job recebe somente `tenant_id` e `call_id`. Falha de I/O encerra a gravação, preserva
+qualquer temporário descartável e emite telemetria sem derrubar o SIP.
+
+O singleton de módulo `audio_ingestor` continua sendo a integração usada por API e ESL.

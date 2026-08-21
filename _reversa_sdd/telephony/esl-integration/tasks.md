@@ -1,7 +1,15 @@
+---
+spec:
+  component: esl-integration
+  layer: telephony
+  status: active
+  version: 2.0.0
+  language: python
+  updated_at: 2026-08-14
+---
+
 # ESL Integration, Tarefas
 
-- [ ] T-01: Implementar conexão ESL 🟢
-- [ ] T-02: Implementar reconexão automática 🟢
-- [ ] T-03: Implementar escuta de eventos 🟢
-- [ ] T-04: Implementar mapeamento SIP→IP 🟢
-- [ ] T-05: Implementar detecção *88 🟢
+- [ ] Testar argumento literal `stereo 16000`.
+- [ ] Testar delegação idempotente do hangup sem payload binário.
+- [ ] Validar chamada real sem `invalid sample rate` e sem troca tx/rx.

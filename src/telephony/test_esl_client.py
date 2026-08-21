@@ -5,6 +5,21 @@ from src.telephony import esl_client
 
 
 @pytest.mark.asyncio
+async def test_start_audio_capture_uses_numeric_16000(monkeypatch):
+    # Arrange
+    client = esl_client.ESLClient()
+    client.send_bgapi = AsyncMock(return_value="+OK")
+
+    # Act
+    await client._start_audio_capture("call-16k")
+
+    # Assert
+    command = client.send_bgapi.await_args.args[0]
+    assert " stereo 16000 " in command
+    assert " 8k " not in command
+
+
+@pytest.mark.asyncio
 async def test_channel_answer_forwards_present_caller_and_destination(monkeypatch):
     # Arrange
     client = esl_client.ESLClient()

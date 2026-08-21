@@ -1,16 +1,20 @@
 """API administrativa tenant-scoped para condomínios e troncos ATA."""
 
+import asyncio
+import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.auth import require_admin_role
 from src.config import settings
 from src.database.database import get_db
 from src.database.models import ATATrunk, Condominium, PBX
+from src.events.redis_streams import event_bus
 from src.services.base import Repository
 from src.services.legacy_directory import LegacyDirectoryProvider
 from src.services.trunk_credentials import CredentialConfigurationError, TrunkCredentialCipher
@@ -18,8 +22,12 @@ from src.services.trunk_import import CSVSchemaError, import_trunk_csv
 from src.services.trunks import (
     CondominiumService, DuplicateIdentityError, ScopeValidationError, TrunkService,
 )
+from src.telephony.trunk_state import (
+    TrunkIdentityResolver, TrunkStateRepository, TrunkStateService,
+)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["trunks"])
+logger = logging.getLogger(__name__)
 
 
 class CondominiumCreate(BaseModel):
@@ -38,6 +46,21 @@ class CondominiumResponse(BaseModel):
     enabled: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class CondominiumUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    external_id: str | None = Field(default=None, max_length=128)
+    enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_patch(self):
+        if not self.model_fields_set:
+            raise ValueError("empty_patch")
+        for field_name in {"name", "enabled"}:
+            if field_name in self.model_fields_set and getattr(self, field_name) is None:
+                raise ValueError(f"{field_name}_cannot_be_null")
+        return self
 
 
 class TrunkCreate(BaseModel):
@@ -70,6 +93,26 @@ class TrunkResponse(BaseModel):
     last_error_at: datetime | None = None
 
 
+class TrunkUpdate(BaseModel):
+    condominium_id: str | None = Field(default=None, min_length=1)
+    prefix: str | None = Field(default=None, pattern=r"^[0-9]{1,32}$")
+    auth_username: str | None = Field(default=None, min_length=1, max_length=128)
+    password: str | None = Field(default=None, min_length=1)
+    sip_profile: Literal["internal", "internal-7060"] | None = None
+    enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_patch(self):
+        if not self.model_fields_set:
+            raise ValueError("empty_patch")
+        for field_name in {
+            "condominium_id", "auth_username", "password", "sip_profile", "enabled"
+        }:
+            if field_name in self.model_fields_set and getattr(self, field_name) is None:
+                raise ValueError(f"{field_name}_cannot_be_null")
+        return self
+
+
 def _keys() -> list[str]:
     return [item.strip() for item in settings.TRUNK_CREDENTIAL_KEYS.split(",") if item.strip()]
 
@@ -87,6 +130,12 @@ def get_trunk_service(db: AsyncSession = Depends(get_db)) -> TrunkService:
         Repository(db, ATATrunk), Repository(db, Condominium), Repository(db, PBX),
         credential_cipher=cipher,
         legacy_provider=LegacyDirectoryProvider(settings.LEGACY_DIRECTORY_PATH),
+    )
+
+
+def get_trunk_state_service(db: AsyncSession = Depends(get_db)) -> TrunkStateService:
+    return TrunkStateService(
+        TrunkStateRepository(db), event_bus.redis, TrunkIdentityResolver(db)
     )
 
 
@@ -113,6 +162,16 @@ def _trunk_view(item, active_calls: int = 0) -> TrunkResponse:
         last_unregistered_at=item.last_unregistered_at, last_error_code=item.last_error_code,
         last_error_at=item.last_error_at,
     )
+
+
+async def _active_calls_or_zero(
+    state_service: TrunkStateService, trunk_id: str
+) -> int:
+    try:
+        return await state_service.active_calls(trunk_id)
+    except RedisError:
+        logger.exception("trunk_active_calls_unavailable")
+        return 0
 
 
 def _map_service_error(error: Exception):
@@ -147,15 +206,33 @@ async def list_condominiums(
     return [_condominium_view(item) for item in await service.list(payload["tenant_id"], pbx_id)]
 
 
+@router.patch("/condominiums/{condominium_id}", response_model=CondominiumResponse)
+async def update_condominium(
+    condominium_id: str,
+    data: CondominiumUpdate,
+    payload: dict = Depends(require_admin_role),
+    service: CondominiumService = Depends(get_condominium_service),
+):
+    try:
+        item = await service.update(
+            payload["tenant_id"], condominium_id, **data.model_dump(exclude_unset=True)
+        )
+        return _condominium_view(item)
+    except ValueError as error:
+        _map_service_error(error)
+
+
 @router.post("/trunks", status_code=status.HTTP_201_CREATED, response_model=TrunkResponse)
 async def create_trunk(
     data: TrunkCreate,
     payload: dict = Depends(require_admin_role),
     service: TrunkService = Depends(get_trunk_service),
+    state_service: TrunkStateService = Depends(get_trunk_state_service),
 ):
     try:
         item = await service.create(tenant_id=payload["tenant_id"], **data.model_dump())
-        return _trunk_view(item)
+        active_calls = await _active_calls_or_zero(state_service, str(item.id))
+        return _trunk_view(item, active_calls)
     except ValueError as error:
         _map_service_error(error)
 
@@ -169,12 +246,34 @@ async def list_trunks(
     sip_profile: str | None = None,
     payload: dict = Depends(require_admin_role),
     service: TrunkService = Depends(get_trunk_service),
+    state_service: TrunkStateService = Depends(get_trunk_state_service),
 ):
     items = await service.list(
         payload["tenant_id"], pbx_id=pbx_id, condominium_id=condominium_id,
         enabled=enabled, registration_status=registration_status, sip_profile=sip_profile,
     )
-    return [_trunk_view(item) for item in items]
+    active_counts = await asyncio.gather(*(
+        _active_calls_or_zero(state_service, str(item.id)) for item in items
+    ))
+    return [_trunk_view(item, count) for item, count in zip(items, active_counts)]
+
+
+@router.patch("/trunks/{trunk_id}", response_model=TrunkResponse)
+async def update_trunk(
+    trunk_id: str,
+    data: TrunkUpdate,
+    payload: dict = Depends(require_admin_role),
+    service: TrunkService = Depends(get_trunk_service),
+    state_service: TrunkStateService = Depends(get_trunk_state_service),
+):
+    try:
+        item = await service.update(
+            payload["tenant_id"], trunk_id, **data.model_dump(exclude_unset=True)
+        )
+        active_calls = await _active_calls_or_zero(state_service, str(item.id))
+        return _trunk_view(item, active_calls)
+    except ValueError as error:
+        _map_service_error(error)
 
 
 @router.post("/trunks/import")

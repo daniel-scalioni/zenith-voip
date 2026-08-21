@@ -3,9 +3,9 @@ spec:
   component: workers
   layer: workers
   status: active
-  version: 2.1.0
+  version: 3.0.0
   language: python
-  updated_at: 2026-07-29
+  updated_at: 2026-08-14
 ---
 
 # Workers, Design Técnico
@@ -17,7 +17,7 @@ spec:
 
 | Worker | Função | Gatilho | Fila exclusiva | Container |
 |--------|--------|---------|----------------|-----------|
-| audio_uploader | `upload_recording_batch(tenant_id, call_id, recordings)` | Job arq enfileirado no `CHANNEL_HANGUP` | `zenith:audio-upload` | `zenith-arq-uploader` |
+| audio_uploader | `upload_recording_batch(tenant_id, call_id)` | Job arq enfileirado na finalização da captura | `zenith:audio-upload` | `zenith-arq-uploader` |
 | audio_cleanup | `run_cleanup()` | Cron ARQ a cada 15 min | `zenith:audio-cleanup` | `zenith-arq-cleanup` |
 | smb_sync | `run_smb_sync()` | Cron ARQ a cada 5 min | `zenith:smb-sync` | `zenith-smb-sync` |
 | post_call | `run_post_call(call_id)` | Evento `CHANNEL_HANGUP` | fora desta decisão | — |
@@ -43,23 +43,23 @@ retirado por um worker que não registra essa função, produzindo `JobExecution
 'upload_recording_batch' not found`. Também foram observadas colisões equivalentes com
 `cron:run_cleanup` e `cron:run_smb_sync`.
 
-## Fluxo Principal (Gravação)
+## Fluxo Principal (Gravação WAV 16 kHz)
 
-1. `ESLClient._handle_channel_hangup()` agrupa os `AudioChunk` do buffer por canal e chama
-   `enqueue_recording_upload(tenant_id, call_id, recordings)`.
+1. `AudioIngestor.finalize_stream()` publica `.tmp.raw` como `.raw` e chama
+   `enqueue_recording_upload(tenant_id, call_id)` sem bytes no Redis.
 2. `enqueue_recording_upload` obtém um pool arq lazy (`_get_pool()`, singleton de módulo) associado
    à fila `zenith:audio-upload` e enfileira `upload_recording_batch` nessa fila.
-3. `zenith-arq-uploader` consome o job e itera os canais chamando `upload_audio_chunk`.
+3. `zenith-arq-uploader` adquire `.conversion-processing` e descobre os raws finalizados.
 4. Para cada canal:
    - `os.makedirs(RECORDINGS_PATH/<tenant>/<call_id>)`
-   - grava `<channel>.raw` (PCM16 8 kHz mono)
-   - `ffmpeg -f s16le -ar 8000 -ac 1 -i <raw> -codec:a libmp3lame <mp3>` via
+   - lê `<channel>.raw` (PCM16 16 kHz mono)
+   - `ffmpeg -f s16le -ar 16000 -ac 1 -i <raw> -codec:a pcm_s16le <tmp.wav>` via
      `asyncio.create_subprocess_exec`
-   - em sucesso, remove o `.raw` → `uploaded`
-   - em falha do ffmpeg, mantém o `.raw` → `uploaded_raw_only`
+   - em sucesso, publica `.wav` por `os.replace` e preserva o `.raw`
+   - em falha do ffmpeg, mantém o `.raw` e descarta o temporário incompleto
    - em falha da **escrita**, retorna `failed` sem tentar converter
 
-### Por que MP3 mono por canal
+### Por que WAV mono por canal
 
 `tx` e `rx` ficam separados por decisão de produto: o uso pretendido é auditoria humana, e o
 canal isolado permite avaliar o atendente sem o ruído do outro lado. Áudio misturado
@@ -72,7 +72,9 @@ inviabilizaria isso. Ver ADR-009.
 3. Para cada tenant, `cleanup_tenant_bucket()`:
    - se `RECORDINGS_PATH/<tenant>` não existe → `skipped`
    - `cutoff = now - AUDIO_RETENTION_DAYS`
-   - `os.walk` no diretório; remove todo arquivo com `st_mtime < cutoff`
+   - remove finais plenamente consumidos; o cutoff continua como segurança
+   - temporários locais allowlisted entram em `.cleanup-candidates.json` na primeira rodada
+   - na rodada seguinte, após 900 s, lease e fingerprint são revalidados antes da exclusão
    - `await asyncio.sleep(0)` a cada 1000 remoções, cedendo o event loop
 4. Registra `deleted_count`, `bytes_freed`, `duration`
 

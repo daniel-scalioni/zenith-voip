@@ -3,17 +3,27 @@ spec:
   component: trunk-admin
   layer: api
   status: active
-  version: 1.1.0
+  version: 1.2.0
   language: python
   patterns: [repository, dependency-injection]
   inputs: [{name: admin_request, type: HTTP, from: tenant-admin}, {name: directory_lookup, type: HTTPForm, from: freeswitch}]
   outputs: [{name: trunk_view, type: JSON, to: tenant-admin}, {name: directory_xml, type: XML, to: freeswitch}]
   dependencies: [{component: trunk-registry, layer: database}, {component: auth, layer: api}, {component: trunk-registration, layer: telephony}]
   events_produced: []
-  updated_at: 2026-08-04
+  updated_at: 2026-08-18
 ---
 
 # Trunk Admin — Design
+
+## Correção 1.2.0
+
+- `CondominiumUpdate` e `TrunkUpdate` aceitam somente o subconjunto alterável do contrato; o
+  endpoint injeta o tenant do JWT ao chamar o service e nunca o recebe do body. Validators
+  rejeitam `null` explícito nos campos não anuláveis; `prefix` e `external_id` podem ser limpos.
+- `TrunkStateService` é dependência explícita do router. Após create/update e para cada item de
+  listagem, a view consulta `active_calls(id)` e deriva `in_use`; a senha permanece fora do DTO.
+  `RedisError` é logado com traceback e degrada somente essa leitura para zero, evitando erro após
+  commit e retry duplicado da mutação.
 
 ## Responsabilidade
 

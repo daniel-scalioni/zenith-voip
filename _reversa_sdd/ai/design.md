@@ -24,10 +24,10 @@
 
 ## Fluxo Principal
 
-1. `analyze()` recebe texto e speaker — `src/ai/anomaly_detector.py:10-20`
-2. Calcula fury_score (13 keywords) + stress_score (ALL CAPS, !! repetição) — `src/ai/anomaly_detector.py:22-29`
+1. `analyze()` recebe texto e speaker; `text` deve ser `str` (senão `TypeError`) — `src/ai/anomaly_detector.py:10-20`
+2. Calcula fury_score (27 keywords) + stress_score (ALL CAPS, !! repetição) — `src/ai/anomaly_detector.py:22-29`
 3. Se score >= 5: severity = "danger"; se >= 3: "warning" — `src/ai/anomaly_detector.py:33-34`
-4. `run()` inicia grafo de consenso LangGraph — `src/ai/consensus_graph.py:40-55`
+4. `run()` inicia grafo de consenso LangGraph; `transcript` deve ser `str` (senão `TypeError`) — `src/ai/consensus_graph.py:40-55`
 5. Nó extractor: extrai entidades do texto
 6. Nó reviewer: revisa entidades contra regras
 7. Nó decider: decide approved/rejected; se rejected e iteration < 3, volta ao extractor
@@ -47,9 +47,10 @@
 
 | Decisão | Evidência | Confiança |
 |---------|-----------|-----------|
-| Keywords hardcoded em português | `anomaly_detector.py:6-13` | 🟢 |
+| Keywords hardcoded em português (27 termos) | `anomaly_detector.py:6-13` | 🟢 |
 | LangGraph com estado serializável (AgentState) | `consensus_graph.py:15-25` | 🟢 |
 | Limite de 3 ciclos para evitar loops infinitos | `consensus_graph.py:70-72` | 🟢 |
+| Validação de tipo em `analyze()`/`run()` — rejeita entrada não-string com `TypeError` | `anomaly_detector.py:25-26`, `consensus_graph.py:82-83` | 🟢 |
 
 ## Riscos e Lacunas
 

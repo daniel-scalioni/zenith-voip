@@ -1,5 +1,16 @@
-# Cleanup, Tarefas
+---
+spec:
+  component: audio-cleanup
+  layer: workers
+  status: active
+  version: 2.0.0
+  language: python
+  updated_at: 2026-08-14
+---
 
-- [ ] T-01: Implementar varredura de arquivos antigos no diretório local (`os.walk`) 🟢
-- [ ] T-02: Implementar delete por mtime > `AUDIO_RETENTION_DAYS` 🟢
-- [ ] T-03: Configurar cron ARQ 03:00 🟢
+# Cleanup de Áudio, Tarefas
+
+- [ ] Testar finais consumidos e fallback por TTL.
+- [ ] Testar órfãos em duas rodadas, mudança, lease e marcador corrompido.
+- [ ] Testar concorrência/idempotência e proteção de controles.
+- [ ] Instrumentar candidatos, exclusões e falhas.

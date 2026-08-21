@@ -1,0 +1,9 @@
+arq==0.26.1
+asyncpg==0.30.0
+fastapi==0.115.6
+prometheus-client==0.21.1
+pydantic==2.10.3
+pydantic-settings==2.7.0
+pysmb==1.2.14
+redis[hiredis]==5.2.1
+sqlalchemy==2.0.36

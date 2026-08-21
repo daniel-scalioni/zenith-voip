@@ -1,51 +1,47 @@
 import asyncio
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from arq.constants import default_queue_name
 
-from src.workers import audio_cleanup, audio_uploader, smb_sync
+from src.audio.recording_lifecycle import acquire_lease, release_lease
+from src.workers import audio_uploader
 
 
 @pytest.mark.asyncio
-async def test_convert_to_mp3_publishes_atomically(tmp_path, monkeypatch):
+async def test_convert_to_wav_uses_16000_and_publishes_atomically(tmp_path, monkeypatch):
     # Arrange
     raw = tmp_path / "tx.raw"
     raw.write_bytes(b"raw")
-    replace_calls = []
+    captured = {}
 
     class Process:
         returncode = 0
 
         async def communicate(self):
-            Path(self.output).write_bytes(b"mp3")
+            Path(captured["args"][-1]).write_bytes(b"wav")
             return b"", b""
 
     async def create_process(*args, **_kwargs):
-        process = Process()
-        process.output = args[-1]
-        return process
+        captured["args"] = args
+        return Process()
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", create_process)
-    real_replace = audio_uploader.os.replace
-
-    def track_replace(source, destination):
-        replace_calls.append((source, destination))
-        real_replace(source, destination)
-
-    monkeypatch.setattr(audio_uploader.os, "replace", track_replace)
 
     # Act
-    result = await audio_uploader._convert_to_mp3(str(raw))
+    result = await audio_uploader._convert_to_wav(str(raw))
 
     # Assert
-    assert result == str(tmp_path / "tx.mp3")
-    assert replace_calls == [(str(tmp_path / "tx.tmp.mp3"), str(tmp_path / "tx.mp3"))]
+    assert result == str(tmp_path / "tx.wav")
+    assert "16000" in captured["args"]
+    assert "pcm_s16le" in captured["args"]
     assert raw.exists()
+    assert not (tmp_path / "tx.tmp.wav").exists()
 
 
 @pytest.mark.asyncio
-async def test_convert_to_mp3_preserves_raw_and_no_final_on_failure(tmp_path, monkeypatch):
+async def test_convert_to_wav_preserves_raw_and_removes_partial_on_failure(tmp_path, monkeypatch):
     # Arrange
     raw = tmp_path / "rx.raw"
     raw.write_bytes(b"raw")
@@ -54,130 +50,121 @@ async def test_convert_to_mp3_preserves_raw_and_no_final_on_failure(tmp_path, mo
         returncode = 1
 
         async def communicate(self):
+            (tmp_path / "rx.tmp.wav").write_bytes(b"partial")
             return b"", b"failure"
 
-    async def create_process(*_args, **_kwargs):
-        return Process()
-
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_process)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", AsyncMock(return_value=Process()))
 
     # Act / Assert
     with pytest.raises(RuntimeError):
-        await audio_uploader._convert_to_mp3(str(raw))
+        await audio_uploader._convert_to_wav(str(raw))
     assert raw.exists()
-    assert not (tmp_path / "rx.mp3").exists()
-    assert not (tmp_path / "rx.tmp.mp3").exists()
+    assert not (tmp_path / "rx.wav").exists()
+    assert not (tmp_path / "rx.tmp.wav").exists()
 
 
 @pytest.mark.asyncio
-async def test_upload_audio_chunk_removes_raw_only_after_conversion(tmp_path, monkeypatch):
+async def test_upload_batch_discovers_final_raws_and_preserves_them(tmp_path, monkeypatch):
     # Arrange
     monkeypatch.setattr(audio_uploader.settings, "RECORDINGS_PATH", str(tmp_path))
+    call_dir = tmp_path / "tenant" / "call"
+    call_dir.mkdir(parents=True)
+    (call_dir / "tx.raw").write_bytes(b"tx")
+    (call_dir / "rx.tmp.raw").write_bytes(b"partial")
 
     async def convert(raw_path):
-        mp3_path = raw_path.replace(".raw", ".mp3")
-        Path(mp3_path).write_bytes(b"mp3")
-        return mp3_path
+        output = raw_path.replace(".raw", ".wav")
+        Path(output).write_bytes(b"wav")
+        return output
 
-    monkeypatch.setattr(audio_uploader, "_convert_to_mp3", convert)
+    monkeypatch.setattr(audio_uploader, "_convert_to_wav", convert)
 
     # Act
-    result = await audio_uploader.upload_audio_chunk(
-        {}, "tenant", "call", "tx", b"raw"
-    )
+    result = await audio_uploader.upload_recording_batch({}, "tenant", "call")
 
     # Assert
-    assert result["status"] == "uploaded"
-    assert Path(result["path"]).read_bytes() == b"mp3"
-    assert not (tmp_path / "tenant" / "call" / "tx.raw").exists()
+    assert result[0]["status"] == "uploaded"
+    assert (call_dir / "tx.raw").exists()
+    assert (call_dir / "tx.wav").exists()
+    assert not (call_dir / "rx.wav").exists()
 
 
 @pytest.mark.asyncio
-async def test_upload_audio_chunk_preserves_raw_on_conversion_failure(
-    tmp_path, monkeypatch
-):
+async def test_duplicate_upload_observes_conversion_lease(tmp_path, monkeypatch):
+    # Arrange
+    monkeypatch.setattr(audio_uploader.settings, "RECORDINGS_PATH", str(tmp_path))
+    call_dir = tmp_path / "tenant" / "call"
+    call_dir.mkdir(parents=True)
+    lease = acquire_lease(call_dir, "conversion", "call")
+
+    # Act
+    result = await audio_uploader.upload_recording_batch({}, "tenant", "call")
+
+    # Assert
+    assert result == [{"status": "already_processing"}]
+    release_lease(call_dir, "conversion", lease.owner)
+
+
+@pytest.mark.asyncio
+async def test_missing_raw_and_legacy_payload_are_safe_noop(tmp_path, monkeypatch):
     # Arrange
     monkeypatch.setattr(audio_uploader.settings, "RECORDINGS_PATH", str(tmp_path))
 
-    async def fail(_raw_path):
-        raise RuntimeError("ffmpeg unavailable")
-
-    monkeypatch.setattr(audio_uploader, "_convert_to_mp3", fail)
-
     # Act
-    result = await audio_uploader.upload_audio_chunk(
-        {}, "tenant", "call", "rx", b"raw"
+    missing = await audio_uploader.upload_recording_batch({}, "tenant", "missing")
+    legacy = await audio_uploader.upload_recording_batch(
+        {}, "tenant", "legacy", [{"channel": "tx", "data": b"bytes"}]
     )
 
     # Assert
-    assert result["status"] == "uploaded_raw_only"
-    assert Path(result["path"]).read_bytes() == b"raw"
-
-
-def test_worker_settings_declares_exclusive_upload_queue():
-    # Arrange
-    worker_settings = audio_uploader.WorkerSettings
-
-    # Act
-    queue_name = getattr(worker_settings, "queue_name", None)
-
-    # Assert
-    assert queue_name == "zenith:audio-upload"
+    assert missing == []
+    assert legacy == []
 
 
 @pytest.mark.asyncio
-async def test_enqueue_recording_upload_publishes_to_exclusive_queue(monkeypatch):
+async def test_conversion_aborts_when_lease_renewal_fails(tmp_path, monkeypatch):
+    # Arrange
+    monkeypatch.setattr(audio_uploader.settings, "RECORDINGS_PATH", str(tmp_path))
+    monkeypatch.setattr(audio_uploader.settings, "RECORDING_LEASE_HEARTBEAT_SECONDS", 0)
+    call_dir = tmp_path / "tenant" / "call"
+    call_dir.mkdir(parents=True)
+    (call_dir / "tx.raw").write_bytes(b"raw")
+    monkeypatch.setattr(audio_uploader, "renew_lease", lambda *_args: False)
+
+    async def slow_convert(_path):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(audio_uploader, "_convert_to_wav", slow_convert)
+
+    # Act
+    result = await audio_uploader.upload_recording_batch({}, "tenant", "call")
+
+    # Assert
+    assert result == [{"status": "lease_lost"}]
+    assert not (call_dir / "tx.wav").exists()
+
+
+@pytest.mark.asyncio
+async def test_enqueue_uses_exclusive_queue_and_deterministic_job_id(monkeypatch):
     # Arrange
     captured = {}
 
-    class FakePool:
-        def __init__(self, pool_default_queue_name):
-            self.default_queue_name = pool_default_queue_name
+    class Pool:
+        async def enqueue_job(self, function, *args, **kwargs):
+            captured.update(function=function, args=args, kwargs=kwargs)
 
-        async def enqueue_job(self, function, *_args, **kwargs):
-            captured["function"] = function
-            captured["queue"] = kwargs.get("_queue_name") or self.default_queue_name
-
-    async def fake_create_pool(_settings=None, **kwargs):
-        return FakePool(kwargs.get("default_queue_name", default_queue_name))
-
-    monkeypatch.setattr(audio_uploader, "create_pool", fake_create_pool)
-    monkeypatch.setattr(audio_uploader, "_pool", None)
+    monkeypatch.setattr(audio_uploader, "_get_pool", AsyncMock(return_value=Pool()))
 
     # Act
-    await audio_uploader.enqueue_recording_upload(
-        "tenant-1", "call-001", [{"channel": "tx", "data": b"\x00"}]
-    )
+    await audio_uploader.enqueue_recording_upload("tenant", "call")
 
     # Assert
     assert captured["function"] == "upload_recording_batch"
-    assert captured["queue"] == "zenith:audio-upload"
+    assert captured["args"] == ("tenant", "call")
+    assert captured["kwargs"]["_job_id"] == "recording-upload:tenant:call"
 
 
-def test_worker_queues_are_isolated_and_prevent_cross_consumption():
-    # Arrange
-    def effective_queue_name(worker_settings) -> str:
-        return getattr(worker_settings, "queue_name", None) or default_queue_name
-
-    # Act
-    effective_queues = {
-        effective_queue_name(audio_uploader.WorkerSettings),
-        effective_queue_name(audio_cleanup.WorkerSettings),
-        effective_queue_name(smb_sync.WorkerSettings),
-    }
-    upload_function_names = {fn.__name__ for fn in audio_uploader.WorkerSettings.functions}
-    cleanup_function_names = {fn.__name__ for fn in audio_cleanup.WorkerSettings.functions}
-    smb_function_names = {fn.__name__ for fn in smb_sync.WorkerSettings.functions}
-
-    # Assert
-    assert len(effective_queues) == 3
-    assert default_queue_name not in effective_queues
-    assert "upload_recording_batch" in upload_function_names
-    assert "upload_recording_batch" not in cleanup_function_names
-    assert "upload_recording_batch" not in smb_function_names
-    assert "run_cleanup" in cleanup_function_names
-    assert "run_cleanup" not in upload_function_names
-    assert "run_cleanup" not in smb_function_names
-    assert "run_smb_sync" in smb_function_names
-    assert "run_smb_sync" not in upload_function_names
-    assert "run_smb_sync" not in cleanup_function_names
+def test_worker_uses_exclusive_non_default_queue():
+    # Arrange / Act / Assert
+    assert audio_uploader.WorkerSettings.queue_name == "zenith:audio-upload"
+    assert audio_uploader.WorkerSettings.queue_name != default_queue_name

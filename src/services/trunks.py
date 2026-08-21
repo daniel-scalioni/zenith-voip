@@ -218,10 +218,32 @@ class TrunkService:
             raise ScopeValidationError("trunk_not_found")
         allowed_names = {"condominium_id", "prefix", "auth_username", "sip_profile", "enabled"}
         updates = {key: value for key, value in changes.items() if key in allowed_names}
-        identity_changed = any(
+        new_condominium_id = updates.get("condominium_id", trunk.condominium_id)
+        if str(new_condominium_id) != str(trunk.condominium_id):
+            await self._validate_scope(tenant_id, str(trunk.pbx_id), str(new_condominium_id))
+
+        new_prefix = updates.get("prefix", getattr(trunk, "prefix", None))
+        if new_prefix is not None and not re.fullmatch(r"[0-9]{1,32}", new_prefix):
+            raise ValueError("invalid_prefix")
+        new_auth_username = updates.get("auth_username", trunk.auth_username)
+        new_sip_profile = updates.get("sip_profile", trunk.sip_profile)
+        if not new_auth_username or new_sip_profile not in {"internal", "internal-7060"}:
+            raise ValueError("invalid_sip_configuration")
+
+        sip_identity_changed = any(
             key in updates and str(updates[key]) != str(getattr(trunk, key))
             for key in {"auth_username", "sip_profile"}
         )
+        if sip_identity_changed:
+            existing = _first(await self._trunks.find_by(
+                sip_profile=new_sip_profile, auth_username=new_auth_username
+            ))
+            if existing is not None and str(existing.id) != str(trunk.id):
+                raise DuplicateIdentityError("duplicate_auth_identity")
+            if await _resolve(self._legacy.contains(new_sip_profile, new_auth_username)):
+                raise DuplicateIdentityError("duplicate_auth_identity")
+
+        identity_changed = sip_identity_changed
         password = changes.get("password")
         if password is not None:
             if not password or not password.strip():
@@ -230,6 +252,8 @@ class TrunkService:
             identity_changed = True
         if identity_changed:
             updates["registration_status"] = "unknown"
+            updates["last_registered_at"] = None
+            updates["last_unregistered_at"] = None
         try:
             return await self._trunks.update(trunk_id, **updates)
         except IntegrityConstraintError as error:

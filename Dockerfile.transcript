@@ -1,0 +1,41 @@
+FROM debian:bookworm-slim AS whisper-builder
+
+ARG WHISPER_CPP_VERSION=v1.8.6
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch "${WHISPER_CPP_VERSION}" \
+    https://github.com/ggml-org/whisper.cpp.git /opt/whisper.cpp \
+    && cmake -S /opt/whisper.cpp -B /opt/whisper.cpp/build \
+       -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+       -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF \
+    && cmake --build /opt/whisper.cpp/build --config Release --target whisper-cli -j2 \
+    && mkdir -p /models \
+    && /opt/whisper.cpp/models/download-ggml-model.sh base /models \
+    && echo "465707469ff3a37a2b9b8d8f89f2f99de7299dac  /models/ggml-base.bin" | sha1sum -c -
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-transcript.txt .
+RUN pip install --no-cache-dir -r requirements-transcript.txt
+
+COPY --from=whisper-builder /opt/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
+COPY --from=whisper-builder /models/ggml-base.bin /models/ggml-base.bin
+RUN ln -s /usr/local/bin/whisper-cli /usr/local/bin/whisper-cpp
+
+COPY src/ /app/src/
+
+CMD ["arq", "src.workers.transcript_batch.WorkerSettings"]
