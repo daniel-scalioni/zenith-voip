@@ -41,7 +41,7 @@
 
 1. Cliente autentica e obtém JWT via `create_access_token()` — `src/api/auth.py:10-18`
 2. Requisições REST passam por `verify_token()` e opcionalmente `require_admin_role()` — `src/api/auth.py:22-40`
-3. Rate limit checa IP em `rate_limit_store` (dict in-memory) — `src/api/rate_limit.py:5-12`
+3. Rate limit checa IP via sorted set no Redis (`zenith:ratelimit:{ip}`) — `src/api/rate_limit.py` (fix GAP-03, 2026-08-21)
 4. Admin cria/lista PBXs via `/api/v1/admin/pbxs` — `src/api/routers/pbxs.py:15-72`
 5. Operador conecta WebSocket em `/ws/{call_id}` — `src/api/websockets.py:33-38`
 6. Sistema tenta auto-link: IP → Redis `zenith:sip:ip_to_extension:{ip}` — `src/api/websockets.py:40-56`
@@ -68,16 +68,16 @@
 
 | Decisão | Evidência no código | Confiança |
 |---------|---------------------|-----------|
-| Rate limit in-memory (sem Redis) | `rate_limit.py:5` — defaultdict(list) | 🟢 |
+| Rate limit via Redis (sliding window log, sorted set) | `rate_limit.py` — `zenith:ratelimit:{ip}`, TTL igual à janela (fix GAP-03, 2026-08-21) | 🟢 |
 | JWT com HS256 e segredo em config | `config.py:20-23` | 🟢 |
 | Auto-link SIP via Redis lookup por IP | `websockets.py:40-56` | 🟢 |
 | Sessão WebSocket com TTL 30-120s no Redis | `esl_client.py:179-184` | 🟢 |
 
 ## Estado Interno
 
-- `rate_limit_store: dict[str, list[float]]` — IP → timestamps de requisições (in-memory, volátil)
 - `active_connections: dict[str, list[WebSocket]]` — call_id → conexões WebSocket ativas
-- Sessões Redis: `zenith:ws:agent_session:{uuid}` (TTL 30-120s), `zenith:sip:*` (TTL 3600s)
+- Sessões Redis: `zenith:ws:agent_session:{uuid}` (TTL 30-120s), `zenith:sip:*` (TTL 3600s),
+  `zenith:ratelimit:{ip}` (sorted set, TTL igual à janela de 60s — fix GAP-03, 2026-08-21)
 
 ## Observabilidade
 
@@ -87,6 +87,10 @@
 
 ## Riscos e Lacunas
 
-- 🔴 Rate limit in-memory: reinicialização da instância zera o contador — permite burst após restart
+- ✅ ~~Rate limit in-memory: reinicialização da instância zera o contador — permite burst após restart~~ —
+  fechado (GAP-03, 2026-08-21): estado movido para Redis (`zenith:ratelimit:{ip}`), sobrevive a
+  restart e é compartilhado entre `zenith-api-1`/`zenith-api-2` (antes cada instância tinha seu
+  próprio limite in-memory — um cliente atrás do load balancer podia efetivamente dobrar o limite
+  real, distribuindo requisições entre as duas instâncias)
 - 🟡 Webhook dispatcher sem confirmação de entrega (fire-and-forget)
 - 🟡 Auto-link SIP depende de Redis populado pelo ESL Client — sem fallback se Redis vazio
