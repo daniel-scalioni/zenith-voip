@@ -32,7 +32,6 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_MINUTES: int = 60
 
     REDIS_STREAM_CALL_EVENTS: str = "call:events"
-    REDIS_STREAM_POST_CALL: str = "call:post"
     REDIS_CONSUMER_GROUP: str = "zenith-workers"
 
     STT_FALLBACK_TIMEOUT_MS: int = 500
