@@ -171,6 +171,21 @@ do dict de extensão para determinar a porta de destino.
    (entre CREATE e ANSWER), mudando a semântica de "duração da conversa" que o campo tinha antes
    deste fix. Uma chamada nunca atendida (permanece `ringing` até o hangup) continua medindo tempo
    de toque, não de conversa — não há `started_at` para resetar nesse caso.
+   >
+   > **Métrica de descarte (fix GAP-RE-03, 2026-08-21):** quando `tenant_id` está ausente no
+   > CHANNEL_ANSWER, `call_dropped_no_tenant_total` (Prometheus) incrementa e um
+   > `logger.warning` dispara — mas **somente quando `Call-Direction == "inbound"`**. Sem esse
+   > filtro, a perna B de toda chamada bridgeada (que nunca tem `tenant_id`, por design — ver
+   > nota de GAP-ESL-08 abaixo) contaria como "descarte", inflando a métrica em 100% das
+   > chamadas bridgeadas. `Call-Direction` agora sustenta duas lógicas distintas neste mesmo
+   > handler: o guard de `_start_audio_capture` (dentro de `if tenant_id:`, evita captura dupla
+   > por chamada — GAP-ESL-08) e este filtro de métrica. Os dois dependem da mesma premissa —
+   > perna B nunca tem `tenant_id` — verificada com evento real do FreeSWITCH para o caminho de
+   > tronco (`zenith_audio_fork`). 🟡 **Não verificado com evento real** para `local_extension`
+   > (ramal↔ramal, `^1\d{3}$`): por semântica de plataforma do FreeSWITCH, `Call-Direction` é
+   > propriedade do canal (inbound = recebeu o INVITE original) e não depende de qual extensão
+   > do dialplan casa depois — deveria valer igual, mas não foi capturado ao vivo como o caminho
+   > de tronco foi.
 5. `zenith:sip:ip_to_extension:{ip}` e `zenith:sip:extension_to_ip:{ext}` criados com TTL 3600s — `src/telephony/esl_client.py:179-184`
 6. Código `*88` detectado → cria sessão "awaiting_linkage" — `src/telephony/esl_client.py:136-137`
 7. Whisper mode: `whisper_to_agent()` envia TTS para canal do agente — `src/telephony/whisper_mode.py:15-30`
@@ -283,7 +298,7 @@ não pode derrubar o atendimento. Detalhe completo em
 | GAP-ESL-01 | 🟡 | ESL Client não tem heartbeat explícito — reconexão só detectada após falha de comando |
 | GAP-ESL-02 | 🔴 | FreeSWITCH em `network_mode: host` — sem isolamento de rede Docker |
 | GAP-ESL-03 | ✅ | ~~CHANNEL_HANGUP não tem handler explícito~~ — resolvido (2026-07-12, feature `010`): `_handle_channel_hangup` finaliza a linha `Call` (`finalize_call_record`), agrupa os `AudioChunk` do buffer por canal e enfileira `upload_recording_batch`. Confirmado na re-extração de 2026-07-27 |
-| GAP-RE-03 | 🔴 | Chamada sem `tenant_id` populado não gera linha `Call` nenhuma (guard `if tenant_id:`), sem métrica nem log de contagem do descarte — perda silenciosa |
+| GAP-RE-03 | 🟡 | Chamada sem `tenant_id` populado não gera linha `Call` nenhuma (guard `if tenant_id:`) — causa-raiz segue aberta. **Mitigado em 2026-08-21**: a parte "sem métrica nem log" foi fechada — `call_dropped_no_tenant_total` (Prometheus) incrementa e um `logger.warning` dispara em `_handle_channel_answer` quando a perna A (`Call-Direction == "inbound"`) chega sem `tenant_id`. Filtrado por direção para não contar a perna B (que nunca tem `tenant_id`, por design — GAP-ESL-08) como falso positivo. |
 | GAP-RE-01 | 🔴 | Só `INSTANCE_ID == 1` consome o event stream; se `fastapi-1` cair, nenhuma chamada é gravada e `fastapi-2` segue "saudável" |
 | GAP-PROV-01 | ✅ | `mod_xml_curl` implementado para ATATrunk + diretório legado; `SIPExtension` não integra o modelo atual |
 | GAP-PROV-02 | ✅ | Estratégia de importação em lote definida (2026-06-26): `scripts/import_extensions.py` lê CSV exportado do VitalPBX, gera `directory/extensions.xml` + `sip_profiles/upstream/*.xml`. Dedup: pjsip > sip. Credenciais nunca commitadas (gitignored). |
