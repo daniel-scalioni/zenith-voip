@@ -24,12 +24,12 @@ def test_canonical_compose_preserves_promoted_postgres_cutover():
         if isinstance(value, str) and value.startswith("DATABASE_URL=")
     ]
 
-    # Assert
-    assert postgres["container_name"] == "zenith-postgres-candidate"
+    # Assert — nome canônico pós-ADR-012 (legado zenith-postgres removido, sem colisão possível)
+    assert postgres["container_name"] == "zenith-postgres"
     assert "ai-hub-net" in postgres["networks"]
-    assert "zenith_postgres_candidate_data:/var/lib/postgresql/data" in postgres["volumes"]
-    assert infra["volumes"]["zenith_postgres_candidate_data"] == {
-        "name": "zenith-postgres-candidate-data",
+    assert "zenith_postgres_data:/var/lib/postgresql/data" in postgres["volumes"]
+    assert infra["volumes"]["zenith_postgres_data"] == {
+        "name": "zenith-postgres-data",
         "external": True,
     }
     assert "POSTGRES_USER=zenith_candidate" in postgres["environment"]
