@@ -169,6 +169,81 @@ async def test_channel_answer_promotes_ringing_record_instead_of_creating(monkey
     create.assert_not_awaited()
 
 
+# --- CHANNEL_ANSWER conta/loga chamada perdida por falta de tenant_id (fix GAP-RE-03) ---
+
+
+@pytest.mark.asyncio
+async def test_channel_answer_increments_dropped_metric_for_inbound_leg_without_tenant(monkeypatch):
+    # Arrange: perna A (inbound) real, sem tenant_id — perda silenciosa que o GAP-RE-03
+    # reclamava não ter métrica nem log
+    client = esl_client.ESLClient()
+    from src.utils import telemetry
+
+    counter = Mock()
+    monkeypatch.setattr(telemetry.call_dropped_no_tenant_total, "inc", counter)
+    event = {
+        "Caller-Unique-ID": "call",
+        "Call-Direction": "inbound",
+        "Caller-Caller-ID-Number": "1001",
+        "Caller-Destination-Number": "1002",
+    }
+
+    # Act
+    await client._handle_channel_answer(event)
+
+    # Assert
+    counter.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_channel_answer_does_not_increment_dropped_metric_for_outbound_leg(monkeypatch):
+    # Arrange: regressão — a perna B de toda chamada bridgeada também não tem tenant_id
+    # no ANSWER (comportamento esperado, não um drop real); sem o filtro de direção, a
+    # métrica dispararia em 100% das chamadas bridgeadas, virando ruído inútil
+    client = esl_client.ESLClient()
+    from src.utils import telemetry
+
+    counter = Mock()
+    monkeypatch.setattr(telemetry.call_dropped_no_tenant_total, "inc", counter)
+    event = {
+        "Caller-Unique-ID": "b-leg-call",
+        "Call-Direction": "outbound",
+        "Other-Leg-Unique-ID": "a-leg-call",
+        "Caller-Destination-Number": "3101001",
+    }
+
+    # Act
+    await client._handle_channel_answer(event)
+
+    # Assert
+    counter.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_channel_answer_does_not_increment_dropped_metric_when_tenant_present(monkeypatch):
+    # Arrange
+    client = esl_client.ESLClient()
+    monkeypatch.setattr(esl_client, "create_call_record", AsyncMock())
+    monkeypatch.setattr(esl_client, "mark_call_in_progress", AsyncMock(return_value=False))
+    monkeypatch.setattr(client, "_start_audio_capture", AsyncMock())
+    from src.utils import telemetry
+
+    counter = Mock()
+    monkeypatch.setattr(telemetry.call_dropped_no_tenant_total, "inc", counter)
+    event = {
+        "Caller-Unique-ID": "call",
+        "Call-Direction": "inbound",
+        "variable_zenith_tenant_id": "tenant",
+        "variable_zenith_pbx_id": "pbx",
+    }
+
+    # Act
+    await client._handle_channel_answer(event)
+
+    # Assert
+    counter.assert_not_called()
+
+
 # --- CHANNEL_CREATE cria a linha ringing (fix GAP-RE-02) ---
 
 

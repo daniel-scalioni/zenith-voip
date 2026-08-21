@@ -23,6 +23,12 @@ sip_mappings_active = Gauge(
     "Number of active SIP extension-to-IP mappings in Redis",
 )
 
+call_dropped_no_tenant_total = Counter(
+    "call_dropped_no_tenant_total",
+    "CHANNEL_ANSWER de perna a (Call-Direction=inbound) sem tenant_id resolvido -- "
+    "chamada real que aconteceu sem nenhuma linha Call gravada (GAP-RE-03)",
+)
+
 websocket_connections_active = Gauge(
     "websocket_connections_active",
     "Number of active WebSocket connections",

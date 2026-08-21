@@ -295,6 +295,17 @@ class ESLClient:
             except Exception:
                 logger.exception("create_call_record raised for call_id=%s", call_id)
             await self._start_audio_capture(call_id)
+        elif event.get("Call-Direction") == "inbound":
+            # Perna A real sem tenant_id resolvido: a chamada aconteceu e nenhuma linha Call
+            # foi/será gravada. Perna B (outbound) nunca tem tenant_id por design (GAP-ESL-08)
+            # — filtrar por Call-Direction evita que isso vire ruído em 100% das chamadas
+            # bridgeadas (fix GAP-RE-03: antes não havia métrica nem log desse descarte).
+            from src.utils.telemetry import call_dropped_no_tenant_total
+            call_dropped_no_tenant_total.inc()
+            logger.warning(
+                "Call dropped: no tenant_id at CHANNEL_ANSWER call_id=%s dest=%r",
+                call_id, event.get("Caller-Destination-Number", ""),
+            )
 
     async def _start_audio_capture(self, call_id: str):
         ws_url = f"ws://{settings.AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id}"
