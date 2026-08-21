@@ -15,8 +15,8 @@ spec:
   dependencies:
     - {component: config, layer: root}
     - {component: database, layer: database}
-  events_produced: [call:post]
-  updated_at: 2026-08-14
+  events_produced: []
+  updated_at: 2026-08-21
 ---
 
 # Workers — Background Jobs
@@ -72,9 +72,9 @@ uma otimização de deploy.
 | RF-04 | Remover gravações com `mtime` além do TTL, por tenant | Must | ✅ |
 | RF-05 | Rodar o cleanup a cada 15 min, não uma vez ao dia | Must | ✅ |
 | RF-06 | Expor `enqueue_recording_upload()` como produtor da fila | Must | ✅ |
-| RF-07 | Executar análise de sentimento pós-chamada | Should | 🔴 stub |
-| RF-08 | Executar auditoria pós-chamada | Should | 🔴 stub |
-| RF-09 | Persistir transcrições em lote no PostgreSQL | Must | ✅ |
+| RF-07 | ~~Executar análise de sentimento pós-chamada~~ | Should | 🗑️ removido (2026-08-21, GAP-02) — stub sem worker registrado nem produtor de job |
+| RF-08 | ~~Executar auditoria pós-chamada~~ | Should | 🗑️ removido (2026-08-21, GAP-02) — idem |
+| RF-09 | Persistir transcrições em lote no PostgreSQL | Must | ✅ `transcript_batch.py` (feature 013) — a rastreabilidade abaixo apontava por engano para `transcript_persist.py`, código morto desde o commit inicial e removido em 2026-08-21 (GAP-04) |
 | RF-10 | Isolar uploader, cleanup e SMB sync em filas ARQ exclusivas; produtores devem publicar explicitamente na fila do consumidor | Must | 🟡 especificado, implementação pendente |
 
 ## Requisitos Não-Funcionais
@@ -104,14 +104,12 @@ uma otimização de deploy.
 | `src/workers/audio_uploader.py` | `enqueue_recording_upload()` | 🟢 |
 | `src/workers/audio_cleanup.py` | `run_cleanup()`, `cleanup_tenant_bucket()` | 🟢 |
 | `src/workers/smb_sync.py` | `run_smb_sync()` | 🟢 testes focados; isolamento de fila pendente |
-| `src/workers/post_call.py` | `analyze_sentiment()`, `audit_procedure()` | 🔴 stubs |
-| `src/workers/transcript_persist.py` | batch persist | 🟢 |
+| `src/workers/transcript_batch.py` | `run_transcript_cycle()`, `process_call()` | 🟢 `src/workers/test_transcript_batch.py` |
 
 ## Lacunas
 
 | ID | Descrição |
 |---|---|
-| GAP-02 | `analyze_sentiment()` e `audit_procedure()` continuam stubs |
 | GAP-RE-04 | tmpfs de 512 MB sem backpressure nem política de descarte |
 | GAP-RE-08 | Métricas Prometheus de S3 medem subsistema inexistente |
 | GAP-ARQ-01 | Uploader, cleanup e SMB compartilham `arq:queue`; em chamada real, outro worker consumiu `upload_recording_batch` e retornou `function not found`. Filas exclusivas especificadas, implementação pendente |
