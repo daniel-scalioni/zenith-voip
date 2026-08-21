@@ -22,3 +22,10 @@ lease; o nome final só aparece depois de sucesso.
 
 O worker usa exclusivamente `zenith:audio-upload`. O produtor publica job idempotente
 `recording-upload:<tenant_id>:<call_id>`.
+
+> ✅ **GAP-RE-04 fechado (feature `014-captura-wav-16k`):** o gap original descrevia
+> `upload_audio_chunk` retornando `failed` por chamada quando o tmpfs de 512 MB enchia, sem
+> alarme agregado nem política de descarte. Essa arquitetura foi substituída pelo lease-based
+> acima; a proteção de capacidade agora é `src/audio/capacity.py::RecordingCapacityGuard`
+> (admissão com histerese 20/30%, projeta reservas + processamento pendente + headroom) com
+> `record_recording_refused()`/`recording_degraded_mode` no Prometheus. Ver `workers/design.md`.
