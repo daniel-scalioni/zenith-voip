@@ -1,0 +1,30 @@
+---
+spec:
+  component: recording-lifecycle
+  layer: audio
+  status: active
+  version: 1.3.0
+  language: python
+  patterns: []
+  inputs: [{name: stage, type: string, from: audio-workers}]
+  outputs: [{name: lease, type: JSON file, to: recording-directory}]
+  dependencies: []
+  events_produced: []
+  updated_at: 2026-08-18
+---
+
+# Lifecycle de Gravação
+
+- Aceitar somente leases `.capture-processing`, `.conversion-processing`, `.smb-processing` e
+  `.transcription-processing`.
+- Escrever JSON versionado atomicamente com owner UUID, call id, stage e expiração UTC.
+- Renovar somente pelo owner; validade padrão 120 s e heartbeat padrão 30 s.
+- Lease ausente, expirado ou corrompido não protege; release é idempotente e owner-safe.
+- Impedir leases válidos simultâneos de owners diferentes, mesmo quando pertencem a estágios
+  distintos. Uma única operação pode encadear estágios com o mesmo owner, como SMB e conversão.
+- Serializar por diretório, com lock advisory de filesystem, mutações de lease e decisões do
+  cleanup que observam, candidatam ou excluem arquivos. O lock é controle, não lease, e nunca é
+  removido por TTL.
+- Todo arquivo com `.tmp` é parcial e jamais pode ser promovido por cleanup.
+- Consumidores que comprovem a saída persistida no banco e no destino remoto devem reparar seu
+  marcador `.consumed-<consumer>` sob `locked_call_directory`, sem repetir o processamento.

@@ -3,8 +3,8 @@ spec:
   component: workers
   layer: workers
   status: active
-  version: 2.1.0
-  updated_at: 2026-07-29
+  version: 3.0.0
+  updated_at: 2026-08-14
 ---
 
 # Workers, Tarefas de Implementação
@@ -45,6 +45,12 @@ spec:
 - [~] ~~T-02 v1, Implementar worker de upload S3~~
 
 ## Tarefas pendentes
+
+- [ ] T-014, Migrar pipeline para WAV PCM16 16 kHz
+  - escrita incremental `.tmp.raw`, leases, conversão atômica e payload por paths
+  - confirmação de consumidores, cleanup em duas rodadas e temporário remoto SMB
+  - tmpfs de 2 GiB, admissão para 30×5 min, headroom e histerese 20/30
+  - gates locais, advisor independente, rollout coordenado e chamada real
 
 - [ ] T-06, Implementar worker pós-chamada
   - Origem: `src/workers/post_call.py:7-12`

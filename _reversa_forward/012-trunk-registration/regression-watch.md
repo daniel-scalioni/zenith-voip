@@ -1,7 +1,7 @@
 # Regression Watch: Registro de troncos ATA
 
 > Feature: `012-trunk-registration`
-> Execução: fechada, 60 de 60 ações concluídas (Fase 6 — correção RN-11/RF-13/D-15 acrescentada e fechada em 2026-08-12)
+> Execução: fechada, 70 de 70 ações concluídas (Fase 7 — W002/W004/W006/W007 corrigidos em 2026-08-18)
 
 ## Watch principal
 
@@ -42,6 +42,31 @@ Resumo curto por categoria — evidência completa e procedimentos em `legacy-im
 - **Rollback:** ensaiado de verdade em 2026-08-06, encontrou e corrigiu um defeito no próprio procedimento (reverter só `auth-calls`, nunca o arquivo inteiro — W005). Tabelas aditivas nunca sofrem downgrade no rollback operacional.
 
 ## Histórico de re-extrações
+
+### Re-extração 2026-08-17 15:25
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W001 | 🟢 verde | Healthcheck exige simultaneamente `mod_audio_stream` e `mod_xml_curl`. |
+| W002 | 🔴 vermelho | Compose canônico ainda liga `zenith-postgres` à `ai-hub-net`, enquanto o compose candidato usa rede isolada e não declara o alias `postgres`; um `up` não preserva o cutover descrito pelo item. |
+| W003 | 🟢 verde | `internal.xml` mantém `auth-calls=false`; 7060 é o único profile ATA autenticado neste ciclo. |
+| W004 | 🔴 vermelho | Reimportação com senha chama `update`, redefine `registration_status=unknown` e não limpa/reconcilia timestamps anteriores. |
+| W005 | 🟢 verde | `internal`, `internal-7060` e `internal-5062` usam `$${local_ip}` para SIP/RTP. |
+| W006 | 🔴 vermelho | Router continua sem `PATCH /trunks/{id}` e `PATCH /condominiums/{id}`, apesar dos services implementados. |
+| W007 | 🔴 vermelho | Views de create/list continuam usando `_trunk_view(item)` sem consultar `SCARD`; `active_calls=0` e `in_use=false` são defaults estáticos. |
+| W008 | 🟢 verde | Guarda `${zenith_tenant_id} == vazio` com `break=never` preserva contexto ATA e fallback legado. |
+
+### Revalidação corretiva 2026-08-18
+
+| ID | Veredito | Observação |
+|----|----------|------------|
+| W002 | 🟢 verde | Compose canônico promove `zenith-postgres-candidate`, adota o volume externo existente e exige `DATABASE_URL` privada em todos os cinco consumidores. Parsing/teste estático passou; aplicação runtime aguarda o próximo deploy por ausência de Docker neste ambiente. |
+| W004 | 🟢 verde | Reimportação com senha grava `unknown` e limpa ambos os timestamps na mesma chamada ao Repository; teste específico do caminho `upsert_imported` passou. |
+| W006 | 🟢 verde | Ambos os PATCHs existem, derivam tenant do JWT, revalidam condomínio e identidade legada e rejeitam payload vazio/nulo inválido. |
+| W007 | 🟢 verde | POST/PATCH/GET consultam `TrunkStateService`; lista concorrente preserva ordem e falha Redis degrada somente a view para zero, com log, sem converter mutação persistida em erro. |
+
+Revisão independente pós-correção: **GO**, sem CRITICAL/HIGH/MEDIUM; 92 testes focados e probes
+independentes aprovados. Gate canônico local: 401 passed, 29 skipped, cobertura 90,07%.
 
 Nenhuma.
 

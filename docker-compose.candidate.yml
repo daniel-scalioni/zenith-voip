@@ -3,13 +3,13 @@ name: zenith-candidate
 services:
   postgres-candidate:
     image: postgres:16-alpine
-    container_name: zenith-postgres-candidate
+    container_name: zenith-postgres-quality-candidate
     environment:
       POSTGRES_USER: zenith_candidate
       POSTGRES_PASSWORD: ${ZENITH_CANDIDATE_POSTGRES_PASSWORD:?defina ZENITH_CANDIDATE_POSTGRES_PASSWORD}
       POSTGRES_DB: zenith_candidate
     volumes:
-      - zenith-postgres-candidate-data:/var/lib/postgresql/data
+      - zenith-postgres-quality-candidate-data:/var/lib/postgresql/data
     networks:
       - zenith-quality-candidate-net
     healthcheck:
@@ -20,10 +20,13 @@ services:
     restart: "no"
 
 volumes:
-  zenith-postgres-candidate-data:
-    name: zenith-postgres-candidate-data
+  zenith-postgres-quality-candidate-data:
+    name: zenith-postgres-quality-candidate-data
 
 networks:
   zenith-quality-candidate-net:
     name: zenith-quality-candidate-net
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.24.0.0/24

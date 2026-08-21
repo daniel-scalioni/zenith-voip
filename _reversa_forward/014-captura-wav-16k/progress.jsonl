@@ -1,0 +1,61 @@
+{"timestamp":"2026-08-14T00:00:01Z","action_id":"T001","status":"completed","summary":"Conjunto SDD de ingestão atualizado para streaming incremental e finalização idempotente."}
+{"timestamp":"2026-08-14T00:00:02Z","action_id":"T002","status":"completed","summary":"Conjunto SDD ESL atualizado para stereo 16000 e finalização delegada."}
+{"timestamp":"2026-08-14T00:00:03Z","action_id":"T003","status":"completed","summary":"Conjunto SDD do uploader atualizado para WAV e jobs por path."}
+{"timestamp":"2026-08-14T00:00:04Z","action_id":"T004","status":"completed","summary":"Conjunto SDD SMB completado para WAV, checksum e consumo."}
+{"timestamp":"2026-08-14T00:00:05Z","action_id":"T005","status":"completed","summary":"Conjunto SDD do cleanup atualizado para confirmação e duas rodadas."}
+{"timestamp":"2026-08-14T00:00:06Z","action_id":"T006","status":"completed","summary":"Conjunto SDD recording-consumers criado."}
+{"timestamp":"2026-08-14T00:00:07Z","action_id":"T007","status":"completed","summary":"SDD raiz de workers atualizado com capacidade, leases e tmpfs 2 GiB."}
+{"timestamp":"2026-08-14T00:00:41Z","action_id":"T041","status":"completed","summary":"Conjunto SDD recording-lifecycle criado."}
+{"timestamp":"2026-08-14T00:00:42Z","action_id":"T042","status":"completed","summary":"Contrato SMB e de temporários remotos atualizado."}
+{"timestamp":"2026-08-14T00:00:43Z","action_id":"T043","status":"completed","summary":"Conjunto SDD recording-capacity criado."}
+{"timestamp":"2026-08-14T01:00:08Z","action_id":"T008","status":"completed","summary":"Testes Red de ingestão incremental adicionados."}
+{"timestamp":"2026-08-14T01:00:09Z","action_id":"T009","status":"completed","summary":"Testes Red de finalização idempotente adicionados."}
+{"timestamp":"2026-08-14T01:00:10Z","action_id":"T010","status":"completed","summary":"Desconexão e chunk tardio cobertos."}
+{"timestamp":"2026-08-14T01:00:11Z","action_id":"T011","status":"completed","summary":"Teste ESL exige stereo 16000 e delegação do hangup."}
+{"timestamp":"2026-08-14T01:00:12Z","action_id":"T012","status":"completed","summary":"Conversão WAV atômica 16 kHz coberta em Red."}
+{"timestamp":"2026-08-14T01:00:13Z","action_id":"T013","status":"completed","summary":"Descoberta de raws e payload por paths cobertos."}
+{"timestamp":"2026-08-14T01:00:14Z","action_id":"T014","status":"completed","summary":"Resolução SMB do par WAV e legado incompleto coberta."}
+{"timestamp":"2026-08-14T01:00:15Z","action_id":"T015","status":"completed","summary":"WAV estéreo e nomes remotos cobertos."}
+{"timestamp":"2026-08-14T01:00:16Z","action_id":"T016","status":"completed","summary":"Confirmação SMB somente após checksum coberta."}
+{"timestamp":"2026-08-14T01:00:17Z","action_id":"T017","status":"completed","summary":"Marcadores de múltiplos consumidores cobertos."}
+{"timestamp":"2026-08-14T01:00:18Z","action_id":"T018","status":"completed","summary":"Cleanup por consumo e TTL coberto."}
+{"timestamp":"2026-08-14T01:00:19Z","action_id":"T019","status":"completed","summary":"Defaults operacionais de gravação cobertos."}
+{"timestamp":"2026-08-14T01:00:44Z","action_id":"T044","status":"completed","summary":"Lifecycle coberto para allowlist, owner, corrupção, renovação e release."}
+{"timestamp":"2026-08-14T01:00:45Z","action_id":"T045","status":"completed","summary":"Captura com lease, heartbeat, ENOSPC e metadata coberta."}
+{"timestamp":"2026-08-14T01:00:46Z","action_id":"T046","status":"completed","summary":"Capacidade, histerese, reserva restante e backlog cobertos."}
+{"timestamp":"2026-08-14T01:00:47Z","action_id":"T047","status":"completed","summary":"Duplicata, job id, payload antigo e perda de lease cobertos."}
+{"timestamp":"2026-08-14T01:00:48Z","action_id":"T048","status":"completed","summary":"Cleanup em duas rodadas e concorrência cobertos."}
+{"timestamp":"2026-08-14T01:00:49Z","action_id":"T049","status":"completed","summary":"Temporário SMB remoto em duas observações coberto."}
+{"timestamp":"2026-08-14T01:00:50Z","action_id":"T050","status":"completed","summary":"Telemetria de capacidade, cleanup e leases coberta."}
+{"timestamp":"2026-08-14T02:00:20Z","action_id":"T020","status":"completed","summary":"Buffers substituídos por escrita incremental em handles."}
+{"timestamp":"2026-08-14T02:00:21Z","action_id":"T021","status":"completed","summary":"Finalização concorrente idempotente implementada."}
+{"timestamp":"2026-08-14T02:00:22Z","action_id":"T022","status":"completed","summary":"ESL atualizado para stereo 16000 e finalização delegada."}
+{"timestamp":"2026-08-14T02:00:23Z","action_id":"T023","status":"completed","summary":"Conversão PCM16 WAV 16 kHz implementada."}
+{"timestamp":"2026-08-14T02:00:24Z","action_id":"T024","status":"completed","summary":"Jobs por paths e id determinístico implementados."}
+{"timestamp":"2026-08-14T02:00:25Z","action_id":"T025","status":"completed","summary":"Settings de consumers, lease, cleanup e capacidade adicionadas."}
+{"timestamp":"2026-08-14T02:00:26Z","action_id":"T026","status":"completed","summary":"Marcadores atômicos de consumo implementados."}
+{"timestamp":"2026-08-14T02:00:27Z","action_id":"T027","status":"completed","summary":"Fallback SMB convertido para WAV com exclusão mútua."}
+{"timestamp":"2026-08-14T02:00:28Z","action_id":"T028","status":"completed","summary":"Mixagem e log SMB migrados para WAV."}
+{"timestamp":"2026-08-14T02:00:29Z","action_id":"T029","status":"completed","summary":"Consumo SMB confirmado após checksum."}
+{"timestamp":"2026-08-14T02:00:30Z","action_id":"T030","status":"completed","summary":"Cleanup de finais por consumidores implementado."}
+{"timestamp":"2026-08-14T02:00:31Z","action_id":"T031","status":"completed","summary":"Instrumentação de gravação e cleanup implementada."}
+{"timestamp":"2026-08-14T02:00:51Z","action_id":"T051","status":"completed","summary":"Lifecycle com leases exclusivos e JSON validado implementado."}
+{"timestamp":"2026-08-14T02:00:52Z","action_id":"T052","status":"completed","summary":"Capacity guard com backlog raw-WAV e histerese implementado."}
+{"timestamp":"2026-08-14T02:00:53Z","action_id":"T053","status":"completed","summary":"Lifecycle e capacidade integrados ao ingestor."}
+{"timestamp":"2026-08-14T02:00:54Z","action_id":"T054","status":"completed","summary":"Lease e idempotência integrados ao uploader."}
+{"timestamp":"2026-08-14T02:00:55Z","action_id":"T055","status":"completed","summary":"Candidatos de cleanup em duas rodadas implementados."}
+{"timestamp":"2026-08-14T02:00:56Z","action_id":"T056","status":"completed","summary":"Coleta remota de WAV tmp em duas observações implementada."}
+{"timestamp":"2026-08-14T02:00:57Z","action_id":"T057","status":"completed","summary":"Métricas de capacidade, recusas, cleanup e leases implementadas."}
+{"timestamp":"2026-08-14T02:00:58Z","action_id":"T058","status":"completed","summary":"Compose atualizado para tmpfs 2 GiB e settings zenith-* relevantes."}
+{"timestamp":"2026-08-14T03:00:32Z","action_id":"T032","status":"completed","summary":"Testes focados aprovados."}
+{"timestamp":"2026-08-14T03:00:33Z","action_id":"T033","status":"completed","summary":"Gate principal final: 378 passed, 29 skipped."}
+{"timestamp":"2026-08-14T03:00:35Z","action_id":"T035","status":"completed","summary":"Cobertura final 89.43%, gate mínimo 80% aprovado."}
+{"timestamp":"2026-08-14T03:00:36Z","action_id":"T036","status":"completed","summary":"Advisor multi-LLM concluído; cinco correções incorporadas e GO local."}
+{"timestamp":"2026-08-14T03:00:59Z","action_id":"T059","status":"completed","summary":"Simulação de 30 reservas e backlog aprovada sem alocar 2 GiB reais."}
+{"ts":"2026-08-17T12:44:15Z","action":"T034","status":"done","files":["_reversa_forward/014-captura-wav-16k/data-delta.md","_reversa_forward/014-captura-wav-16k/actions.md"],"summary":"Alembic confirmado em 002_ata_trunks (head) antes e depois de upgrade head; nenhuma migration nova aplicada."}
+{"ts":"2026-08-17T12:45:53Z","action":"T037","status":"done","files":["_reversa_forward/014-captura-wav-16k/onboarding.md","_reversa_forward/014-captura-wav-16k/actions.md"],"summary":"Rollout coordenado zenith-* comprovado por hashes, horários, runtime e saúde; fila zerada, recordings vazio, tmpfs 2 GiB e referências de rollback registradas."}
+{"ts":"2026-08-17T13:08:30Z","action":"T038","status":"done","files":["_reversa_forward/014-captura-wav-16k/onboarding.md","_reversa_forward/014-captura-wav-16k/actions.md"],"summary":"Chamada real de 25,86 s comprovou lease ativo, crescimento incremental a 32.000 bytes/s por canal, rename atômico, WAV PCM16 mono 16 kHz, áudio distinto nos dois sentidos, fila drenada e memória estável."}
+{"ts":"2026-08-17T13:08:30Z","action":"T039","status":"failed","files":["_reversa_forward/014-captura-wav-16k/onboarding.md"],"summary":"SMB/checksum/consumo e cleanup antecipado passaram; temporário órfão em duas rodadas passou; lease reaparecido não cancelou candidatura antiga e o arquivo foi removido imediatamente após a liberação do lease."}
+{"ts":"2026-08-17T13:23:56Z","action":"T039","status":"corrected","files":["_reversa_sdd/audio/recording-lifecycle/requirements.md","_reversa_sdd/audio/recording-lifecycle/design.md","_reversa_sdd/audio/recording-lifecycle/tasks.md","_reversa_sdd/workers/audio-cleanup/requirements.md","_reversa_sdd/workers/audio-cleanup/design.md","src/audio/recording_lifecycle.py","src/workers/audio_cleanup.py","src/workers/test_audio_cleanup.py","_reversa_forward/014-captura-wav-16k/onboarding.md","_reversa_forward/014-captura-wav-16k/actions.md"],"summary":"Lock advisory por diretório eliminou TOCTOU entre lease e cleanup; marcador estrutural inválido foi tolerado; revisão independente deu GO; 383 testes passaram e T039 foi revalidada no cleanup e SMB reais."}
+{"ts":"2026-08-17T13:27:01Z","action":"T040","status":"done","files":["_reversa_forward/014-captura-wav-16k/onboarding.md","_reversa_forward/014-captura-wav-16k/actions.md"],"summary":"Runtime admitiu 30 reservas com 66,92% livre projetado; recusou nova gravação abaixo de 20%, manteve ativas/SIP/filas, recusou a 25%, retomou acima de 30% e restaurou tmpfs a 0%."}
+{"ts":"2026-08-17T13:43:59Z","action":"T060","status":"done","files":["_reversa_sdd/audio/recording-lifecycle/requirements.md","_reversa_sdd/audio/recording-lifecycle/design.md","_reversa_sdd/audio/recording-lifecycle/tasks.md","_reversa_sdd/workers/smb-backup/requirements.md","_reversa_sdd/workers/smb-backup/design.md","_reversa_sdd/workers/smb-backup/tasks.md","src/audio/recording_lifecycle.py","src/audio/test_recording_lifecycle.py","src/workers/smb_sync.py","src/workers/test_smb_sync.py","_reversa_forward/014-captura-wav-16k/onboarding.md","_reversa_forward/014-captura-wav-16k/actions.md","_reversa_forward/014-captura-wav-16k/legacy-impact.md"],"summary":"Exclusão cross-stage eliminou a corrida SMB/lease; revisão independente deu GO; deploy limitado a cinco serviços zenith-* passou com TTL, MP3 legado e chamada ativa invisíveis ao log; gate final 386 passed/29 skipped e 89,86% de cobertura."}

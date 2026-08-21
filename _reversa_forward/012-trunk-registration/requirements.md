@@ -65,6 +65,14 @@ O escopo e as decisões funcionais abaixo foram aprovados pelo usuário em 2026-
 11. **RN-11 (emenda 2026-08-12):** O dialplan aplicará o fallback `zenith_tenant_id=$${tenant_id}`/`zenith_pbx_id=$${pbx_id}` somente quando o canal ainda não tiver essas variáveis definidas; identidade injetada pelo diretório dinâmico para um tronco nunca é sobrescrita pelo fallback global. 🟢
     - Origem no legado: `_reversa_sdd/domain.md#R46` (linha `Call` depende de `tenant_id` populado no evento) e `roadmap.md#D-10/D-11` desta própria feature — D-11 já previa "alterar apenas a origem das variáveis de contexto", preservando o resultado para todo o dialplan, não só para tronco.
     - Tipo: alterada. **Motivo da emenda:** T037 implementou a remoção da atribuição antiga (`zenith_tenant_id=$${tenant_id}`) do dialplan compartilhado sem prover substituto para identidades não resolvidas como tronco (ramal legado). Isso interrompeu, sem erro visível, a criação de `Call` para toda chamada de ramal comum desde 2026-08-05 — o caso de uso central do produto, validado pelas features 001-011. RN-11 restaura o comportamento com a condição de guarda que D-11 já pressupunha mas T019/T037 nunca testaram nem implementaram para esse caminho.
+12. **RN-12 (correção 2026-08-18):** O Compose canônico deve declarar como serviço `postgres` o banco promovido que detém o alias de rede `postgres`, preservando o volume `zenith-postgres-candidate-data` e exigindo a credencial por variável privada. 🟢
+    - Tipo: alterada. **Motivo:** o cutover operacional promoveu `zenith-postgres-candidate`, mas `docker-compose.infra.yml` ainda recriava o banco antigo.
+13. **RN-13 (correção 2026-08-18):** Quando mudança de identidade ou senha invalida o registro para `unknown`, `last_registered_at` e `last_unregistered_at` devem ser limpos na mesma atualização. 🟢
+    - Tipo: alterada. Timestamps antigos não podem parecer evidência contemporânea de um estado desconhecido.
+14. **RN-14 (correção 2026-08-18):** A API deve expor `PATCH /condominiums/{id}` e `PATCH /trunks/{id}`, sempre com tenant derivado do JWT, campos alteráveis limitados ao contrato e rejeição de valores nulos/vazios para campos não anuláveis. Ao mover um tronco, o novo condomínio deve pertencer ao mesmo tenant e PBX; ao mudar profile/username, a identidade deve continuar ausente tanto no registry quanto no diretório legado. 🟢
+    - Tipo: nova.
+15. **RN-15 (correção 2026-08-18):** `active_calls` deve ser lido do conjunto Redis por tronco em todas as respostas de criação, alteração e listagem; `in_use` continua estritamente derivado de `active_calls > 0`. Indisponibilidade do Redis após uma mutação já persistida não pode transformar sucesso em erro: a view degrada para zero e registra a falha original, sem repetir a escrita. 🟢
+    - Tipo: alterada.
 
 ## 5. Requisitos Funcionais
 
@@ -83,6 +91,10 @@ O escopo e as decisões funcionais abaixo foram aprovados pelo usuário em 2026-
 | RF-11 | Reconciliar o estado operacional após inicialização ou reconexão do consumidor ESL. | Must | Após reconexão, o estado persistido converge com os registros e chamadas observáveis no FreeSWITCH sem exigir novo registro do ATA. | 🟡 |
 | RF-12 | Registrar o último erro operacional de forma sanitizada. | Should | Falhas de autenticação, profile ou transporte são distinguíveis para operação sem expor usuário completo, senha ou material de autenticação. | 🟢 |
 | RF-13 (emenda 2026-08-12) | O dialplan deve setar `zenith_tenant_id`/`zenith_pbx_id` a partir dos globais apenas quando o canal ainda não tiver essas variáveis definidas por outra fonte. | Must | Ramal legado sem injeção de diretório recebe o fallback global e volta a gerar linha `Call`; tronco com identidade já injetada pelo diretório preserva seu `tenant_id`/`pbx_id` real, nunca `akom`. | 🟢 |
+| RF-14 (correção 2026-08-18) | Preservar declarativamente o PostgreSQL promovido no Compose canônico. | Must | `docker compose up` usa `zenith-postgres-candidate`, o volume promovido e o alias `postgres`, sem reconectar o banco legado. | 🟢 |
+| RF-15 (correção 2026-08-18) | Manter estado e timestamps operacionais coerentes após reimportação ou edição de identidade. | Must | `registration_status=unknown` é persistido junto com ambos os timestamps de registro nulos. | 🟢 |
+| RF-16 (correção 2026-08-18) | Permitir alteração parcial tenant-scoped de condomínios e troncos. | Must | Os dois PATCHs delegam aos services, rejeitam recurso de outro tenant com 404 e nunca retornam segredo. | 🟢 |
+| RF-17 (correção 2026-08-18) | Expor uso real do tronco nas views administrativas. | Must | POST, PATCH e GET consultam `SCARD`; `active_calls` e `in_use` refletem o Redis. | 🟢 |
 
 ## 6. Requisitos Não Funcionais
 

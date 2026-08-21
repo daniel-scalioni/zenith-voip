@@ -1,8 +1,8 @@
 # Legacy Impact: Registro de troncos ATA
 
-> Data: `2026-08-03` (tabela de arquivos afetados e diff conceitual), atualizado em `2026-08-10` (fechamento), `2026-08-12` (correção pós-fechamento, Fase 6)
+> Data: `2026-08-03` (tabela de arquivos afetados e diff conceitual), atualizado em `2026-08-10` (fechamento), `2026-08-12` (Fase 6) e `2026-08-18` (Fase 7)
 > Feature: `012-trunk-registration`
-> Execução: fechada — 60 de 60 ações concluídas (T004/T005/T042/T043/T044/T046 exigiam evidência de ambiente e todas foram cumpridas com evidência real, não por inferência, exceto a cláusula de chamadas simultâneas/eventos duplicados do T046, coberta pela suíte automatizada por decisão do usuário, não por E2E real — ver `regression-watch.md`; demais evidências em `progress.jsonl`)
+> Execução: fechada — 70 de 70 ações concluídas (evidências e ressalvas em `progress.jsonl` e `regression-watch.md`)
 > Âncora: `_reversa_sdd/architecture.md` + `_reversa_sdd/domain.md`
 
 ## Arquivos afetados
@@ -23,6 +23,9 @@
 | `_reversa_sdd/{api,database,telephony}/**`, `_reversa_forward/012-trunk-registration/**` | specs | regra-nova | LOW | Mantém contrato SDD e evidências sanitizadas antes do código e do rollout. |
 | `freeswitch/conf/dialplan/default.xml` (Fase 6, 2026-08-12) | telephony | regra-corrigida | CRITICAL | A T037 (2026-08-05) removeu `zenith_tenant_id`/`zenith_pbx_id` do dialplan sem substituto para ramal legado — toda chamada de ramal comum parou de gerar `Call` em produção. Corrigido com guarda condicional (`break="never"`) que preserva a identidade injetada pelo diretório para tronco e restaura o fallback global só quando ausente. |
 | `tests/test_trunk_dialplan.py`, `src/telephony/test_esl_client.py` (Fase 6) | tests | regra-nova | MEDIUM | Cobrem os dois cenários (fallback para ramal legado, preservação para tronco) que o Red original (T019) nunca provou. |
+| `docker-compose.infra.yml`, `docker-compose.app.yml`, `.env*.example` (Fase 7) | infra | regra-corrigida | HIGH | Torna o PostgreSQL promovido declarativo, preserva volume/DNS e separa senha raw da URL privada codificada. |
+| `src/services/trunks.py`, `src/api/routers/trunks.py` (Fase 7) | services/api | regra-corrigida | HIGH | Fecha PATCHs, isolamento cross-tenant/PBX, colisão legado, timestamps e leitura real/resiliente de uso. |
+| `tests/test_postgres_cutover_compose.py`, testes de services/router (Fase 7) | tests | regra-nova | MEDIUM | Provam os quatro watches e bordas adicionadas após o primeiro NO-GO independente. |
 
 ## Diff conceitual por componente
 
@@ -34,6 +37,10 @@ O schema público passa a registrar condomínios e troncos ATA com escopo por te
 
 A API ganha contratos administrativos tenant-scoped e um callback interno de diretório. O spike T042 confirmou `sip_profile`, `sip_auth_username` e `key_value` como envelope real; aliases têm precedência explícita e o domínio nunca é usado como username.
 
+Na Fase 7, os PATCHs documentados tornaram-se alcançáveis com revalidação tenant/PBX e de
+identidade legado. As views consultam uso real no Redis; falha dessa leitura não desfaz nem mascara
+como erro uma mutação já persistida.
+
 ### Telephony
 
 `mod_xml_curl` torna-se autoridade exclusiva do diretório nos profiles-alvo. Evidência real exigiu `method=POST` em maiúsculas. Eventos CUSTOM de registro e expiração foram capturados; `sofia::expire` usa `user`/`username`. Profile 5062, dígitos e bridge upstream permanecem protegidos.
@@ -41,6 +48,9 @@ A API ganha contratos administrativos tenant-scoped e um callback interno de dir
 ### Infra e segurança
 
 O XML com HTTP Basic é gerado fora do Git, modo 0600, e o endpoint é bloqueado no proxy público. Todos os recursos usados no rehearsal têm prefixo `zenith-`; o `zenith-freeswitch` operacional não foi modificado.
+
+O serviço canônico `postgres` agora aponta declarativamente ao container/volume promovidos. A
+senha do container e a `DATABASE_URL` URL-encoded são segredos separados, sem default versionado.
 
 ## Preservadas
 

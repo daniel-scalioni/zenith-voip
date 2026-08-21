@@ -471,6 +471,126 @@ async def test_update_trunk_encrypts_and_marks_identity_changed_on_valid_passwor
 
 
 @pytest.mark.asyncio
+async def test_update_trunk_clears_registration_timestamps_when_identity_becomes_unknown():
+    # Arrange
+    from datetime import datetime, timezone
+
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    repositories[0].get.return_value = SimpleNamespace(
+        id="trunk-1", tenant_id="tenant-a", pbx_id="pbx-1",
+        condominium_id="condo-1", encrypted_password="existing-token",
+        auth_username="ata-1140", sip_profile="internal",
+        last_registered_at=datetime.now(timezone.utc),
+        last_unregistered_at=datetime.now(timezone.utc),
+    )
+    cipher = AsyncMock()
+    cipher.encrypt.return_value = "new-encrypted-token"
+    service = TrunkService(*repositories, credential_cipher=cipher, legacy_provider=AsyncMock())
+
+    # Act
+    await service.update("tenant-a", "trunk-1", password="new-secret")
+
+    # Assert
+    update_kwargs = repositories[0].update.await_args.kwargs
+    assert update_kwargs["registration_status"] == "unknown"
+    assert update_kwargs["last_registered_at"] is None
+    assert update_kwargs["last_unregistered_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_trunk_rejects_condominium_from_another_tenant():
+    # Arrange
+    TrunkService, ScopeValidationError, _ = _service()
+    repositories = _repositories()
+    repositories[0].get.return_value = SimpleNamespace(
+        id="trunk-1", tenant_id="tenant-a", pbx_id="pbx-1",
+        condominium_id="condo-1", encrypted_password="existing-token",
+        auth_username="ata-1140", sip_profile="internal",
+    )
+    repositories[2].get.return_value = SimpleNamespace(id="pbx-1", tenant_id="tenant-a")
+    repositories[1].get.return_value = SimpleNamespace(
+        id="condo-foreign", tenant_id="tenant-b", pbx_id="pbx-1"
+    )
+    service = TrunkService(
+        *repositories, credential_cipher=AsyncMock(), legacy_provider=AsyncMock()
+    )
+
+    # Act
+    with pytest.raises(ScopeValidationError, match="condominium_not_found"):
+        await service.update("tenant-a", "trunk-1", condominium_id="condo-foreign")
+
+    # Assert
+    repositories[0].update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_trunk_rejects_identity_from_legacy_directory():
+    # Arrange
+    TrunkService, _, DuplicateIdentityError = _service()
+    repositories = _repositories()
+    repositories[0].get.return_value = SimpleNamespace(
+        id="trunk-1", tenant_id="tenant-a", pbx_id="pbx-1",
+        condominium_id="condo-1", encrypted_password="existing-token",
+        auth_username="ata-1140", sip_profile="internal",
+    )
+    repositories[0].find_by.return_value = []
+    legacy_provider = AsyncMock()
+    legacy_provider.contains.return_value = True
+    service = TrunkService(
+        *repositories, credential_cipher=AsyncMock(), legacy_provider=legacy_provider
+    )
+
+    # Act
+    with pytest.raises(DuplicateIdentityError, match="duplicate_auth_identity"):
+        await service.update("tenant-a", "trunk-1", auth_username="legacy-1001")
+
+    # Assert
+    legacy_provider.contains.assert_awaited_once_with("internal", "legacy-1001")
+    repositories[0].update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reimport_existing_trunk_clears_stale_registration_timestamps():
+    # Arrange
+    from datetime import datetime, timezone
+
+    from src.services.trunk_import import TrunkCSVRow
+
+    TrunkService, _, _ = _service()
+    repositories = _repositories()
+    existing = SimpleNamespace(
+        id="trunk-1", tenant_id="tenant-a", pbx_id="pbx-1",
+        condominium_id="condo-1", encrypted_password="existing-token",
+        auth_username="ata-1140", sip_profile="internal-7060", prefix="1140",
+        last_registered_at=datetime.now(timezone.utc),
+        last_unregistered_at=datetime.now(timezone.utc),
+    )
+    repositories[0].find_by.return_value = [existing]
+    repositories[0].get.return_value = existing
+    cipher = AsyncMock()
+    cipher.encrypt.return_value = "new-encrypted-token"
+    service = TrunkService(
+        *repositories, credential_cipher=cipher, legacy_provider=AsyncMock()
+    )
+    row = TrunkCSVRow(
+        line=1, prefix="1140", condominium_name="Condomínio",
+        auth_username="ata-1140", password="new-secret",
+        sip_profile="internal-7060", condominium_id="condo-1",
+    )
+
+    # Act
+    result = await service.upsert_imported(tenant_id="tenant-a", pbx_id="pbx-1", row=row)
+
+    # Assert
+    assert result == "updated"
+    update_kwargs = repositories[0].update.await_args.kwargs
+    assert update_kwargs["registration_status"] == "unknown"
+    assert update_kwargs["last_registered_at"] is None
+    assert update_kwargs["last_unregistered_at"] is None
+
+
+@pytest.mark.asyncio
 async def test_create_trunk_rejects_global_identity_owned_by_another_tenant_opaquely():
     # Arrange
     TrunkService, _, DuplicateIdentityError = _service()

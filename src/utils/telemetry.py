@@ -23,6 +23,12 @@ sip_mappings_active = Gauge(
     "Number of active SIP extension-to-IP mappings in Redis",
 )
 
+call_dropped_no_tenant_total = Counter(
+    "call_dropped_no_tenant_total",
+    "CHANNEL_ANSWER de perna a (Call-Direction=inbound) sem tenant_id resolvido -- "
+    "chamada real que aconteceu sem nenhuma linha Call gravada (GAP-RE-03)",
+)
+
 websocket_connections_active = Gauge(
     "websocket_connections_active",
     "Number of active WebSocket connections",
@@ -140,6 +146,49 @@ smb_conversion_pending = Gauge(
     "Number of calls waiting for audio conversion",
 )
 
+recording_storage_used_bytes = Gauge(
+    "recording_storage_used_bytes", "Bytes currently used in recording tmpfs"
+)
+recording_storage_total_bytes = Gauge(
+    "recording_storage_total_bytes", "Total bytes available in recording tmpfs"
+)
+recording_reserved_bytes = Gauge(
+    "recording_reserved_bytes", "Remaining bytes reserved for active recordings"
+)
+recording_degraded_mode = Gauge(
+    "recording_degraded_mode", "Whether admission of new recordings is suspended"
+)
+recording_refused_total = Counter(
+    "recording_refused_total", "Recordings refused by capacity admission"
+)
+recording_temp_candidates_total = Counter(
+    "recording_temp_candidates_total", "Temporary files observed as cleanup candidates"
+)
+recording_temp_deleted_total = Counter(
+    "recording_temp_deleted_total", "Orphan temporary files deleted after revalidation"
+)
+recording_lease_failures_total = Counter(
+    "recording_lease_failures_total", "Recording lease acquisition or renewal failures", ["stage"]
+)
+transcript_success_total = Counter(
+    "transcript_success_total", "Total calls transcribed and published"
+)
+transcript_failed_total = Counter(
+    "transcript_failed_total", "Total transcript attempts that remain pending", ["reason"]
+)
+transcript_queue_size = Gauge(
+    "transcript_queue_size", "Number of call directories observed by transcript worker"
+)
+transcript_backlog_dropped_total = Counter(
+    "transcript_backlog_dropped_total",
+    "Calls whose expired transcript backlog was shed to preserve recording capacity",
+    ["tenant_id"],
+)
+transcript_latency_seconds = Histogram(
+    "transcript_latency_seconds", "Duration of transcript worker cycles",
+    buckets=[1, 5, 15, 30, 60, 120, 300, 900],
+)
+
 
 def record_cleanup_deleted(tenant_id: str, count: int, bytes_freed: int):
     audio_cleanup_files_deleted.labels(tenant_id=tenant_id).inc(count)
@@ -172,6 +221,46 @@ def set_smb_queue_size(count: int):
 
 def set_smb_conversion_pending(count: int):
     smb_conversion_pending.set(count)
+
+
+def set_recording_capacity(*, used_bytes: int, reserved_bytes: int, total_bytes: int, degraded: bool):
+    recording_storage_used_bytes.set(used_bytes)
+    recording_reserved_bytes.set(reserved_bytes)
+    recording_storage_total_bytes.set(total_bytes)
+    recording_degraded_mode.set(int(degraded))
+
+
+def record_recording_refused():
+    recording_refused_total.inc()
+
+
+def record_temporary_cleanup(*, candidates: int, deleted: int):
+    recording_temp_candidates_total.inc(candidates)
+    recording_temp_deleted_total.inc(deleted)
+
+
+def record_lease_failure(stage: str):
+    recording_lease_failures_total.labels(stage=stage).inc()
+
+
+def record_transcript_success():
+    transcript_success_total.inc()
+
+
+def record_transcript_failure(reason: str):
+    transcript_failed_total.labels(reason=reason).inc()
+
+
+def record_transcript_backlog_dropped(tenant_id: str):
+    transcript_backlog_dropped_total.labels(tenant_id=tenant_id).inc()
+
+
+def set_transcript_queue_size(count: int):
+    transcript_queue_size.set(count)
+
+
+def observe_transcript_latency(seconds: float):
+    transcript_latency_seconds.observe(seconds)
 
 
 async def metrics_endpoint():

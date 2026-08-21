@@ -17,6 +17,13 @@ from smb.SMBConnection import SMBConnection
 from smb.smb_structs import OperationFailure
 
 from src.config import settings
+from src.audio.recording_lifecycle import (
+    LeaseBusyError,
+    acquire_lease,
+    has_valid_lease as lifecycle_has_valid_lease,
+    release_lease,
+    renew_lease,
+)
 from src.database.database import get_tenant_db
 from src.database.models import Call
 from src.services.base import Repository
@@ -27,14 +34,15 @@ from src.utils.telemetry import (
     set_smb_conversion_pending,
     set_smb_queue_size,
 )
-from src.workers.audio_uploader import _convert_to_mp3
+from src.workers.audio_uploader import _convert_to_wav
+from src.workers.recording_consumers import mark_consumed
 
 logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 512 * 1024
 SMB_QUEUE_NAME = "zenith:smb-sync"
-LEASE_DURATION_SECONDS = 120
-LEASE_RENEWAL_SECONDS = 30
+LEASE_DURATION_SECONDS = settings.RECORDING_LEASE_TTL_SECONDS
+LEASE_RENEWAL_SECONDS = settings.RECORDING_LEASE_HEARTBEAT_SECONDS
 TRANSFER_TIMEOUT_SECONDS = 30
 TRANSFER_LOG_RETENTION_DAYS = 7
 RETRY_DELAYS_SECONDS = (1, 2, 4)
@@ -103,6 +111,7 @@ def build_remote_name(
     caller_number: str | None,
     callee_number: str | None,
     *,
+    extension: str = "wav",
     include_collision_suffix: bool = False,
 ) -> str:
     prefix = started_at.astimezone(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
@@ -114,7 +123,10 @@ def build_remote_name(
     ]
     if include_collision_suffix:
         parts.append(sanitize_segment(call_id[6:10]))
-    return "-".join(parts) + ".mp3"
+    safe_extension = re.sub(r"[^A-Za-z0-9]", "", extension).lower()
+    if not safe_extension:
+        raise ValueError("remote extension must not be empty")
+    return "-".join(parts) + f".{safe_extension}"
 
 
 def load_transfer_log(path: str | Path) -> dict:
@@ -180,45 +192,32 @@ def write_lease(
     *,
     now: datetime | None = None,
 ) -> Path:
-    current = now or _utc_now()
-    lease_path = Path(call_dir) / ".smb-processing"
-    tmp_path = lease_path.with_suffix(".tmp")
-    payload = {
-        "call_id": call_id,
-        "updated_at": current.isoformat(),
-        "expires_at": (current + timedelta(seconds=LEASE_DURATION_SECONDS)).isoformat(),
-    }
-    tmp_path.write_text(json.dumps(payload), encoding="utf-8")
-    os.replace(tmp_path, lease_path)
-    return lease_path
+    lease = acquire_lease(call_dir, "smb", call_id, now=now)
+    return Path(call_dir) / ".smb-processing"
 
 
 def has_valid_lease(call_dir: str | Path, *, now: datetime | None = None) -> bool:
-    lease_path = Path(call_dir) / ".smb-processing"
-    if not lease_path.exists():
-        return False
-    try:
-        payload = json.loads(lease_path.read_text(encoding="utf-8"))
-        expires_at = _parse_datetime(payload.get("expires_at"))
-        if expires_at is None:
-            raise ValueError("missing expires_at")
-        return expires_at > (now or _utc_now())
-    except (OSError, ValueError, json.JSONDecodeError, AttributeError) as exc:
-        logger.warning("Invalid SMB lease treated as expired: %s", type(exc).__name__)
-        return False
+    valid = lifecycle_has_valid_lease(call_dir, now=now)
+    if not valid and (Path(call_dir) / ".smb-processing").exists():
+        logger.warning("Invalid or expired SMB lease treated as inactive")
+    return valid
 
 
-async def _renew_lease(call_dir: Path, call_id: str) -> None:
+async def _renew_lease(call_dir: Path, call_id: str, owner: str | None = None) -> None:
     while True:
         await asyncio.sleep(LEASE_RENEWAL_SECONDS)
         try:
-            write_lease(call_dir, call_id)
+            if owner is None:
+                write_lease(call_dir, call_id)
+            elif not renew_lease(call_dir, "smb", owner):
+                raise OSError("lease owner changed")
         except OSError as exc:
             logger.warning(
                 "Failed to renew SMB lease call_id=%s error=%s",
                 call_id,
                 type(exc).__name__,
             )
+            raise
 
 
 class BandwidthLimiter:
@@ -329,6 +328,15 @@ class SMBBackupStrategy:
         )
         return hashlib.sha256(target.getvalue()).hexdigest()
 
+    async def list_names(self, remote_dir: str) -> set[str]:
+        connection = await asyncio.to_thread(self._connect)
+        try:
+            full_remote_dir = self._join_path(settings.SMB_PATH, remote_dir)
+            await asyncio.to_thread(self._ensure_directories, connection, full_remote_dir)
+            return await asyncio.to_thread(self._list_names, connection, full_remote_dir)
+        finally:
+            await asyncio.to_thread(connection.close)
+
     async def publish(
         self,
         local_path: Path,
@@ -398,6 +406,43 @@ class SMBBackupStrategy:
         finally:
             await asyncio.to_thread(connection.close)
 
+    async def cleanup_remote_temporaries(
+        self,
+        remote_dir: str,
+        expected_names: list[str],
+        candidates: dict,
+        *,
+        now: datetime | None = None,
+    ) -> dict:
+        current = now or _utc_now()
+        connection = await asyncio.to_thread(self._connect)
+        try:
+            full_remote_dir = self._join_path(settings.SMB_PATH, remote_dir)
+            await asyncio.to_thread(self._ensure_directories, connection, full_remote_dir)
+            names = await asyncio.to_thread(self._list_names, connection, full_remote_dir)
+            updated = {}
+            for name in expected_names:
+                temporary_name = name + ".tmp"
+                if temporary_name not in names:
+                    continue
+                first_seen = _parse_datetime(candidates.get(temporary_name))
+                if first_seen is None:
+                    updated[temporary_name] = current.isoformat()
+                    continue
+                if (current - first_seen).total_seconds() < settings.RECORDING_CLEANUP_ROUND_SECONDS:
+                    updated[temporary_name] = first_seen.isoformat()
+                    continue
+                await asyncio.to_thread(
+                    connection.deleteFiles,
+                    settings.SMB_SHARE,
+                    self._join_path(full_remote_dir, temporary_name),
+                    False,
+                    30,
+                )
+            return updated
+        finally:
+            await asyncio.to_thread(connection.close)
+
 
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -405,6 +450,15 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: source.read(CHUNK_SIZE), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _has_stable_mono_input(call_dir: str | Path) -> bool:
+    directory = Path(call_dir)
+    return all(
+        (directory / f"{channel}.wav").is_file()
+        or (directory / f"{channel}.raw").is_file()
+        for channel in ("tx", "rx")
+    )
 
 
 async def verify_remote_temporary_and_rename(
@@ -435,16 +489,37 @@ async def verify_remote_temporary_and_rename(
     await asyncio.to_thread(connection.rename, share, temporary_path, final_path, 30)
 
 
-async def ensure_mono_pair(call_dir: str | Path) -> tuple[Path, Path] | None:
+async def ensure_mono_pair(
+    call_dir: str | Path,
+    *,
+    lease_owner: str | None = None,
+) -> tuple[Path, Path] | None:
     directory = Path(call_dir)
-    for channel in ("tx", "rx"):
-        mp3_path = directory / f"{channel}.mp3"
-        raw_path = directory / f"{channel}.raw"
-        if not mp3_path.exists() and raw_path.exists():
-            await _convert_to_mp3(str(raw_path))
-            raw_path.unlink(missing_ok=True)
-    tx_path = directory / "tx.mp3"
-    rx_path = directory / "rx.mp3"
+    needs_conversion = any(
+        not (directory / f"{channel}.wav").exists()
+        and (directory / f"{channel}.raw").exists()
+        for channel in ("tx", "rx")
+    )
+    if needs_conversion:
+        try:
+            lease = acquire_lease(
+                directory,
+                "conversion",
+                directory.name,
+                owner=lease_owner,
+            )
+        except LeaseBusyError:
+            return None
+        try:
+            for channel in ("tx", "rx"):
+                wav_path = directory / f"{channel}.wav"
+                raw_path = directory / f"{channel}.raw"
+                if not wav_path.exists() and raw_path.exists():
+                    await _convert_to_wav(str(raw_path))
+        finally:
+            release_lease(directory, "conversion", lease.owner)
+    tx_path = directory / "tx.wav"
+    rx_path = directory / "rx.wav"
     if not tx_path.exists() or not rx_path.exists():
         return None
     return tx_path, rx_path
@@ -455,8 +530,8 @@ async def generate_stereo(tx_path: str | Path, rx_path: str | Path) -> Path:
     rx = Path(rx_path)
     if not tx.exists() or not rx.exists():
         raise FileNotFoundError("both mono channels are required")
-    final_path = tx.parent / "stereo.mp3"
-    tmp_path = tx.parent / "stereo.tmp.mp3"
+    final_path = tx.parent / "stereo.wav"
+    tmp_path = tx.parent / "stereo.tmp.wav"
     process = await asyncio.create_subprocess_exec(
         "ffmpeg",
         "-y",
@@ -471,9 +546,9 @@ async def generate_stereo(tx_path: str | Path, rx_path: str | Path) -> Path:
         "-ac",
         "2",
         "-ar",
-        "8000",
+        "16000",
         "-codec:a",
-        "libmp3lame",
+        "pcm_s16le",
         str(tmp_path),
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
@@ -544,8 +619,9 @@ async def _process_call_unbounded(
     call_id: str,
     call_dir: Path,
     metadata: dict,
+    lease_owner: str | None = None,
 ) -> dict:
-    pair = await ensure_mono_pair(call_dir)
+    pair = await ensure_mono_pair(call_dir, lease_owner=lease_owner)
     if pair is None:
         set_smb_conversion_pending(1)
         return {"status": "pending", "reason": "mono_pair_incomplete"}
@@ -567,11 +643,23 @@ async def _process_call_unbounded(
         metadata.get("callee_number"),
         include_collision_suffix=True,
     )
-    published = await _publish_with_retry(
-        strategy, stereo_path, remote_dir, base_name, collision_name
+    candidates = await strategy.cleanup_remote_temporaries(
+        remote_dir,
+        [base_name, collision_name],
+        metadata.get("remote_tmp_candidates", {}),
     )
-    stereo_path.unlink()
-    return {"status": "done", **published}
+    if not isinstance(candidates, dict):
+        candidates = {}
+    try:
+        published = await _publish_with_retry(
+            strategy, stereo_path, remote_dir, base_name, collision_name
+        )
+    except Exception as exc:
+        exc.remote_tmp_candidates = candidates
+        raise
+    mark_consumed(call_dir, "smb")
+    stereo_path.unlink(missing_ok=True)
+    return {"status": "done", "remote_tmp_candidates": candidates, **published}
 
 
 async def process_call(
@@ -584,20 +672,39 @@ async def process_call(
     timeout_seconds: float = TRANSFER_TIMEOUT_SECONDS,
 ) -> dict:
     directory = Path(call_dir)
-    write_lease(directory, call_id)
-    renewer = asyncio.create_task(_renew_lease(directory, call_id))
     try:
-        return await asyncio.wait_for(
-            _process_call_unbounded(strategy, tenant_id, call_id, directory, metadata),
-            timeout=timeout_seconds,
+        lease = acquire_lease(directory, "smb", call_id)
+    except LeaseBusyError:
+        return {"status": "pending", "reason": "already_processing"}
+    renewer = asyncio.create_task(_renew_lease(directory, call_id, lease.owner))
+    operation = asyncio.create_task(
+        _process_call_unbounded(
+            strategy,
+            tenant_id,
+            call_id,
+            directory,
+            metadata,
+            lease.owner,
         )
-    except asyncio.TimeoutError:
-        logger.warning("SMB backup timed out tenant=%s call_id=%s", tenant_id, call_id)
-        return {"status": "pending", "reason": "timeout"}
+    )
+    try:
+        done, _ = await asyncio.wait(
+            {operation, renewer}, timeout=timeout_seconds, return_when=asyncio.FIRST_COMPLETED
+        )
+        if not done:
+            logger.warning("SMB backup timed out tenant=%s call_id=%s", tenant_id, call_id)
+            return {"status": "pending", "reason": "timeout"}
+        if renewer in done:
+            operation.cancel()
+            await asyncio.gather(operation, return_exceptions=True)
+            record_lease_failure("smb")
+            return {"status": "pending", "reason": "lease_lost"}
+        return await operation
     finally:
+        operation.cancel()
         renewer.cancel()
-        await asyncio.gather(renewer, return_exceptions=True)
-        (directory / ".smb-processing").unlink(missing_ok=True)
+        await asyncio.gather(operation, renewer, return_exceptions=True)
+        release_lease(directory, "smb", lease.owner)
 
 
 async def _run_cycle(_ctx) -> dict:
@@ -625,8 +732,12 @@ async def _run_cycle(_ctx) -> dict:
         key = f"{tenant_id}/{call_id}"
         if state.get(key, {}).get("status") == "done":
             continue
+        if lifecycle_has_valid_lease(call_dir) or not _has_stable_mono_input(call_dir):
+            continue
+        previous = state.get(key, {})
         try:
             metadata = await resolve_call_metadata(tenant_id, call_id, call_dir)
+            metadata["remote_tmp_candidates"] = previous.get("remote_tmp_candidates", {})
             result = await process_call(
                 strategy,
                 tenant_id=tenant_id,
@@ -634,18 +745,19 @@ async def _run_cycle(_ctx) -> dict:
                 call_dir=call_dir,
                 metadata=metadata,
             )
+            if result.get("reason") in {"already_processing", "mono_pair_incomplete"}:
+                continue
             status = result["status"]
             completed += status == "done"
-            previous = state.get(key, {})
             state[key] = {
                 "tenant_id": tenant_id,
                 "call_id": call_id,
                 "caller_number": metadata["caller_number"],
                 "callee_number": metadata["callee_number"],
                 "started_at": metadata["started_at"].isoformat(),
-                "tx_path": str(call_dir / "tx.mp3"),
-                "rx_path": str(call_dir / "rx.mp3"),
-                "stereo_path": str(call_dir / "stereo.mp3"),
+                "tx_path": str(call_dir / "tx.wav"),
+                "rx_path": str(call_dir / "rx.wav"),
+                "stereo_path": str(call_dir / "stereo.wav"),
                 "status": status,
                 "attempts": previous.get("attempts", 0) + 1,
                 "sha256": result.get("sha256"),
@@ -654,6 +766,7 @@ async def _run_cycle(_ctx) -> dict:
                 "transferred_at": _utc_now().isoformat() if status == "done" else None,
                 "updated_at": _utc_now().isoformat(),
                 "last_error": result.get("reason"),
+                "remote_tmp_candidates": result.get("remote_tmp_candidates", {}),
             }
             if status == "done":
                 record_smb_success()
@@ -670,6 +783,9 @@ async def _run_cycle(_ctx) -> dict:
                 "status": "failed",
                 "updated_at": _utc_now().isoformat(),
                 "last_error": type(exc).__name__,
+                "remote_tmp_candidates": getattr(
+                    exc, "remote_tmp_candidates", previous.get("remote_tmp_candidates", {})
+                ),
             }
         except (ConnectionError, OSError, TimeoutError, RuntimeError, OperationFailure) as exc:
             failed += 1
@@ -687,6 +803,9 @@ async def _run_cycle(_ctx) -> dict:
                 "status": "pending",
                 "updated_at": _utc_now().isoformat(),
                 "last_error": type(exc).__name__,
+                "remote_tmp_candidates": getattr(
+                    exc, "remote_tmp_candidates", previous.get("remote_tmp_candidates", {})
+                ),
             }
         save_transfer_log(log_path, state)
     observe_smb_latency(time.monotonic() - started)

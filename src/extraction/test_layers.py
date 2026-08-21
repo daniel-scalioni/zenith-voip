@@ -47,15 +47,43 @@ async def test_regex_extract_returns_empty_dict_when_no_pattern_matches():
 async def test_regex_extract_cpf_matches_and_is_not_sensitive():
     # Arrange
     extractor = RegexExtractor()
-    text = "meu cpf é 123.456.789-00"
+    text = "meu cpf é 111.444.777-35"
 
     # Act
     result = await extractor.extract(text)
 
     # Assert
     assert "cpf" in result
-    assert result["cpf"][0]["value"] == "123.456.789-00"
+    assert result["cpf"][0]["value"] == "111.444.777-35"
     assert result["cpf"][0]["sensitive"] is False
+
+
+@pytest.mark.asyncio
+async def test_regex_extract_discards_cpf_with_invalid_check_digit():
+    # Arrange: GAP-RE-09 — "123.456.789-00" casa o formato mas o dígito
+    # verificador correto para esse prefixo seria 09, não 00
+    extractor = RegexExtractor()
+    text = "meu cpf é 123.456.789-00"
+
+    # Act
+    result = await extractor.extract(text)
+
+    # Assert
+    assert "cpf" not in result
+
+
+@pytest.mark.asyncio
+async def test_regex_extract_discards_cpf_with_all_repeated_digits():
+    # Arrange: sequências repetidas passam no cálculo do módulo 11 mas nunca
+    # são emitidas como CPF real — todo validador de produção as rejeita
+    extractor = RegexExtractor()
+    text = "cpf 111.111.111-11"
+
+    # Act
+    result = await extractor.extract(text)
+
+    # Assert
+    assert "cpf" not in result
 
 
 @pytest.mark.asyncio
@@ -132,7 +160,7 @@ async def test_regex_extract_credit_card_matches_and_is_sensitive():
 async def test_regex_extract_multiple_entities_in_same_text():
     # Arrange
     extractor = RegexExtractor()
-    text = "cpf 123.456.789-00 e placa ABC1D23"
+    text = "cpf 111.444.777-35 e placa ABC1D23"
 
     # Act
     result = await extractor.extract(text)
@@ -148,10 +176,22 @@ async def test_regex_has_suspicion_true_for_cpf():
     extractor = RegexExtractor()
 
     # Act
-    result = await extractor.has_suspicion("meu cpf é 123.456.789-00")
+    result = await extractor.has_suspicion("meu cpf é 111.444.777-35")
 
     # Assert
     assert result is True
+
+
+@pytest.mark.asyncio
+async def test_regex_has_suspicion_false_for_cpf_with_invalid_check_digit():
+    # Arrange
+    extractor = RegexExtractor()
+
+    # Act
+    result = await extractor.has_suspicion("meu cpf é 123.456.789-00")
+
+    # Assert
+    assert result is False
 
 
 @pytest.mark.asyncio

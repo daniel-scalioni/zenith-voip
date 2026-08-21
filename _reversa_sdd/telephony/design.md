@@ -38,39 +38,38 @@ O VitalPBX e seus sistemas satélite (portaria, integrações externas) dependem
 
 ## 2. Provisionamento Dinâmico — mod_xml_curl
 
-Com centenas a milhares de ramais por tenant, gerenciar arquivos XML por ramal é inviável. A solução é **`mod_xml_curl`**: o FreeSWITCH consulta a API do Zenith para obter configurações de diretório e gateways sob demanda.
+O **`mod_xml_curl`** consulta a API interna para resolver a seção `directory` sob demanda. O
+binding é exclusivo, autenticado por Basic e usa POST com timeout de 2 s. 🟢
 
 ```
-FreeSWITCH precisa de info sobre ramal 1001
-    │ GET /freeswitch/directory?user=1001&domain=tenant.local
+FreeSWITCH precisa autenticar profile + sip_auth_username
+    │ POST /internal/freeswitch/directory (form + Basic Auth)
     ▼
 FastAPI Zenith
-    │ SELECT * FROM sip_extensions WHERE extension='1001' AND tenant_id=X
+    ├── lookup ATATrunk público habilitado
+    └── fallback LegacyDirectoryProvider (extensions.xml somente leitura)
     ▼
-PostgreSQL (schema do tenant)
-    │ Retorna: usuário, senha, gateway upstream, variáveis de canal
+Resposta XML escapada, no-store, limitada a 64 KiB
+    │ senha + variáveis tenant/PBX/condomínio/trunk
     ▼
-FreeSWITCH: sem restart, sem arquivo novo — usa as credenciais imediatamente
+FreeSWITCH autentica o REGISTER e injeta metadados no canal
 ```
 
 **Consequências:**
-- Novo ramal no GPhone → cadastrar no admin Zenith → FreeSWITCH enxerga na próxima requisição
-- Para 1000 ramais iniciais: importação em lote (CSV exportado do VitalPBX)
-- A tabela `SIPExtension` no banco Zenith é a **fonte de verdade** dos ramais
+- Troncos ATA importados/cadastrados ficam em `public.ata_trunks`; condomínio e PBX definem escopo.
+- Usuários anteriores continuam no arquivo privado, sem reescrita ou ID de tronco inventado.
+- Identidade presente nas duas fontes falha fechada; não existe precedência silenciosa.
+- Credencial do banco é decriptada somente no instante de serializar o diretório.
 
-**Modelo de dados (schema por tenant):**
+**Modelo público atual:**
 ```
-sip_extensions
-  id            UUID PK
-  extension     VARCHAR (ex: "1001")
-  sip_password  VARCHAR (armazenada cifrada)
-  display_name  VARCHAR
-  pbx_id        FK → public.pbxs
-  active        BOOLEAN
-  created_at    TIMESTAMP
+condominiums(id, tenant_id, pbx_id, name, external_id, enabled)
+ata_trunks(id, tenant_id, pbx_id, condominium_id, prefix?, sip_profile,
+           auth_username, encrypted_password, enabled, registration_status)
 ```
 
-A senha SIP é armazenada cifrada no banco e nunca exposta em logs ou arquivos de configuração. O endpoint `/freeswitch/directory` é acessível apenas internamente (rede Docker, sem exposição externa).
+A senha SIP é armazenada por MultiFernet e nunca aparece em DTOs/logs. A configuração real do
+binding é gerada atomicamente com modo 0600; o proxy público bloqueia `/internal/`. 🟢
 
 ---
 
@@ -83,7 +82,10 @@ A senha SIP é armazenada cifrada no banco e nunca exposta em logs ou arquivos d
 | `internal-5062` | 5062 | Recebe REGISTERs de ramais cadastrados em `sip`/5062 na VitalPBX, mesmo padrão de `internal-7060` (feature `006-registro-porta-vitalpbx`) 🟡 — sem ramal real validado ainda nesta porta |
 | `upstream` | 5065 | Gateways de saída para o VitalPBX do cliente |
 
-Os profiles de entrada (`internal`, `internal-7060`, `internal-5062`) e o de saída (`upstream`) são separados propositalmente: um rescan de gateways no `upstream` não afeta os REGISTERs estabelecidos em qualquer profile de entrada. Os três profiles de entrada compartilham o mesmo diretório de usuários (`directory/extensions.xml`, global) e a mesma lógica de resolução de domínio (`force-register-domain=$${domain}` — necessário porque softphones como o 3CX usam o próprio endereço/porta do servidor como domínio do REGISTER, não um campo de domínio separado). Os três devem ser atualizados em conjunto quando essa lógica mudar (ver `_reversa_forward/006-registro-porta-vitalpbx/regression-watch.md#W002`).
+Os profiles de entrada e o de saída são separados propositalmente: um rescan do `upstream` não
+afeta REGISTERs de entrada. `internal-7060` exige autenticação ATA; `internal`/5060 mantém
+`auth-calls=false` por coexistir com troncos PSTN e `internal-5062` permanece fora desta mudança.
+Todos preservam a lógica de domínio `force-register-domain=$${domain}`. 🟢
 
 ### Porta de destino no VitalPBX (por tecnologia)
 
@@ -126,7 +128,64 @@ do dict de extensão para determinar a porta de destino.
 1. `connect()` estabelece conexão ESL com FreeSWITCH — `src/telephony/esl_client.py:30-45`
 2. Se conexão cair, auto-reconnect com backoff de 2s — `src/telephony/esl_client.py:86-88`
 3. Eventos ESL recebidos: CHANNEL_CREATE → CHANNEL_ANSWER → CHANNEL_HANGUP
-4. No CHANNEL_ANSWER, extrai IP do agente e mapeia no Redis — `src/telephony/esl_client.py:139-149`
+   - **CHANNEL_CREATE** (fix GAP-RE-02, 2026-08-21): cria a linha `Call` em `ringing`
+     (`services/calls.py::create_ringing_call_record`) **somente quando
+     `variable_zenith_tenant_id` já vem no próprio evento** — hoje só acontece para tronco ATA,
+     injetado pelo diretório dinâmico (`mod_xml_curl`). `agent_extension` vem de
+     `variable_zenith_agent_extension` ou, na ausência, de `variable_sip_from_user` (nativo do
+     canal). `*88` (manual linkage) é excluído — não gera linha. Ver `state-machines.md` para a
+     máquina de estados completa.
+     >
+     > ⚠️ **Dois achados de segurança (2026-08-21, antes do merge, com evento real do
+     > FreeSWITCH capturado em produção) que restringiram o escopo original:**
+     >
+     > 1. **Guard `Call-Direction == "inbound"`.** CHANNEL_CREATE dispara para as **duas
+     > pernas** de toda chamada bridgeada (GAP-ESL-08 já documentava isso para CHANNEL_ANSWER —
+     > vale igual aqui). A perna B, criada pelo FreeSWITCH ao originar o `bridge` (upstream em
+     > `zenith_audio_fork`, ou `user/$1@domain` em `local_extension`), tem
+     > `Call-Direction: outbound` e **nunca** carrega `zenith_tenant_id`, nem no próprio
+     > CHANNEL_ANSWER (confirmado: `Unique-ID` da perna B, `Other-Leg-Unique-ID` apontando pra
+     > perna A, `variable_zenith_tenant_id` ausente nos dois eventos). `_handle_channel_create`
+     > retorna cedo quando `event.get("Call-Direction") != "inbound"`.
+     >
+     > 2. **Sem fallback via `global_getvar` para ramal local.** A primeira versão deste fix
+     > tentava resolver `tenant_id` também via `global_getvar tenant_id`/`pbx_id` (constantes de
+     > `vars.xml`) quando o evento não trazia a variável — cobrindo ramal local também. Isso foi
+     > **removido**: `local_extension` (`^1\d{3}$`) e `echo_test` (`9196`) nunca setam
+     > `zenith_*` em **nenhum** evento do ciclo de vida (nem CREATE, nem ANSWER, nem HANGUP) —
+     > só `zenith_audio_fork` seta. Uma linha `ringing` criada por fallback no CREATE para esses
+     > casos nunca seria encontrada de volta por `mark_call_in_progress`/`finalize_call_record`
+     > (que exigem a mesma variável), ficando **órfã para sempre** — o próprio bug que o
+     > GAP-RE-02 deveria fechar, recriado por um caminho diferente. Fechar `ringing` para ramal
+     > local exigiria resolver a causa-raiz do GAP-RE-03 primeiro (tenant_id antes do dialplan
+     > rodar) — fica como residual, não fechado aqui.
+   - **CHANNEL_HANGUP**: extrai `Hangup-Cause` do evento e repassa para `finalize_call_record`,
+     que classifica `completed` (causas de encerramento normal) vs `failed` (todo o resto,
+     incluindo causa ausente).
+4. No CHANNEL_ANSWER, extrai IP do agente e mapeia no Redis — `src/telephony/esl_client.py:139-149`.
+   Também promove a linha `ringing` criada no CREATE para `in_progress`
+   (`services/calls.py::mark_call_in_progress`); se nenhuma linha `ringing` existir (tenant não
+   resolvido no CREATE), cria diretamente em `in_progress` — fallback que preserva o comportamento
+   anterior à correção. `mark_call_in_progress` também **reseta `started_at`** para o instante do
+   ANSWER — sem isso, `duration_seconds` calculado no hangup passaria a incluir o tempo de toque
+   (entre CREATE e ANSWER), mudando a semântica de "duração da conversa" que o campo tinha antes
+   deste fix. Uma chamada nunca atendida (permanece `ringing` até o hangup) continua medindo tempo
+   de toque, não de conversa — não há `started_at` para resetar nesse caso.
+   >
+   > **Métrica de descarte (fix GAP-RE-03, 2026-08-21):** quando `tenant_id` está ausente no
+   > CHANNEL_ANSWER, `call_dropped_no_tenant_total` (Prometheus) incrementa e um
+   > `logger.warning` dispara — mas **somente quando `Call-Direction == "inbound"`**. Sem esse
+   > filtro, a perna B de toda chamada bridgeada (que nunca tem `tenant_id`, por design — ver
+   > nota de GAP-ESL-08 abaixo) contaria como "descarte", inflando a métrica em 100% das
+   > chamadas bridgeadas. `Call-Direction` agora sustenta duas lógicas distintas neste mesmo
+   > handler: o guard de `_start_audio_capture` (dentro de `if tenant_id:`, evita captura dupla
+   > por chamada — GAP-ESL-08) e este filtro de métrica. Os dois dependem da mesma premissa —
+   > perna B nunca tem `tenant_id` — verificada com evento real do FreeSWITCH para o caminho de
+   > tronco (`zenith_audio_fork`). 🟡 **Não verificado com evento real** para `local_extension`
+   > (ramal↔ramal, `^1\d{3}$`): por semântica de plataforma do FreeSWITCH, `Call-Direction` é
+   > propriedade do canal (inbound = recebeu o INVITE original) e não depende de qual extensão
+   > do dialplan casa depois — deveria valer igual, mas não foi capturado ao vivo como o caminho
+   > de tronco foi.
 5. `zenith:sip:ip_to_extension:{ip}` e `zenith:sip:extension_to_ip:{ext}` criados com TTL 3600s — `src/telephony/esl_client.py:179-184`
 6. Código `*88` detectado → cria sessão "awaiting_linkage" — `src/telephony/esl_client.py:136-137`
 7. Whisper mode: `whisper_to_agent()` envia TTS para canal do agente — `src/telephony/whisper_mode.py:15-30`
@@ -223,7 +282,7 @@ correspondente (`_handle_channel_create`, `_handle_channel_answer`, `_handle_cha
 `set` de variáveis de canal (`variable_zenith_*`) que o ESLClient lê de volta pelo evento.
 
 No caso de `uuid_audio_stream`: `_handle_channel_answer` dispara
-`uuid_audio_stream {call_id} start ws://{AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id} stereo 8k {...}`
+`uuid_audio_stream {call_id} start ws://{AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id} stereo 16000 {...}`
 via `send_bgapi`, usando `Caller-Unique-ID` e as variáveis `variable_zenith_tenant_id`/
 `variable_zenith_pbx_id`/`variable_zenith_agent_extension` que já chegam nesse mesmo evento. Falha
 nessa chamada é logada (WARNING estruturado) mas não interrompe a chamada — gravação é best-effort,
@@ -239,9 +298,9 @@ não pode derrubar o atendimento. Detalhe completo em
 | GAP-ESL-01 | 🟡 | ESL Client não tem heartbeat explícito — reconexão só detectada após falha de comando |
 | GAP-ESL-02 | 🔴 | FreeSWITCH em `network_mode: host` — sem isolamento de rede Docker |
 | GAP-ESL-03 | ✅ | ~~CHANNEL_HANGUP não tem handler explícito~~ — resolvido (2026-07-12, feature `010`): `_handle_channel_hangup` finaliza a linha `Call` (`finalize_call_record`), agrupa os `AudioChunk` do buffer por canal e enfileira `upload_recording_batch`. Confirmado na re-extração de 2026-07-27 |
-| GAP-RE-03 | 🔴 | Chamada sem `tenant_id` populado não gera linha `Call` nenhuma (guard `if tenant_id:`), sem métrica nem log de contagem do descarte — perda silenciosa |
+| GAP-RE-03 | 🟡 | Chamada sem `tenant_id` populado não gera linha `Call` nenhuma (guard `if tenant_id:`) — causa-raiz segue aberta. **Mitigado em 2026-08-21**: a parte "sem métrica nem log" foi fechada — `call_dropped_no_tenant_total` (Prometheus) incrementa e um `logger.warning` dispara em `_handle_channel_answer` quando a perna A (`Call-Direction == "inbound"`) chega sem `tenant_id`. Filtrado por direção para não contar a perna B (que nunca tem `tenant_id`, por design — GAP-ESL-08) como falso positivo. |
 | GAP-RE-01 | 🔴 | Só `INSTANCE_ID == 1` consome o event stream; se `fastapi-1` cair, nenhuma chamada é gravada e `fastapi-2` segue "saudável" |
-| GAP-PROV-01 | 🔴 | `mod_xml_curl` não implementado ainda — provisionamento dinâmico pendente (ciclo futuro: `SIPExtension` + FastAPI) |
+| GAP-PROV-01 | ✅ | `mod_xml_curl` implementado para ATATrunk + diretório legado; `SIPExtension` não integra o modelo atual |
 | GAP-PROV-02 | ✅ | Estratégia de importação em lote definida (2026-06-26): `scripts/import_extensions.py` lê CSV exportado do VitalPBX, gera `directory/extensions.xml` + `sip_profiles/upstream/*.xml`. Dedup: pjsip > sip. Credenciais nunca commitadas (gitignored). |
 | GAP-17 | ✅ | `sip_profiles/internal.xml` corrigido (2026-06-26): TLS desativado (sem certs), `sip-port` duplicado removido (porta 5060 apenas). |
 | GAP-AUDIO-01 | ✅ | Substituído `mod_audio_fork` por `mod_audio_stream` (feature `007-audio-stream-migration`) — o repositório de origem do `mod_audio_fork` foi descontinuado, não era mais questão de token. Módulo novo confirmado carregado em produção; validação end-to-end de payload pendente (ver GAP-11 em `_reversa_sdd/gaps.md`) |
@@ -257,5 +316,7 @@ não pode derrubar o atendimento. Detalhe completo em
 | GAP-DB-01 | ✅ | `get_tenant_db` criava uma `AsyncSession` vinculada a uma `Connection` obtida via `engine.connect()` (com autobegin implícito pelo `SET search_path`); `session.commit()` finalizava a transação lógica do ORM mas não commitava a `Connection` em si — ao sair do `async with engine.connect()` sem commit explícito, tudo era revertido silenciosamente (sem exceção). Nenhum `Call` jamais foi persistido no banco antes desta correção, em nenhuma chamada real de nenhuma feature anterior. Corrigido com `await conn.commit()` explícito após o trabalho da sessão. |
 | GAP-WS-01 | ✅ | `AudioIngestor.handle_forked_stream` usava `websocket.receive_bytes()` em loop, mas `mod_audio_stream` manda um frame de texto (JSON de controle) na conexão antes do áudio binário — isso derrubava a conexão com `KeyError: 'bytes'` assim que `mod_audio_stream` conectava de verdade (nunca exercitado antes por nenhuma chamada real). Corrigido usando `websocket.receive()` genérico, distinguindo frame de texto (ignorado) de frame binário (áudio). |
 | GAP-ESL-08 | ✅ | `_start_audio_capture` disparava incondicionalmente em `_handle_channel_answer`, sem o mesmo guard `if tenant_id:` de `create_call_record` — como `CHANNEL_ANSWER` dispara para as duas pernas de uma chamada bridgeada (a-leg e b-leg), isso iniciava duas capturas de áudio simultâneas por chamada (uma órfã, sem tenant). Corrigido movendo `_start_audio_capture` para dentro do `if tenant_id:`. |
+| GAP-REC-01 | 🔴 | **Gravação do tronco de saída PSTN não confirmada.** `zenith_audio_fork` (dialplan) e o disparo de `uuid_audio_stream` via ESL foram validados para chamadas de ramal (features `005`-`010`) e para o registro dos próprios troncos ATA (feature `012`), mas nenhuma feature validou ainda se uma chamada de **saída** pelo tronco PSTN (ramal → tronco → rede externa) passa pelo mesmo caminho de gravação — não há confirmação de que `zenith_audio_fork`/`uuid_audio_stream` disparam nessa perna, nem teste de chamada real de saída via ATA. Levantado pelo usuário em 2026-08-12; investigação e correção adiadas para depois do Épico 2 (Qualidade do Atendimento). |
+| GAP-PERF-01 | 🔴 | **Sem teste de carga do B2BUA.** Toda a validação em produção até hoje (`_reversa_forward/012-trunk-registration`, GAP-DEPLOY-01, GAP-NET-01) foi feita com um número pequeno de ramais/troncos simultâneos (ex.: ramal 1001, poucos ATAs). Não existe teste de infraestrutura que meça latência/qualidade de áudio com todos os ramais reais passando pelo FreeSWITCH ao mesmo tempo — risco explícito levantado pelo usuário: colocar o volume total de ramais atrás do B2BUA pode introduzir lentidão perceptível ao atendimento, ainda não medida. Registrado como lacuna aberta, sem plano de teste definido ainda. |
 | GAP-DEPLOY-01 | ✅ | **Servidor de produção não rastreava `main`.** Verificado em 2026-08-11 (deploy da correção RN-11/RF-13/D-15, feature `012-trunk-registration`): `~/zenith-voip` em `10.10.10.11` está no branch local `feature/012-trunk-registration`, com HEAD em `80e8a7c` — ancestral de `main`, mas várias dezenas de commits atrás do `6ff0ec7` então enviado. Mesma classe de problema já registrada em GAP-24 ("HEAD destacado numa tag antiga, 18 commits atrás"), que foi reconciliado uma vez (2026-07-22) mas não preveniu a recorrência. Agravante: há uma modificação local não commitada em `freeswitch/conf/sip_profiles/internal.xml` no servidor (`auth-calls`, prática operacional já coberta por W003/W005 em `_reversa_forward/012-trunk-registration/regression-watch.md`) — qualquer reconciliação futura (`git checkout main`/`git pull`) precisa preservar essa edição ou confirmar que já foi absorvida em `main`, nunca descartá-la às cegas. **Mitigação usada nesta correção:** em vez de sincronizar o branch inteiro, o arquivo `freeswitch/conf/dialplan/default.xml` foi enviado isoladamente via `scp` (MD5 conferido) e recarregado com `docker compose exec freeswitch fs_cli -x 'reloadxml'`, sem tocar no restante da árvore do servidor — mesmo padrão documentado em `.claude/deploy-access.local.md`. Resolve o deploy pontual, não a causa raiz (servidor sem processo de sincronização periódica com `main`). **Resolvido em 2026-08-11:** `git checkout -- freeswitch/conf/dialplan/default.xml freeswitch/conf/sip_profiles/internal.xml` para descartar as duas diffs locais (ambas já equivalentes ao que `main` tinha commitado, confirmado por comparação antes de descartar — nenhum dado perdido), seguido de `git checkout main` + `git merge --ff-only origin/main`. Achado maior do que o esperado: o `main` local do servidor estava em `ebc4d8b`, **35 commits atrás**, sem as features `011-smb-audio-backup` e `012-trunk-registration` inteiras (271 arquivos, +24313/−1591) — o servidor rodava efetivamente a partir do branch `feature/012-trunk-registration`, não de `main`, e só por isso o registro de troncos já funcionava. Working tree limpo após o fast-forward (só os untracked esperados: `.deploy-backups/`, `vars-external-ip.xml`, `tmp_pcap/`, backup `.bak`). `upstream-1001` seguiu `REGED`/`UP` durante toda a operação, sem reset de uptime. **Nota residual (não corrigida, fora do escopo desta correção):** como `docker-compose.app.yml` faz bind mount de `./src:/app/src`, os processos `zenith-api-1`/`zenith-api-2` continuam rodando o código Python que tinham em memória antes desta reconciliação (mesmo padrão já visto no fechamento do GAP-24) — os arquivos em disco agora estão mais novos do que o processo vivo. Não há sintoma disso hoje (o processo já tinha o código de trunk registration via a feature branch, e nenhum arquivo `src/**/*.py` foi modificado neste fast-forward — 80e8a7c já era ancestral de 6ff0ec7), mas qualquer mudança futura de código só entra em vigor com um restart dos containers — decisão explícita do usuário, não executado aqui. **Ainda aberto:** processo (manual ou automatizado) para o servidor não voltar a ficar desatualizado silenciosamente. |
 | GAP-NET-01 | ✅ | Toda a cadeia de software (dialplan → ESLClient → `uuid_audio_stream` → WebSocket → gravação → banco) está confirmada funcionando ponta a ponta (2026-07-14/15, feature `010-record-real-call-audio-e2e`), mas o áudio capturado é silêncio digital puro (RMS ≈ -90dB). Packet capture confirma apenas 1 pacote RTP em ~6s de chamada — sinalização SIP perfeita (INVITE/180/200), mas mídia RTP não flui. FreeSWITCH anuncia `Ext-RTP-IP=200.170.149.139` (IP público) enquanto a interface real é `10.10.10.11`; suspeita de bloqueio no roteador Mikrotik para a faixa de portas RTP (mesmo padrão do incidente de sinalização SIP corrigido em 2026-07-08, ver `_reversa_sdd/telephony/packet-capture-debug.md`, mas dessa vez afetando mídia, não sinalização). Requer acesso ao Mikrotik — fora do escopo do código deste repositório. **Atualização 2026-07-23** (após GAP-24 resolver o módulo ausente): usuário revisou o firewall do Mikrotik e não encontrou regra de bloqueio. Nova captura (chamada real >10s, 1001→3173001) mostra só 2 pacotes RTP em toda a chamada, os dois **saindo** do FreeSWITCH, nenhum de volta em nenhuma perna: (1) perna FreeSWITCH↔VitalPBX com SDP limpo dos dois lados (`200.170.149.139:29398` ↔ `177.71.153.68:18508`, sem NAT), mesmo assim sem retorno; (2) perna 1001↔FreeSWITCH — o softphone 3CX do ramal 1001 anuncia seu **IP privado** `192.168.50.92` no SDP (`o=3cxVCE ... IN IP4 192.168.50.92`); o profile `internal` já tem `apply-nat-acl=rfc1918` + `aggressive-nat-detection`/`rtp-auto-adjust` habilitados, mas isso só corrige depois de receber ao menos um pacote RTP de entrada do telefone — que não chegou. RTP praticamente nulo nas duas pernas simultaneamente aponta para algo mais estrutural que "Mikrotik bloqueia" ou "VitalPBX não responde" isoladamente; ainda requer investigação de rede (fora do escopo de código), possivelmente NAT/conntrack UDP não cobrindo a faixa RTP dinâmica mesmo sem regra de bloqueio explícita. **Atualização 2026-07-24** (baseline direto, sem FreeSWITCH): captura `specs/softphone_audio.pcap` de uma chamada VitalPBX↔interfone 3101001 (192.168.104.21), sem passar pelo FreeSWITCH, confirma RTP bidirecional saudável — 537 pacotes interfone→VitalPBX (SSRC `0x12345678`, seq 1→569) e 529 pacotes VitalPBX→interfone (SSRC `0x6b7c53b4`, TTL 55, cruzando a internet de verdade), ambos com ~5% de perda pontual típica de rede, sem mudez. Sinalização SIP também redonda (INVITE/180/200/ACK/BYE nas duas direções). **Conclusão: o caminho Mikrotik↔internet↔VitalPBX está saudável para RTP bidirecional — o bloqueio é específico do caminho via FreeSWITCH**, não do Mikrotik/VitalPBX/rede em geral. Isso descarta de vez a hipótese de bloqueio de rede genérico e reforça a hipótese líder (IP privado no SDP do endpoint + `rtp-auto-adjust` do FreeSWITCH nunca disparando por falta de RTP de entrada) como a linha de investigação a seguir — agora dentro do escopo de configuração do FreeSWITCH. (Nota de metodologia: as duas primeiras tentativas de captura desse baseline vieram rotuladas com o IP do interfone como origem para o fluxo inteiro — inclusive respostas do VitalPBX e um par ICMP echo-request/reply com TTLs diferentes mas mesmo endereço — artefato da extração via Mikrotik usando o interfone como referência; a terceira captura, já bidirecional de fato, foi a usada nesta conclusão.) **Causa raiz confirmada e corrigida em 2026-07-24**: captura ao vivo (tcpdump no host de produção durante chamada real 1001→3101001 via FreeSWITCH porta 7060) mostrou REGISTER/INVITE do softphone chegando em `10.10.10.11:7060` com IP de origem **privado preservado** (`192.168.50.92`, sem NAT no caminho — confirmado pelo dono da infra: hoje todos os interfones/ramais alcançam o FreeSWITCH por rede roteada dentro do mesmo CPD, não pela internet). O FreeSWITCH respondia ao INVITE com `Contact`/SDP anunciando o **IP público** (`ext-sip-ip`/`ext-rtp-ip` = `$${external_sip_ip}`/`$${external_rtp_ip}`, fixo e incondicional nos profiles `internal*`), porque esses profiles nunca diferenciam peer local de peer remoto — usam o mesmo IP público pra todo mundo. Resultado: nenhum ACK do softphone jamais chegava (FreeSWITCH retransmitia o mesmo `200 OK` por dezenas de segundos, padrão RFC3261 de 2xx nunca confirmado), nenhum RTP fluía, e a chamada caía em ~10s por timeout de mídia. Validado com o usuário (dono da infra) que essa NÃO é uma limitação genérica do FreeSWITCH — é especificamente porque `ext-rtp-ip`/`ext-sip-ip` são estáticos por profile (sem mecanismo nativo de escolha por peer dentro do mesmo profile; verificado contra o `conf/vanilla/sip_profiles/internal.xml` oficial do repositório `signalwire/freeswitch` — o comentário oficial documenta apenas IP fixo, `stun:`, `host:`, `auto` e `auto-nat` como valores válidos, nenhum deles condicional por peer; `local-network-acl`/`apply-nat-acl` controlam a interpretação do endereço que o peer anuncia, não qual IP o FreeSWITCH anuncia de si mesmo). **Fix aplicado**: `ext-rtp-ip`/`ext-sip-ip` dos profiles `internal.xml`, `internal-7060.xml` e `internal-5062.xml` trocados de `$${external_rtp_ip}`/`$${external_sip_ip}` para `$${local_ip}` — correto hoje porque nenhum peer desses profiles está de fato atrás de NAT. O profile `upstream` (fala com o VitalPBX pela internet) não foi alterado, continua usando IP público corretamente. **Nota para o futuro**: se o FreeSWITCH for migrado pra uma VPS (fora do CPD), os interfones passarão a alcançá-lo por NAT de verdade — nesse momento os profiles `internal*` precisam voltar a usar `$${external_rtp_ip}`/`$${external_sip_ip}` (ou, se por algum motivo existir uma mistura de peer local e peer remoto no mesmo profile nesse ponto, será necessário separar em profiles distintos, já que o mod_sofia não tem mecanismo nativo de seleção de IP por peer dentro de um único profile). **Confirmado com chamada real em produção (2026-07-24)**: 1001 → 3101001 via FreeSWITCH, áudio bidirecional funcionando normalmente, sem queda aos ~10s. GAP fechado. |

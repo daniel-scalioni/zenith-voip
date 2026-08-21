@@ -1,9 +1,22 @@
+---
+spec:
+  component: esl-integration
+  layer: telephony
+  status: active
+  version: 2.0.0
+  language: python
+  patterns: [singleton-module, observer]
+  inputs: [{name: esl_events, type: event, from: freeswitch}]
+  outputs: [{name: lifecycle_calls, type: async-call, to: audio-ingestion}]
+  dependencies: [{component: audio-ingestion, layer: audio}]
+  events_produced: [CHANNEL_ANSWER, CHANNEL_HANGUP]
+  updated_at: 2026-08-14
+---
+
 # ESL Integration, Design
 
-**Interface:** `connect() → None`, `start_event_listener() → None`, `send_api(command) → str`
-**Eventos:** CHANNEL_CREATE, CHANNEL_ANSWER, CHANNEL_HANGUP
-**Redis:** `zenith:sip:ip_to_extension:{ip}` e `zenith:sip:extension_to_ip:{ext}` TTL 3600s
-**Auto-reconnect:** backoff 2s em caso de desconexão (`_event_loop`, reconecta sozinho se `self.connected` for `False`)
-**Origem:** `src/telephony/esl_client.py` 🟢
+Somente a instância 1 processa ESL. `CHANNEL_ANSWER` registra metadata e envia o comando literal
+`stereo 16000`. `CHANNEL_HANGUP` finaliza o registro de chamada e delega a publicação dos arquivos
+a `AudioIngestor.finalize_stream`; não acessa buffers nem bytes de áudio.
 
-**Startup (2026-07-12, GAP-23):** `esl_client.start_event_listener()` é chamado no `lifespan` de `src/main.py`, **somente quando `INSTANCE_ID == 1`** — evita que `fastapi-1` e `fastapi-2` processem o mesmo evento ESL em duplicidade (`create_call_record` não é idempotente). Antes desta correção, `esl_client` nunca era conectado por nenhum código da aplicação — instanciado (`esl_client = ESLClient()`, padrão singleton de módulo) mas nunca iniciado, então `CHANNEL_ANSWER`/`CHANNEL_HANGUP` nunca eram processados para chamadas reais.
+Reconexão ESL, mappings SIP com TTL e vínculo manual `*88` permanecem inalterados.

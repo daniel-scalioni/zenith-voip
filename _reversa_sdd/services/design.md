@@ -7,7 +7,7 @@
 | Símbolo | Assinatura | Retorno |
 |---------|-----------|---------|
 | `transcribe` | `(audio_chunk: bytes)` | `dict` |
-| `synthesize` | `(text: str, voice: str, speaker_id: str)` | `bytes` |
+| `synthesize` | `(text: str, **kwargs)` | `bytes` |
 
 ### Strategy Pattern
 
@@ -25,9 +25,13 @@
 
 ## Fluxo Principal (TTS)
 
-1. `tts_service.synthesize()` recebe o texto — `src/services/tts_service.py:19-20`
-   ⚠️ Os parâmetros `voice` e `speaker_id` continuam na assinatura mas **são ignorados**: a voz
-   é definida por `PIPER_VOICE_PATH` (GAP-RE-10)
+1. `tts_service.synthesize()` recebe o texto — `src/services/tts_service.py:19-20`.
+   ✅ **Fix GAP-RE-10 (2026-08-21):** os parâmetros `voice`/`speaker_id` foram removidos da
+   assinatura — a classe só suporta uma voz fixa (`PIPER_VOICE_PATH`) e a assinatura não deve
+   prometer capacidade que não tem. Alinhado com `TTSStrategy.synthesize(text: str, **kwargs)` em
+   `services/base.py`, que nunca exigiu esses parâmetros — nenhum chamador do projeto passava
+   `voice=`/`speaker_id=` explicitamente. `**kwargs` continua aceito e ignorado, para
+   compatibilidade com o contrato da Strategy e com `tts_fallback.py` (repassa `**kwargs`).
 2. Delega a `asyncio.to_thread(_synthesize_sync)` para não bloquear o event loop
 3. `_load_voice()` (`@lru_cache(maxsize=1)`) carrega o modelo ONNX uma vez por processo
 4. `PiperVoice.synthesize_wav()` escreve num `io.BytesIO` — **in-process**, sem HTTP

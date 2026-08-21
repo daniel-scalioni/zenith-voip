@@ -69,6 +69,12 @@ networks:
   zenith-quality-test-net:
     name: zenith-quality-test-net
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
   zenith-quality-rehearsal-net:
     name: zenith-quality-rehearsal-net
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/24

@@ -112,7 +112,7 @@ async def test_consensus_real_regex_flow_approves_sentiment_boundary():
     ) as publish:
         result = await graph.run(
             "call-cpf",
-            "Documento informado: 123.456.789-00",
+            "Documento informado: 111.444.777-35",
             "negative",
             -0.3,
         )

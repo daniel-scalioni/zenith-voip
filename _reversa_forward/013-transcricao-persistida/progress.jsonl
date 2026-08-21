@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-18T12:10:00Z","action":"T004-T006","status":"completed","evidence":"Host real: 6 CPU, 16.77 GB RAM; benchmark 30 s/1 thread: wall 107.887 s, CPU 107.310 s, pico 294146048 bytes; decisão 30 s, 1 thread, 1.5 CPU, 768 MiB."}
+{"timestamp":"2026-08-18T15:45:00Z","action":"T008-T018","status":"red","evidence":"Regressões reproduziram WAV 8 kHz/estéreo aceito, MD divergente em colisão, marker não reparado, backlog removido ou retido sem limite e basename SMB com barra invertida."}
+{"timestamp":"2026-08-18T16:40:00Z","action":"T019-T034","status":"completed","evidence":"Worker, adapter whisper.cpp, ownership pelo transfer log, lifecycle, shedding por capacidade, compose, telemetria e imagem dedicada implementados."}
+{"timestamp":"2026-08-18T16:50:00Z","action":"T033","status":"completed","evidence":"alembic upgrade head passou em container one-off na rede zenith-voip_ai-hub-net; nenhuma migration nova."}
+{"timestamp":"2026-08-18T17:05:00Z","action":"T018","status":"completed","evidence":"Duas conexões PostgreSQL reais: pg_try_advisory_xact_lock=false enquanto owner ativo e true após rollback."}
+{"timestamp":"2026-08-18T17:30:00Z","action":"T037","status":"completed","evidence":"Gate canônico: 448 passed, 29 skipped; cobertura global 90.81%; git diff --check verde."}
+{"timestamp":"2026-08-18T17:35:00Z","action":"T038","status":"completed","evidence":"Revisão independente final GO; nenhum CRITICAL/HIGH/MEDIUM; 100 testes focados no probe do revisor."}

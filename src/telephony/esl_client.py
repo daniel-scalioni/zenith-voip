@@ -2,11 +2,14 @@ import asyncio
 import json
 import logging
 import re
-from collections import defaultdict
 from src.config import settings
 from src.events.redis_streams import event_bus
-from src.services.calls import create_call_record, finalize_call_record
-from src.workers.audio_uploader import enqueue_recording_upload
+from src.services.calls import (
+    create_call_record,
+    create_ringing_call_record,
+    finalize_call_record,
+    mark_call_in_progress,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +214,47 @@ class ESLClient:
         dest = event.get("Caller-Destination-Number", "")
         if dest == "*88":
             await self._handle_manual_linkage(event)
+            return
+
+        call_id = event.get("Caller-Unique-ID", "") or event.get("Unique-ID", "")
+        if not call_id:
+            return
+
+        # CHANNEL_CREATE dispara para as duas pernas de toda chamada bridgeada (GAP-ESL-08).
+        # A perna B — criada pelo FreeSWITCH ao originar o bridge, nunca a que recebeu o INVITE
+        # original — tem Call-Direction=outbound e nunca carrega tenant_id, nem no CHANNEL_ANSWER
+        # (confirmado com evento real do FreeSWITCH, 2026-08-21). Sem este guard, o fallback
+        # global abaixo resolveria tenant_id de qualquer forma e criaria uma linha `ringing`
+        # órfã para toda chamada bridgeada — reintroduzindo o próprio bug do GAP-RE-02.
+        if event.get("Call-Direction") != "inbound":
+            return
+
+        # Tronco ATA já chega com zenith_tenant_id/pbx_id injetados pelo diretório dinâmico
+        # (mod_xml_curl) — só nesse caso dá pra criar a linha aqui com segurança. Ramal local
+        # (local_extension/echo_test) não passa pelo zenith_audio_fork e nunca seta zenith_*,
+        # nem no ANSWER/HANGUP; resolver tenant via fallback global só no CREATE criaria uma
+        # linha `ringing` que ANSWER/HANGUP nunca encontrariam de novo (mesmo tenant_id ausente
+        # dos dois lados) — ficaria órfã para sempre. Fica como residual do GAP-RE-03 (chamada
+        # sem tenant_id no dialplan), não fechado aqui.
+        tenant_id = event.get("variable_zenith_tenant_id", "") or ""
+        if not tenant_id:
+            return
+        pbx_id = event.get("variable_zenith_pbx_id", "") or ""
+
+        agent_ext = (
+            event.get("variable_zenith_agent_extension", "")
+            or event.get("variable_sip_from_user", "")
+            or ""
+        )
+        caller_number = event.get("Caller-Caller-ID-Number", "") or None
+        callee_number = event.get("Caller-Destination-Number", "") or None
+
+        try:
+            await create_ringing_call_record(
+                tenant_id, call_id, pbx_id, agent_ext, caller_number, callee_number
+            )
+        except Exception:
+            logger.exception("create_ringing_call_record raised for call_id=%s", call_id)
 
     async def _handle_channel_answer(self, event: dict):
         await self._track_trunk_call(event, active=True)
@@ -234,26 +278,39 @@ class ESLClient:
         if tenant_id:
             logger.info("create_call_record starting for call_id=%s", call_id)
             try:
-                if caller_number or callee_number:
-                    await create_call_record(
-                        tenant_id,
-                        call_id,
-                        pbx_id,
-                        agent_ext,
-                        caller_number,
-                        callee_number,
-                    )
-                else:
-                    await create_call_record(tenant_id, call_id, pbx_id, agent_ext)
+                promoted = await mark_call_in_progress(tenant_id, call_id)
+                if not promoted:
+                    if caller_number or callee_number:
+                        await create_call_record(
+                            tenant_id,
+                            call_id,
+                            pbx_id,
+                            agent_ext,
+                            caller_number,
+                            callee_number,
+                        )
+                    else:
+                        await create_call_record(tenant_id, call_id, pbx_id, agent_ext)
                 logger.info("create_call_record finished for call_id=%s", call_id)
             except Exception:
                 logger.exception("create_call_record raised for call_id=%s", call_id)
             await self._start_audio_capture(call_id)
+        elif event.get("Call-Direction") == "inbound":
+            # Perna A real sem tenant_id resolvido: a chamada aconteceu e nenhuma linha Call
+            # foi/será gravada. Perna B (outbound) nunca tem tenant_id por design (GAP-ESL-08)
+            # — filtrar por Call-Direction evita que isso vire ruído em 100% das chamadas
+            # bridgeadas (fix GAP-RE-03: antes não havia métrica nem log desse descarte).
+            from src.utils.telemetry import call_dropped_no_tenant_total
+            call_dropped_no_tenant_total.inc()
+            logger.warning(
+                "Call dropped: no tenant_id at CHANNEL_ANSWER call_id=%s dest=%r",
+                call_id, event.get("Caller-Destination-Number", ""),
+            )
 
     async def _start_audio_capture(self, call_id: str):
         ws_url = f"ws://{settings.AUDIO_STREAM_CALLBACK_HOST}/audio-stream/{call_id}"
         metadata = json.dumps({"call_id": call_id})
-        command = f"uuid_audio_stream {call_id} start {ws_url} stereo 8k {metadata}"
+        command = f"uuid_audio_stream {call_id} start {ws_url} stereo 16000 {metadata}"
         try:
             response = await self.send_bgapi(command)
         except (ConnectionError, asyncio.TimeoutError, OSError) as e:
@@ -265,6 +322,7 @@ class ESLClient:
     async def _handle_channel_hangup(self, event: dict):
         call_id = event.get("Caller-Unique-ID", "") or event.get("Unique-ID", "")
         tenant_id = event.get("variable_zenith_tenant_id", "") or ""
+        hangup_cause = event.get("Hangup-Cause", "") or None
 
         if not call_id:
             return
@@ -272,18 +330,10 @@ class ESLClient:
         await self._track_trunk_call(event, active=False)
 
         if tenant_id:
-            await finalize_call_record(tenant_id, call_id)
+            await finalize_call_record(tenant_id, call_id, hangup_cause)
 
         from src.audio.ingestor import audio_ingestor
-        chunks = audio_ingestor.buffers.pop(call_id, [])
-        if not chunks:
-            return
-
-        by_channel: dict[str, bytearray] = defaultdict(bytearray)
-        for chunk in chunks:
-            by_channel[chunk.channel].extend(chunk.data)
-        recordings = [{"channel": channel, "data": bytes(data)} for channel, data in by_channel.items()]
-        await enqueue_recording_upload(tenant_id, call_id, recordings)
+        await audio_ingestor.finalize_stream(call_id)
 
     async def _handle_manual_linkage(self, event: dict):
         from_user = event.get("Caller-Caller-ID-Number", "") or event.get("sip_from_user", "")

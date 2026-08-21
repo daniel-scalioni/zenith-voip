@@ -14,7 +14,7 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
-      o: "size=512m"
+      o: "size=2g"
 
 secrets:
   signalwire_token:
@@ -87,12 +87,18 @@ services:
     environment:
       - INSTANCE_ID=1
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - FREESWITCH_ESL_HOST=172.21.0.1
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
       - OLLAMA_URL=http://ollama:11434
       - RECORDINGS_PATH=/data/recordings
+      - RECORDING_MAX_CALL_SECONDS=${RECORDING_MAX_CALL_SECONDS:-300}
+      - RECORDING_MIN_FREE_PERCENT=${RECORDING_MIN_FREE_PERCENT:-20}
+      - RECORDING_RESUME_FREE_PERCENT=${RECORDING_RESUME_FREE_PERCENT:-30}
+      - RECORDING_PROCESSING_HEADROOM_BYTES=${RECORDING_PROCESSING_HEADROOM_BYTES:-134217728}
+      - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}
+      - RECORDING_LEASE_HEARTBEAT_SECONDS=${RECORDING_LEASE_HEARTBEAT_SECONDS:-30}
     volumes:
       - ./src:/app/src
       - zenith_recordings_tmpfs:/data/recordings
@@ -123,12 +129,18 @@ services:
     environment:
       - INSTANCE_ID=2
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - FREESWITCH_ESL_HOST=172.21.0.1
       - FREESWITCH_ESL_PORT=8021
       - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
       - OLLAMA_URL=http://ollama:11434
       - RECORDINGS_PATH=/data/recordings
+      - RECORDING_MAX_CALL_SECONDS=${RECORDING_MAX_CALL_SECONDS:-300}
+      - RECORDING_MIN_FREE_PERCENT=${RECORDING_MIN_FREE_PERCENT:-20}
+      - RECORDING_RESUME_FREE_PERCENT=${RECORDING_RESUME_FREE_PERCENT:-30}
+      - RECORDING_PROCESSING_HEADROOM_BYTES=${RECORDING_PROCESSING_HEADROOM_BYTES:-134217728}
+      - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}
+      - RECORDING_LEASE_HEARTBEAT_SECONDS=${RECORDING_LEASE_HEARTBEAT_SECONDS:-30}
     volumes:
       - ./src:/app/src
       - zenith_recordings_tmpfs:/data/recordings
@@ -155,8 +167,10 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - RECORDINGS_PATH=/data/recordings
+      - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}
+      - RECORDING_LEASE_HEARTBEAT_SECONDS=${RECORDING_LEASE_HEARTBEAT_SECONDS:-30}
     volumes:
       - ./src:/app/src
       - zenith_recordings_tmpfs:/data/recordings
@@ -178,10 +192,13 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       # ~2 horas para cobrir retries do backup SMB.
       - AUDIO_RETENTION_DAYS=${AUDIO_RETENTION_DAYS:-0.0833}
       - RECORDINGS_PATH=/data/recordings
+      - RECORDING_REQUIRED_CONSUMERS=${RECORDING_REQUIRED_CONSUMERS:-["smb","transcription"]}
+      - RECORDING_CLEANUP_ROUND_SECONDS=${RECORDING_CLEANUP_ROUND_SECONDS:-900}
+      - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}
     volumes:
       - ./src:/app/src
       - zenith_recordings_tmpfs:/data/recordings
@@ -203,8 +220,11 @@ services:
     env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+asyncpg://zenith:zenith@postgres:5432/zenith
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
       - RECORDINGS_PATH=/data/recordings
+      - RECORDING_CLEANUP_ROUND_SECONDS=${RECORDING_CLEANUP_ROUND_SECONDS:-900}
+      - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}
+      - RECORDING_LEASE_HEARTBEAT_SECONDS=${RECORDING_LEASE_HEARTBEAT_SECONDS:-30}
       - SMB_TRANSFER_LOG_PATH=/data/smb_logs/smb_transfer_log.json
     volumes:
       - ./src:/app/src
@@ -216,6 +236,47 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  arq-transcript:
+    build:
+      context: .
+      dockerfile: Dockerfile.transcript
+    container_name: zenith-arq-transcript
+    networks:
+      - ai-hub-net
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}
+      - RECORDINGS_PATH=/data/recordings
+      - TRANSCRIPT_ENABLED=${TRANSCRIPT_ENABLED:-true}
+      - TRANSCRIPT_CHUNK_SECONDS=${TRANSCRIPT_CHUNK_SECONDS:-30}
+      - TRANSCRIPT_CALL_TIMEOUT_SECONDS=${TRANSCRIPT_CALL_TIMEOUT_SECONDS:-3600}
+      - TRANSCRIPT_CYCLE_TIMEOUT_SECONDS=${TRANSCRIPT_CYCLE_TIMEOUT_SECONDS:-86400}
+      - TRANSCRIPT_SYNC_INTERVAL_MINUTES=${TRANSCRIPT_SYNC_INTERVAL_MINUTES:-2}
+      - WHISPER_CPP_BINARY=whisper-cpp
+      - WHISPER_CPP_MODEL_PATH=/models/ggml-base.bin
+      - WHISPER_CPP_LANGUAGE=${WHISPER_CPP_LANGUAGE:-pt}
+      - WHISPER_CPP_THREADS=${WHISPER_CPP_THREADS:-1}
+      - RECORDING_LEASE_TTL_SECONDS=${RECORDING_LEASE_TTL_SECONDS:-120}
+      - RECORDING_LEASE_HEARTBEAT_SECONDS=${RECORDING_LEASE_HEARTBEAT_SECONDS:-30}
+      - SMB_TRANSFER_LOG_PATH=/data/smb_logs/smb_transfer_log.json
+    volumes:
+      - ./src:/app/src
+      - zenith_recordings_tmpfs:/data/recordings
+      - zenith_smb_logs:/data/smb_logs:ro
+    command: ["arq", "src.workers.transcript_batch.WorkerSettings"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 768M
     restart: unless-stopped
 
   ip-watcher:

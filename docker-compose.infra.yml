@@ -7,6 +7,8 @@ networks:
 
 volumes:
   zenith_postgres_data:
+    name: zenith-postgres-data
+    external: true
   zenith_redis_data:
   zenith_prometheus_data:
   zenith_grafana_data:
@@ -23,11 +25,11 @@ services:
     volumes:
       - zenith_postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=zenith
-      - POSTGRES_PASSWORD=zenith
-      - POSTGRES_DB=zenith
+      - POSTGRES_USER=zenith_candidate
+      - POSTGRES_PASSWORD=${ZENITH_CANDIDATE_POSTGRES_PASSWORD:?defina ZENITH_CANDIDATE_POSTGRES_PASSWORD}
+      - POSTGRES_DB=zenith_candidate
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zenith"]
+      test: ["CMD-SHELL", "pg_isready -U zenith_candidate -d zenith_candidate"]
       interval: 10s
       timeout: 5s
       retries: 5
