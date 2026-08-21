@@ -47,7 +47,10 @@
 6. Sistema tenta auto-link: IP → Redis `zenith:sip:ip_to_extension:{ip}` — `src/api/websockets.py:40-56`
 7. Se auto-link falha, aguarda *88 para linkage manual (TTL 120s) — `src/api/websockets.py:78-97`
 8. Eventos de transcrição e alertas são broadcast para todas as conexões do call_id — `src/api/websockets.py:99-118`
-9. Após chamada, webhooks são disparados via `WebhookDispatcher` — `src/api/webhooks.py:15-36`
+9. ~~Após chamada, webhooks são disparados via `WebhookDispatcher`~~ — **não acontece** (GAP-04,
+   verificado 2026-08-21): `WebhookDispatcher`/`dispatch_post_call` (`src/api/webhooks.py:15-36`)
+   não tem nenhum chamador em `src/`. Nada no fluxo real de chamada (ESL, WebSocket, workers)
+   invoca este código.
 
 ## Fluxos Alternativos
 
@@ -88,5 +91,5 @@
 ## Riscos e Lacunas
 
 - 🔴 Rate limit in-memory: reinicialização da instância zera o contador — permite burst após restart
-- 🟡 Webhook dispatcher sem confirmação de entrega (fire-and-forget)
+- 🔴 Webhook dispatcher (`WebhookDispatcher`) não é chamado por nada no código — não é "fire-and-forget sem confirmação", é **desconectado**: nenhuma chamada real dispara um webhook hoje (GAP-04)
 - 🟡 Auto-link SIP depende de Redis populado pelo ESL Client — sem fallback se Redis vazio
