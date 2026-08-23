@@ -48,3 +48,11 @@ dele, não editado direto.
 - Teste de drift (`tests/test_vars_xml_drift.py`, `ZENITH_RUN_INFRA_TESTS=1`) roda `--check`
   contra o Postgres e o `vars.xml` reais do ambiente de integração, mesmo padrão de
   `test_infra.py`/`test_chaos_restart.py` (pulado por padrão, exige stack real).
+  **Honestidade de execução (2026-08-23):** nenhum container do compose atual tem `vars.xml`
+  montado **e** rede pro Postgres ao mesmo tempo (`freeswitch` tem o arquivo, sem Python/DB;
+  `fastapi-*`/`arq-*` têm o banco, sem `freeswitch/conf` montado) — este projeto também não tem
+  CI configurado. O teste não roda sozinho em nenhum pipeline hoje; exige o mesmo bridge manual
+  (`docker compose cp` do `vars.xml` pra dentro de um container com rede pro Postgres, path
+  passado via `ZENITH_VARS_XML_PATH`) usado para validar o GAP-RE-07 real em produção. Não é
+  "smoke test automático" no sentido pleno — é o mesmo `--check` do `sync_vars_xml.py`,
+  empacotado como teste pytest para reuso do padrão de asserção, não para rodar sozinho.
