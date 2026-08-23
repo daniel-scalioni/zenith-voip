@@ -159,6 +159,81 @@ do dict de extensão para determinar a porta de destino.
      > GAP-RE-02 deveria fechar, recriado por um caminho diferente. Fechar `ringing` para ramal
      > local exigiria resolver a causa-raiz do GAP-RE-03 primeiro (tenant_id antes do dialplan
      > rodar) — fica como residual, não fechado aqui.
+     >
+     > **Plano proposto para a causa-raiz (2026-08-23, decisão do usuário: planejar, não
+     > implementar ainda).** Consultado via `/brainstorming-multiagent` — Codex CLI (`gpt-5.6-sol`,
+     > lente pragmatismo/segurança de dialplan), `opencode/nemotron-3-ultra-free` (lente
+     > arquitetura de longo prazo, substituiu `gemini-2.5-pro`/`gemini-3.1-pro-preview`,
+     > indisponíveis/sem cota no momento) e `openrouter/deepseek/deepseek-v4-flash` (lente
+     > semântica técnica do FreeSWITCH). Duas abordagens divergentes surgiram:
+     >
+     > 1. **Dialplan XML — extension separada só de `set`, reordenada antes de `local_extension`
+     >    (recomendação convergente de Codex e deepseek, veredito deste plano):**
+     >    ```xml
+     >    <extension name="zenith_call_context" continue="true">
+     >      <condition field="destination_number" expression="^(\d+)$" break="never">
+     >        <action application="set" data="zenith_call_id=${uuid}"/>
+     >        <action application="set" data="zenith_agent_extension=${sip_from_user}"/>
+     >      </condition>
+     >      <condition field="${zenith_tenant_id}" expression="^$" break="never">
+     >        <action application="set" data="zenith_tenant_id=$${tenant_id}"/>
+     >        <action application="set" data="zenith_pbx_id=$${pbx_id}"/>
+     >      </condition>
+     >    </extension>
+     >    <extension name="local_extension">
+     >      <condition field="destination_number" expression="^(1\d{3})$">
+     >        <action application="bridge" data="user/$1@$${domain}"/>
+     >      </condition>
+     >    </extension>
+     >    <extension name="zenith_upstream_bridge"> <!-- ex-zenith_audio_fork, renomeada: não
+     >      contém nenhuma ação de captura de áudio (uuid_audio_stream), o nome anterior
+     >      enganava -->
+     >      <condition field="destination_number" expression="^(\d+)$">
+     >        <action application="answer"/>
+     >        <action application="start_dtmf"/>
+     >        <action application="bridge" data="sofia/gateway/upstream-${sip_from_user}/${destination_number}"/>
+     >      </condition>
+     >    </extension>
+     >    ```
+     >    Posicionada **antes** de `local_extension`, com `continue="true"` só nela (nunca em
+     >    `local_extension`) — as variáveis são setadas **antes** do `bridge` bloquear, não
+     >    depois. deepseek identificou e descartou uma variante perigosa: `continue="true"`
+     >    direto em `local_extension` (mantendo a ordem atual) faria as variáveis serem setadas
+     >    **depois** do `bridge` retornar (bridge é bloqueante), chegando tarde demais para o
+     >    guard `if tenant_id:` do CHANNEL_ANSWER em `esl_client.py`, e ainda arriscaria um
+     >    segundo `bridge` num canal já finalizado.
+     > 2. **Lookup no ESL client (Python), sem tocar dialplan** — resolver `tenant_id` a partir
+     >    de `sip_from_user` via consulta a uma tabela `extensions`/cache Redis, em vez de
+     >    depender de variável de canal do FreeSWITCH (proposta do nemotron). **Descartada para
+     >    agora**: essa tabela `Extension → Tenant` **não existe** em `src/database/models.py` —
+     >    seria infraestrutura nova (schema + provisionamento), não um fix pontual, e hoje só há
+     >    **1 tenant em produção** (mesma limitação de `vars.xml`, ver GAP-RE-07) — resolver por
+     >    lookup dinâmico não compra nada até `GAP-PROV-01` (provisionamento dinâmico via
+     >    `mod_xml_curl`) existir de verdade.
+     >
+     > **Decisão de produto ainda pendente, descoberta durante o plano — não é só um detalhe
+     > técnico:** `_start_audio_capture()` (`esl_client.py`, comando `uuid_audio_stream`) só
+     > dispara dentro do mesmo `if tenant_id:` que cria a linha `Call` — **popular `tenant_id`
+     > para ramal local liga gravação/transcrição de chamadas internas automaticamente**, algo
+     > que hoje não acontece. Isso não é efeito colateral a ignorar: chamada ramal-a-ramal (ex:
+     > porteiro↔síndico) pode ter expectativa de privacidade diferente de chamada com morador
+     > externo. **Não decidido neste plano** — precisa ser confirmado explicitamente antes de
+     > implementar, não descoberto em produção depois do deploy.
+     >
+     > **Plano de validação antes de qualquer merge** (mesmo padrão já usado nesta sessão para
+     > GAP-RE-02/GAP-ESL-08: script Python conectado à porta ESL 8021 durante chamada real):
+     > listener capturando `CHANNEL_CREATE`/`CHANNEL_ANSWER`/`CHANNEL_HANGUP` de uma chamada
+     > 1001→1002 real, dump de `variable_zenith_call_id`/`variable_zenith_agent_extension`/
+     > `variable_zenith_tenant_id`/`variable_zenith_pbx_id` em cada evento. **PASS**: todas as 4
+     > presentes já no CHANNEL_ANSWER (não só no HANGUP — critério de deepseek para descartar
+     > timing tardio), exatamente 1 bridge local, nenhuma tentativa de bridge para
+     > `sofia/gateway/upstream-*`, áudio bidirecional inalterado, 1 única linha `Call` sem
+     > duplicação pelas duas pernas. Recomendação de deepseek: testar primeiro numa extension de
+     > prova nova (ex: `9197`, sem tocar `1\d{3}` real) antes de mexer em `local_extension`.
+     >
+     > **Não implementado.** Requer aprovação explícita do usuário para (a) a decisão de
+     > gravação/transcrição de chamadas internas acima e (b) autorização de deploy no servidor
+     > de produção (10.10.10.11), por regra permanente do AGENTS.md.
    - **CHANNEL_HANGUP**: extrai `Hangup-Cause` do evento e repassa para `finalize_call_record`,
      que classifica `completed` (causas de encerramento normal) vs `failed` (todo o resto,
      incluindo causa ausente).
