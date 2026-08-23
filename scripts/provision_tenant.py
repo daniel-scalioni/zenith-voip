@@ -16,18 +16,32 @@ Uso:
         --pbx-name "VitalPBX Akom" --pbx-host sip.maisalerta.tecnorise.com --pbx-port 7060
 
 Após rodar, use o "tenant_id" impresso (o slug depois de "tenant_", ex: "akom")
-em freeswitch/conf/vars.xml como tenant_id=<slug>, e o UUID do PBX como pbx_id.
+em freeswitch/conf/vars.xml como tenant_id=<slug>, e o UUID do PBX como pbx_id
+— ou passe --sync-vars-xml PATH para escrever isso automaticamente a partir do
+Postgres (GAP-RE-07). Opt-in: sem a flag, nada em vars.xml é tocado.
 """
 import argparse
 import asyncio
+import importlib.util
 import sys
 import uuid
+from pathlib import Path
 
 sys.path.insert(0, ".")
 
 from src.database.database import async_session_factory, create_tenant_schema
 from src.database.models import Tenant, PBX
 from sqlalchemy import delete, select
+
+
+def _load_sync_vars_xml():
+    spec = importlib.util.spec_from_file_location(
+        "zenith_sync_vars_xml", Path(__file__).parent / "sync_vars_xml.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 def _validate_restore_ids(
@@ -51,6 +65,7 @@ async def provision(
     tenant_id: uuid.UUID | None = None,
     pbx_id: uuid.UUID | None = None,
     restore: bool = False,
+    sync_vars_xml_path: Path | None = None,
 ):
     if not schema_name.startswith("tenant_"):
         raise ValueError('schema_name deve começar com "tenant_" (convenção do projeto)')
@@ -144,6 +159,14 @@ async def provision(
     print(f'  <X-PRE-PROCESS cmd="set" data="tenant_id={slug}"/>')
     print(f'  <X-PRE-PROCESS cmd="set" data="pbx_id={resolved_pbx_id}"/>')
 
+    if sync_vars_xml_path is not None:
+        sync_vars_xml = _load_sync_vars_xml()
+        changed = await sync_vars_xml.sync(schema_name, sync_vars_xml_path, check_only=False)
+        if changed:
+            print(f"\n{sync_vars_xml_path} atualizado automaticamente (--sync-vars-xml).")
+        else:
+            print(f"\n{sync_vars_xml_path} já estava sincronizado.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -155,6 +178,15 @@ if __name__ == "__main__":
     parser.add_argument("--tenant-id", type=uuid.UUID, help="UUID preservado no modo restore")
     parser.add_argument("--pbx-id", type=uuid.UUID, help="UUID preservado no modo restore")
     parser.add_argument("--restore", action="store_true", help="Preservar UUIDs durante restore")
+    parser.add_argument(
+        "--sync-vars-xml",
+        type=Path,
+        default=None,
+        help=(
+            "Opt-in: escreve tenant_id/pbx_id neste vars.xml automaticamente "
+            "(GAP-RE-07). Sem esta flag, só imprime as instruções manuais."
+        ),
+    )
     args = parser.parse_args()
 
     asyncio.run(
@@ -167,5 +199,6 @@ if __name__ == "__main__":
             tenant_id=args.tenant_id,
             pbx_id=args.pbx_id,
             restore=args.restore,
+            sync_vars_xml_path=args.sync_vars_xml,
         )
     )

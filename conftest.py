@@ -29,5 +29,5 @@ def pytest_collection_modifyitems(items):
         return
     skip = pytest.mark.skip(reason="requer stack de integração (ZENITH_RUN_INFRA_TESTS=1)")
     for item in items:
-        if item.path.name in {"test_infra.py", "test_chaos_restart.py"}:
+        if item.path.name in {"test_infra.py", "test_chaos_restart.py", "test_vars_xml_drift.py"}:
             item.add_marker(skip)

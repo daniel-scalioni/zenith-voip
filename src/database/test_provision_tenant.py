@@ -324,3 +324,50 @@ async def test_real_boundary_failure_leaves_no_tenant_pbx_or_schema(
 
     # Assert
     assert (tenant_count, pbx_count, schema_count) == (0, 0, 0)
+
+
+# --- --sync-vars-xml (GAP-RE-07): opt-in, chama scripts/sync_vars_xml.py::sync ---
+
+
+class _FakeSyncVarsXmlModule:
+    def __init__(self, changed: bool = True):
+        self.calls = []
+        self._changed = changed
+
+    async def sync(self, schema_name, vars_xml_path, *, check_only):
+        self.calls.append((schema_name, vars_xml_path, check_only))
+        return self._changed
+
+
+@pytest.mark.asyncio
+async def test_sync_vars_xml_path_none_never_touches_vars_xml(monkeypatch):
+    # Arrange
+    session = FakeSession()
+    _install_ports(monkeypatch, session)
+    fake_module = _FakeSyncVarsXmlModule()
+    monkeypatch.setattr(provision_tenant, "_load_sync_vars_xml", lambda: fake_module)
+
+    # Act
+    await provision_tenant.provision("Normal", "tenant_normal2", "PBX", "pbx.invalid", 5060)
+
+    # Assert
+    assert fake_module.calls == []
+
+
+@pytest.mark.asyncio
+async def test_sync_vars_xml_path_set_calls_sync_with_schema_and_path(monkeypatch, tmp_path):
+    # Arrange
+    session = FakeSession()
+    _install_ports(monkeypatch, session)
+    fake_module = _FakeSyncVarsXmlModule(changed=True)
+    monkeypatch.setattr(provision_tenant, "_load_sync_vars_xml", lambda: fake_module)
+    vars_xml_path = tmp_path / "vars.xml"
+
+    # Act
+    await provision_tenant.provision(
+        "Akom", "tenant_akom2", "PBX", "pbx.invalid", 5060,
+        sync_vars_xml_path=vars_xml_path,
+    )
+
+    # Assert
+    assert fake_module.calls == [("tenant_akom2", vars_xml_path, False)]
