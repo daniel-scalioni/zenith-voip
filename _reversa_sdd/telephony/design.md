@@ -231,9 +231,15 @@ do dict de extensão para determinar a porta de destino.
      > duplicação pelas duas pernas. Recomendação de deepseek: testar primeiro numa extension de
      > prova nova (ex: `9197`, sem tocar `1\d{3}` real) antes de mexer em `local_extension`.
      >
-     > **Não implementado.** Requer aprovação explícita do usuário para (a) a decisão de
-     > gravação/transcrição de chamadas internas acima e (b) autorização de deploy no servidor
-     > de produção (10.10.10.11), por regra permanente do AGENTS.md.
+     > **Implementado no código (2026-08-24).** Usuário confirmou (a): ramais de condomínio
+     > devem sim ser gravados/transcritos — a decisão de privacidade que bloqueava o plano foi
+     > resolvida. Extension `zenith_call_context` adicionada em
+     > `freeswitch/conf/dialplan/default.xml`, exatamente na estrutura desta seção (Codex +
+     > deepseek convergentes), sem renomear `zenith_audio_fork` (preserva `test_trunk_dialplan.py`
+     > intacto) — cobertura nova em `tests/test_local_extension_dialplan.py`. **(b) segue
+     > pendente**: nenhum deploy em produção (10.10.10.11) foi feito, nem a validação com chamada
+     > real (1001→1002) via ESL ao vivo prevista acima — o código só está em `main`, não em
+     > produção. Ver GAP-RE-03 em `gaps.md`.
    - **CHANNEL_HANGUP**: extrai `Hangup-Cause` do evento e repassa para `finalize_call_record`,
      que classifica `completed` (causas de encerramento normal) vs `failed` (todo o resto,
      incluindo causa ausente).

@@ -18,7 +18,7 @@ ringing ──→ in_progress ──→ completed
 
 | Estado | Descrição |
 |--------|-----------|
-| `ringing` | Estado inicial — a linha `Call` **nasce** aqui, no CHANNEL_CREATE, **somente** quando `variable_zenith_tenant_id` já vem no evento (var de canal injetada pelo diretório dinâmico, hoje só para tronco ATA). Ramal local (`local_extension`/`echo_test`) nunca seta essa var em nenhum evento do ciclo de vida — continua sem linha `ringing`, residual do GAP-RE-03 |
+| `ringing` | Estado inicial — a linha `Call` **nasce** aqui, no CHANNEL_CREATE, **somente** quando `variable_zenith_tenant_id` já vem no evento (var de canal injetada pelo diretório dinâmico, hoje só para tronco ATA). Ramal local de condomínio (`local_extension`) passou a setar `zenith_tenant_id` também (GAP-RE-03 implementado em 2026-08-24, extension `zenith_call_context`) — mas via `set` no dialplan, que **presumivelmente** executa **depois** do CHANNEL_CREATE disparar (leitura de semântica FreeSWITCH, não observada em captura real), então continuaria sem linha `ringing` nesse caminho. 🟡 **Não confirmado** — a validação com chamada real 1001→1002 planejada para este gap (ver `gaps.md`/GAP-RE-03) vai dumpar `variable_zenith_tenant_id` no CREATE também, não só no ANSWER, e resolver isso em definitivo. Se o CREATE já carregar a variável, o caminho de condomínio ganha `ringing` de graça e esta linha deve ser corrigida. Até lá, pula direto pra `in_progress` no ANSWER, mesmo fallback que qualquer chamada onde `mark_call_in_progress` não acha o que promover |
 | `in_progress` | CHANNEL_ANSWER promove a linha `ringing` existente; se nenhuma existir (tenant não resolvido no CREATE), cria diretamente em `in_progress` — mesmo comportamento de fallback de antes da correção |
 | `completed` | CHANNEL_HANGUP com `Hangup-Cause` classificada como encerramento normal (`NORMAL_CLEARING`, `NORMAL_UNSPECIFIED`) |
 | `failed` | CHANNEL_HANGUP com `Hangup-Cause` fora do conjunto de encerramento normal (`NO_ANSWER`, `USER_BUSY`, `CALL_REJECTED`, `ORIGINATOR_CANCEL`, causa ausente/desconhecida, etc.) — cobre tanto chamada que nunca foi atendida (ainda `ringing`) quanto chamada que caiu no meio (`in_progress`) |
@@ -42,8 +42,12 @@ ringing ──→ in_progress ──→ completed
    bridgeada, e a perna B (`outbound`) nunca carrega tenant_id de verdade; sem o guard, um
    fallback teria criado uma linha `ringing` órfã por chamada bridgeada (achado e corrigido em
    2026-08-21, antes do merge, com evento real do FreeSWITCH). Um fallback via `global_getvar`
-   para cobrir ramal local também foi tentado e **removido** pelo mesmo motivo: ramal local nunca
-   seta `zenith_*` em nenhum evento do ciclo de vida, então a linha ficaria órfã do mesmo jeito.
+   no **lado Python** (`esl_client.py`) para cobrir ramal local também foi tentado e **removido**
+   pelo mesmo motivo — ramal local não setava `zenith_*` em evento nenhum naquele momento, então
+   a linha ficaria órfã. Isso mudou: GAP-RE-03 (2026-08-24) resolveu pelo **lado do dialplan**
+   (extension `zenith_call_context`), não repetindo o fallback Python revertido — ramal local
+   agora seta `zenith_tenant_id` de verdade no ANSWER/HANGUP. Se isso chega a tempo do CREATE
+   também é 🟡 não confirmado — ver nota da tabela de estados acima.
 2. `finalize_call_record` agora recebe `Hangup-Cause` do evento e classifica `completed` vs
    `failed` — deixa de assumir sempre `completed`.
 3. `*88` (manual linkage) continua **sem** gerar linha `Call` — é sinal interno, não chamada real.

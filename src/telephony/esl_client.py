@@ -230,12 +230,17 @@ class ESLClient:
             return
 
         # Tronco ATA já chega com zenith_tenant_id/pbx_id injetados pelo diretório dinâmico
-        # (mod_xml_curl) — só nesse caso dá pra criar a linha aqui com segurança. Ramal local
-        # (local_extension/echo_test) não passa pelo zenith_audio_fork e nunca seta zenith_*,
-        # nem no ANSWER/HANGUP; resolver tenant via fallback global só no CREATE criaria uma
-        # linha `ringing` que ANSWER/HANGUP nunca encontrariam de novo (mesmo tenant_id ausente
-        # dos dois lados) — ficaria órfã para sempre. Fica como residual do GAP-RE-03 (chamada
-        # sem tenant_id no dialplan), não fechado aqui.
+        # (mod_xml_curl, resolvido no REGISTER/directory fetch, antes do CHANNEL_CREATE) — só
+        # nesse caso dá pra criar a linha aqui com segurança. Ramal local (condomínio, GAP-RE-03
+        # implementado em 2026-08-24 via extension zenith_call_context) também passa a setar
+        # zenith_tenant_id, mas via `set` no dialplan — que PRESUMIVELMENTE só executa depois do
+        # CHANNEL_CREATE disparar (leitura de semântica FreeSWITCH, ainda não confirmada com
+        # captura real — ver validação pendente em gaps.md/GAP-RE-03). Se essa leitura estiver
+        # certa, `_handle_channel_answer` (abaixo) encontra normalmente (dialplan já rodou por
+        # completo) e cai no fallback `create_call_record` direto, sem `ringing` intermediário —
+        # mesmo caminho que qualquer chamada onde `mark_call_in_progress` não encontra linha pra
+        # promover. Se a validação mostrar que o CREATE já carrega a variável, este guard passa a
+        # criar `ringing` também para ramal local e este comentário deve ser atualizado.
         tenant_id = event.get("variable_zenith_tenant_id", "") or ""
         if not tenant_id:
             return
