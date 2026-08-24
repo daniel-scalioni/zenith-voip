@@ -25,11 +25,11 @@ services:
     volumes:
       - zenith_postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=zenith_candidate
-      - POSTGRES_PASSWORD=${ZENITH_CANDIDATE_POSTGRES_PASSWORD:?defina ZENITH_CANDIDATE_POSTGRES_PASSWORD}
-      - POSTGRES_DB=zenith_candidate
+      - POSTGRES_USER=zenith
+      - POSTGRES_PASSWORD=${ZENITH_POSTGRES_PASSWORD:?defina ZENITH_POSTGRES_PASSWORD}
+      - POSTGRES_DB=zenith
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zenith_candidate -d zenith_candidate"]
+      test: ["CMD-SHELL", "pg_isready -U zenith -d zenith"]
       interval: 10s
       timeout: 5s
       retries: 5
