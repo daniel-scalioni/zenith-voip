@@ -5,7 +5,7 @@ from sqlalchemy import text
 from src.database.models import Base, TenantBase
 from src.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
+engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG, pool_pre_ping=True)
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 _TENANT_SCHEMA_PATTERN = re.compile(r"^tenant_[a-z0-9_]+$")
 
