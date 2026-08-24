@@ -2,7 +2,10 @@
 <include>
   <context name="default">
 
-    <!-- Teste de eco: disque 9196 para confirmar que o registro está funcionando -->
+    <!-- Teste de eco: disque 9196 para confirmar que o registro está funcionando. Fica ANTES de
+         zenith_call_context (sem break/continue entre eles) e responde/encerra sozinha, então
+         9196 nunca ganha zenith_* nem é gravada — comportamento intencional, é diagnóstico de
+         rede, não chamada de condomínio (GAP-RE-03, 2026-08-24). -->
     <extension name="echo_test">
       <condition field="destination_number" expression="^9196$">
         <action application="answer"/>
@@ -10,7 +13,28 @@
       </condition>
     </extension>
 
-    <!-- Chamadas entre ramais registrados localmente -->
+    <!-- Contexto Zenith para ramal local (GAP-RE-03, 2026-08-24): ramais de condomínio
+         (1\d{3}, bridge direto em local_extension) não passavam por nenhuma extension que
+         setasse zenith_*, então nenhuma chamada ramal-a-ramal gerava linha Call nem era
+         gravada/transcrita. continue="true" aqui NÃO bridgeia nem responde a chamada — só seta
+         variável e deixa o dialplan seguir procurando. Precisa vir ANTES de local_extension:
+         bridge é bloqueante, então setar as variáveis depois (ex: continue="true" direto em
+         local_extension, correndo esta lógica só depois do bridge retornar) as populariam tarde
+         demais para o guard do CHANNEL_ANSWER em esl_client.py. Mesma lógica de guarda de
+         zenith_audio_fork (linhas abaixo), duplicada aqui de propósito: não pode virar helper
+         compartilhado sem reordenar zenith_audio_fork também, fora do escopo deste fix. -->
+    <extension name="zenith_call_context" continue="true">
+      <condition field="destination_number" expression="^(\d+)$" break="never">
+        <action application="set" data="zenith_call_id=${uuid}"/>
+        <action application="set" data="zenith_agent_extension=${sip_from_user}"/>
+      </condition>
+      <condition field="${zenith_tenant_id}" expression="^$" break="never">
+        <action application="set" data="zenith_tenant_id=$${tenant_id}"/>
+        <action application="set" data="zenith_pbx_id=$${pbx_id}"/>
+      </condition>
+    </extension>
+
+    <!-- Chamadas entre ramais registrados localmente (condomínio) -->
     <extension name="local_extension">
       <condition field="destination_number" expression="^(1\d{3})$">
         <action application="bridge" data="user/$1@$${domain}"/>

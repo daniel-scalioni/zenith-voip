@@ -338,11 +338,13 @@ async def test_channel_create_skips_ringing_record_for_outbound_leg(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_channel_create_skips_ringing_record_for_local_extension_without_zenith_vars(monkeypatch):
-    # Arrange: regressão real (2026-08-21) — ramal ligando pra outro ramal interno
-    # (local_extension, ^1\d{3}$) ou pro echo_test (9196) nunca passa por zenith_audio_fork,
-    # então nunca seta variable_zenith_tenant_id em NENHUM evento do ciclo de vida (nem
-    # CREATE, nem ANSWER, nem HANGUP) — criar `ringing` aqui via fallback deixaria a linha
-    # órfã para sempre, já que nada depois consegue encontrá-la de volta
+    # Arrange: mesmo depois do fix do GAP-RE-03 (2026-08-24, extension zenith_call_context),
+    # CHANNEL_CREATE continua sem variable_zenith_tenant_id para ramal local — a extension seta
+    # via `set` no dialplan, que só executa DEPOIS do CREATE disparar. ANSWER/HANGUP já carregam
+    # a variável (dialplan já rodou por completo a essa altura); só o estado `ringing`
+    # intermediário não existe pra esse caminho — cai direto em `create_call_record` no ANSWER.
+    # Criar `ringing` aqui via fallback deixaria a linha órfã para sempre, já que nada depois
+    # consegue encontrá-la de volta no mesmo call_id antes do dialplan terminar
     client = esl_client.ESLClient()
     create_ringing = AsyncMock()
     monkeypatch.setattr(esl_client, "create_ringing_call_record", create_ringing)
