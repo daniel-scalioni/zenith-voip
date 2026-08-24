@@ -70,8 +70,8 @@
 | ID | Descrição | Dependências | Paralelismo | Arquivo alvo | Confidência | Status |
 |----|-----------|--------------|-------------|--------------|-------------|--------|
 | T034 | Instrumentar métricas/logs adicionais (chamadas transcritas, falhas, tamanho da fila `zenith:transcript`, mesmo padrão de `set_smb_queue_size`) | T029 | `[//]` | `src/utils/telemetry.py`, `src/workers/transcript_batch.py` | 🟢 | `[X]` |
-| T035 | Atualizar o épico marcando F1 implementada e contexto herdado para F2+ | T036 | - | `_reversa_sdd/ai/epico-2-qualidade-atendimento.md` | 🟢 | [ ] |
-| T036 | Após gates e advisor, validar chamada real: `.md` ao lado do `.wav`, `Transcript` no banco | T031, T032, T033, T037, T038 | - | `_reversa_forward/013-transcricao-persistida/onboarding.md` | 🟢 | [ ] |
+| T035 | Atualizar o épico marcando F1 implementada e contexto herdado para F2+ | T036 | - | `_reversa_sdd/ai/epico-2-qualidade-atendimento.md` | 🟢 | [X] |
+| T036 | Após gates e advisor, validar chamada real: `.md` ao lado do `.wav`, `Transcript` no banco | T031, T032, T033, T037, T038 | - | `_reversa_forward/013-transcricao-persistida/onboarding.md` | 🟢 | [X] |
 | T037 | Rodar `pytest -v tests src` e cobertura canônica ≥80% antes de rollout | T031, T032, T033, T034 | - | `progress.jsonl` | 🟢 | [X] |
 | T038 | Obter parecer independente sobre bordas/viés antes de rollout; registrar e corrigir bloqueantes | T037 | - | `_reversa_forward/013-transcricao-persistida/test-bias-verdict.md` | 🟢 | [X] |
 
