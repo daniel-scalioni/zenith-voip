@@ -32,12 +32,22 @@ def test_canonical_compose_preserves_promoted_postgres_cutover():
         "name": "zenith-postgres-data",
         "external": True,
     }
-    assert "POSTGRES_USER=zenith_candidate" in postgres["environment"]
-    assert "POSTGRES_DB=zenith_candidate" in postgres["environment"]
+    # GAP-31 (2026-08-24): POSTGRES_USER/DB aqui tinham ficado em "zenith_candidate" — resíduo
+    # de antes do rename do ADR-012. Isso é só o bootstrap do initdb (sem efeito em volume já
+    # populado), mas causou dessincronia real: numa reinicialização de volume vazio, o cluster
+    # teria sido inicializado com um role/banco diferente do que o DATABASE_URL da aplicação
+    # espera (zenith/zenith) — e de fato foi o que aconteceu em produção em 2026-08-20 quando o
+    # volume foi recriado, gerando um role/banco "zenith_candidate" órfão e superusuário, sem
+    # nenhuma consumidora, com dados legados obsoletos (mesma assinatura do GAP-28: 12 chamadas
+    # até 2026-08-01, 0 transcrições). Este teste antes afirmava o valor errado como esperado —
+    # por isso a dessincronia nunca foi pega. Corrigido para bater com o DATABASE_URL real.
+    assert "POSTGRES_USER=zenith" in postgres["environment"]
+    assert "POSTGRES_DB=zenith" in postgres["environment"]
     assert (
-        "POSTGRES_PASSWORD=${ZENITH_CANDIDATE_POSTGRES_PASSWORD:?defina "
-        "ZENITH_CANDIDATE_POSTGRES_PASSWORD}"
+        "POSTGRES_PASSWORD=${ZENITH_POSTGRES_PASSWORD:?defina "
+        "ZENITH_POSTGRES_PASSWORD}"
     ) in postgres["environment"]
+    assert postgres["healthcheck"]["test"] == ["CMD-SHELL", "pg_isready -U zenith -d zenith"]
     assert database_urls
     assert all(
         url == "DATABASE_URL=${DATABASE_URL:?defina DATABASE_URL com a senha URL-encoded}"
